@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="public/images/logo-sirus.png" width="200" alt="siRUS Logo">
+  <img src="public/images/Logo%20Horizontal.png" width="240" alt="SIAP Logo">
 </p>
 
 <p align="center">
-  <strong>siRUS – Sistem Informasi Rumah Sakit</strong><br>
-  Sistem informasi rumah sakit berbasis web menggunakan Laravel.
+  <strong>SIAP – Sistem Informasi Aset &amp; Pegawai</strong><br>
+  Aplikasi web untuk absensi pegawai dan pengelolaan aset/alat rumah sakit.
 </p>
 
 <p align="center">
@@ -17,110 +17,112 @@
 
 ---
 
-## Hierarki Role
+## Tentang SIAP
 
-`Admin` adalah super user dan dapat melihat seluruh program. Di bawahnya terdapat dua jalur manajerial (**Umum** & **Medis**), ditambah `Casemix` sebagai role **lintas administrasi–medis**.
+**SIAP (Sistem Informasi Aset & Pegawai)** membantu unit kepegawaian (HRD) dan IPSRS mengelola
+kehadiran pegawai serta inventaris, kalibrasi, pemeliharaan, dan perbaikan alat medis & non medis.
+Identitas instansi (logo, nama, alamat) dapat diatur dari aplikasi dan dipakai di kop cetakan.
 
-```
-Admin  (super user — akses seluruh program)
-│
-├── Manager Umum
-│   │
-│   ├── Supervisor Penunjang
-│   │   ├── Gizi
-│   │   ├── Apoteker
-│   │   ├── Laboratorium
-│   │   └── Radiologi
-│   │
-│   └── Supervisor Tu
-│       ├── Tu
-│       ├── Gudang Obat
-│       └── Gudang Non Medis
-│
-├── Manager Medis
-│   │
-│   └── Mr  (Rekam Medis — kelengkapan data medis;
-│       │  titik eskalasi koreksi dari Dokter / Perawat)
-│       ├── Dokter
-│       └── Perawat
-│
-└── Casemix  ↔  lintas administrasi + medis
-    (verifikasi klaim & koding diagnosis — berkoordinasi
-     ke Manager Umum maupun Manager Medis)
-```
+Dibangun dengan **Laravel 12** dan **Livewire v4**, menggunakan **Oracle Database** sebagai backend,
+serta **Tailwind CSS + Flowbite (UI only)** dan **Alpine.js** untuk tampilan.
 
-**Peran khusus:**
+---
 
-- **Mr (Rekam Medis)** — bertanggung jawab atas kelengkapan data medis. Bila Dokter atau Perawat melakukan kesalahan entry/dokumentasi, eskalasi koreksi dilakukan melalui Mr.
-- **Casemix** — bekerja lintas jalur: sisi administrasi (klaim BPJS, billing) dan sisi medis (verifikasi koding diagnosis / iDRG). Karena itu Casemix tidak ditempatkan eksklusif di bawah Manager Umum atau Manager Medis, melainkan berkoordinasi ke keduanya.
+## Fitur
 
-| Level | Role |
+### Absensi
+- **Jadwal Dinas** — jadwal masuk kerja bulanan (P / S / M / I / C) + cetak
+- **Kiosk Absensi** — layar absen masuk/pulang, ketik/scan ID karyawan
+- **Rekap Harian** — kehadiran per tanggal + isi Izin/Sakit/Cuti/Alpa, termasuk lembur
+- **Rekap Bulanan** — jumlah H/T/I/S/C/A per karyawan per bulan
+
+### Aset
+- **Inventaris Alat** — alat medis & non medis per ruang + status kalibrasi
+- **Jadwal Kalibrasi** — program kalibrasi tahunan alat (MFK 7) + cetak PDF
+- **Pemeliharaan Alat** — entry & riwayat pemeriksaan harian/mingguan (B / P / R) + cetak checklist
+- **Perbaikan Alat** — lapor kerusakan & proses perbaikan (teknisi / vendor) + laporan
+
+### Master
+- Karyawan (penanda nakes, status aktif, shift default), Shift, Ruang/Unit
+
+### Sistem
+- Identitas Instansi, User Control, Role Control (Spatie Permission)
+- Panduan penggunaan Absensi & Aset untuk semua user
+
+---
+
+## Role
+
+Menu ditampilkan sesuai role (definisi tunggal di `app/Services/AppMenu.php`).
+
+| Role | Akses |
 |---|---|
-| **4 — Super User** | Admin |
-| **3 — Manager** | Manager Umum, Manager Medis |
-| **2 — Supervisor** | Supervisor Penunjang, Supervisor Tu, Mr, Casemix *(lintas administrasi–medis)* |
-| **1 — Fungsional** | Gizi, Apoteker, Laboratorium, Radiologi, Tu, Gudang Obat, Gudang Non Medis, Dokter, Perawat |
-
-> Akses default: setiap role melihat data milik unitnya sendiri. Atasan dapat melihat data seluruh role yang berada di bawah cabangnya. Casemix — meski berada di level supervisor — bekerja lintas jalur sehingga punya akses ke data dari sisi administrasi & medis sesuai kebutuhan klaim dan koding.
-
----
-
-## Tentang siRUS
-
-**siRUS (Sistem Informasi Rumah Sakit)** adalah aplikasi berbasis web untuk membantu pengelolaan operasional rumah sakit secara terintegrasi, efisien, dan aman.
-
-Aplikasi ini dibangun dengan **Laravel 12** dan **Livewire v4**, menggunakan **Oracle Database** sebagai backend utama, serta **Tailwind CSS + Flowbite (UI only)** untuk tampilan modern.
+| **admin** | Semua menu |
+| **manager umum**, **manager medis**, **supervisor penunjang**, **supervisor tu** | Menu Master |
+| **hrd** | Jadwal Dinas, Kiosk, Rekap Harian & Bulanan, Master Shift |
+| **ipsrs** | Inventaris, Kalibrasi, Pemeliharaan, Perbaikan, Master Ruang |
+| **kepala ruang** | Jadwal Dinas, Pemeliharaan & Perbaikan Alat |
+| **kiosk** | Layar Kiosk Absensi saja |
+| *semua user* | Panduan |
 
 ---
 
-## Fitur Utama
+## Teknologi
 
-- Manajemen data pasien
-- Manajemen pengguna, role & permission
-- Autentikasi & otorisasi (Laravel Breeze)
-- Dashboard interaktif berbasis Livewire
-- Export & import data (Excel)
-- Generate laporan PDF
-- Integrasi Oracle Database (OCI8)
-- UI modern berbasis Tailwind + Flowbite
-
----
-
-## Teknologi yang Digunakan
-
-### Backend
-- Laravel 12
-- PHP 8.2
-- Livewire v4
-- Oracle Database (OCI8)
-
-### Frontend
-- Tailwind CSS
-- Alpine.js
-- Flowbite (UI styling only, tanpa JS Flowbite)
-- TinyMCE 8 GPL (rich-text editor + table support — lihat `docs/tinymce-editor-pattern.md`)
-
-### Lainnya
-- Laravel Breeze (Blade + Alpine)
-- DomPDF (PDF)
-- Maatwebsite Excel
-- Spatie Permission
+- **Backend:** Laravel 12, PHP 8.2, Livewire v4, Oracle (yajra/laravel-oci8)
+- **Frontend:** Tailwind CSS, Alpine.js, Flowbite (styling saja), TinyMCE, Toastr
+- **Lainnya:** Laravel Breeze, DomPDF, Spatie Permission, milon/barcode
 
 ---
 
 ## Kebutuhan Sistem
 
-- PHP >= 8.2
+- PHP >= 8.2 dengan ekstensi OCI8
+- Oracle Instant Client 21.x+
 - Composer
 - Node.js & NPM
-- Oracle Instant Client 21.x+
-- Web Server (Apache / Nginx)
+- Web server (Apache / Nginx)
 
 ---
 
 ## Instalasi
 
-### 1. Clone Repository
 ```bash
-git clone https://github.com/username/sirus.git
-cd sirus
+git clone https://github.com/aturapi-data-tech/siap-php82.git
+cd siap-php82
+
+composer install
+npm install
+
+cp .env.example .env
+php artisan key:generate
+```
+
+Isi koneksi Oracle dan identitas instansi di `.env` (`DB_HOST`, `DB_SERVICE_NAME`, `DB_USERNAME`,
+`DB_PASSWORD`, `IDENTITAS_*`), lalu:
+
+```bash
+php artisan migrate
+php artisan db:seed --class=ShiftDefaultSeeder
+php artisan db:seed --class=RuangDefaultSeeder
+php artisan storage:link
+
+npm run build      # atau: npm run dev
+php artisan serve
+```
+
+> Tabel aplikasi memakai prefix `SIAPMST_` (master) dan `SIAPTXN_` (transaksi).
+> Seeder `Dummy*` hanya untuk data contoh di lingkungan pengembangan.
+
+---
+
+## Dokumentasi
+
+Pola komponen & arsitektur ada di folder [`docs/`](docs/). Skill AI (Claude Code) ada di
+`.claude/skills/` — indeksnya di [`docs/skills-index.md`](docs/skills-index.md).
+
+---
+
+## Lisensi
+
+[MIT](LICENSE)

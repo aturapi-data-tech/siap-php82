@@ -265,7 +265,7 @@ Pola Level 3 yang terstandar:
 | **Master-detail hierarkis** | Data induk-anak dikelola satu layar | keluarga `master-kamar` (bangsal→kamar→bed), `master-laborat` (clab→clabitem), `master-interaksi-obat` (hdr→dtl) |
 | | Aturan: namespace event bersama + verb spesifik (`master.kamar.openCreateBangsal`), child list embedded tanpa `x-page-title`/frame penuh | |
 | **Form bertab** | Field sangat banyak, multi-section | `master-pasien` (Alpine `activeTab` + partial) |
-| **Single-file integrasi** | Bukan CRUD murni; sinkronisasi API eksternal | `setup-jadwal-bpjs`, `registrasi-aplicares-sirs` — trait API ikut `trait-template-api-eksternal.md` |
+| **Single-file integrasi** | Bukan CRUD murni; sinkronisasi API eksternal | `setup-jadwal-bpjs`, `registrasi-aplicares-sirs` |
 
 Di luar tiga varian ini, WAJIB ikut pola §1–§7.
 

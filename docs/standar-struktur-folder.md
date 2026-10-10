@@ -6,7 +6,6 @@ programmer lama tidak perlu memutuskan ulang tiap kali menambah modul.
 
 Dokumen ini **melengkapi**, bukan menggantikan:
 - `docs/standar-master-module.md` — isi & anatomi modul master (2 file `⚡list` + `⚡actions`)
-- `docs/modul-dokumen-ri-pattern.md` — isi modul dokumen bertanda tangan
 - `docs/page-frame-pattern.md`, `docs/standar-ui-komponen.md` — markup di dalam berkas
 
 Di sini kita hanya bicara **pohon direktori dan nama berkas**.
@@ -356,7 +355,7 @@ dibentuk cuma 4 kelompok (+ `Downtime/` yang sudah ada), bukan satu folder per d
 
 | Sub-namespace | Isi | Penghuni |
 |---|---|---|
-| `Clause/` (6) | teks legal berversi (lihat `docs/clause-versioning.md`) | `GeneralConsentClause`, `AkhirHayatClause`, `KerohanianClause`, `PenjaminanClause`, `PenolakanObatClause`, `SuratKematianClause` |
+| `Clause/` (6) | teks legal berversi | `GeneralConsentClause`, `AkhirHayatClause`, `KerohanianClause`, `PenjaminanClause`, `PenolakanObatClause`, `SuratKematianClause` |
 | `Options/` (9) | daftar opsi & skala formulir EMR | `NyeriOptions`, `GiziOptions`, `AkhirHayatOptions`, `PraAnestesiOptions`, `SafetyPlanOptions`, `PermintaanDarahOptions`, `DischargePlanningOptions`, `EdukasiTerintegrasiOptions`, `SurveilansHaisOptions` |
 | `Terminologi/` (8) | pemetaan kode standar (SNOMED/KFA/LOINC/ICD/FHIR) | `AlergiSnomed`, `ObatKfa`, `RacikanKfa`, `MedicationRequestItem`, `PenilaianObservationMap`, `ObservasiLanjutanMap`, `DischargeDisposition`, `KodeIm` |
 | `GajiDokter/` (2) | modul slip gaji dokter | `GajiDokter`, `GajiDokterLampiran` |
@@ -526,7 +525,6 @@ kejadian, dan bikin daftar temuan turun 27 → 16 → 10):
 | Apa | Di mana |
 |---|---|
 | Anatomi isi modul master | `docs/standar-master-module.md` |
-| Anatomi modul dokumen bertanda tangan | `docs/modul-dokumen-ri-pattern.md`, skill `modul-dokumen` |
 | Frame halaman & tabel full-height | `docs/page-frame-pattern.md` |
 | Komponen UI & tombol | `docs/standar-ui-komponen.md`, `docs/standar-komponen-tombol.md` |
 | Konvensi penamaan variable/method & `use` | skill `naming-conventions` |

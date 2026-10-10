@@ -96,4 +96,3 @@ Preseden pola benar yang sudah lama ada:
 ## Terkait
 
 - `livewire-input-patterns` §8 — jangan pasang wire:key dinamis pada input search (kebalikan kasus ini).
-- `administrasi-transaksi` — renderKey dipakai justru untuk memaksa remount input setelah simpan.

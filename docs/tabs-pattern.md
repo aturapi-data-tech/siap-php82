@@ -137,7 +137,7 @@ new class extends Component {
 | Pakai untuk | Sub-komponen **ringan** (form dokumen) | Komponen **berat** (list + query + `wire:poll`) |
 | Contoh | **modul-dokumen** (`modul-dokumen-ri`, sub-form di modal) | **model kasir** (apotek/kasir/casemix) |
 
-Beda dari **modul-dokumen** (lihat `docs/modul-dokumen-ri-pattern.md`): di sana hub membuka **dokumen
+Beda dari **modul-dokumen**: di sana hub membuka **dokumen
 bertanda tangan** (komponen ringan, khusus hub itu, di **modal**, tab **Alpine x-show** — semua mounted).
 Model kasir mengkompose **halaman list standalone** (berat, ber-`wire:poll`) sebagai **halaman penuh**,
 tab **server @if** (lazy) → konsekuensinya filter anak ter-reset saat ganti tab → wajib `#[Session]` (bawah).
