@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="96" viewBox="0 0 320 96" role="img" aria-label="SIAP">
+  <!-- Ikon: papan clipboard dengan tanda centang (absensi & checklist aset) -->
+  <rect x="8" y="8" width="80" height="80" rx="18" fill="#0f766e"/>
+  <rect x="28" y="22" width="40" height="52" rx="6" fill="#ffffff"/>
+  <rect x="38" y="17" width="20" height="10" rx="3" fill="#99f6e4"/>
+  <path d="M36 49 l8 8 l16 -17" fill="none" stroke="#0f766e" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Tulisan -->
+  <text x="104" y="60" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="46" font-weight="800" letter-spacing="2" fill="#0f766e">SIAP</text>
+  <text x="106" y="80" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#64748b">Aset &amp; Pegawai</text>
+</svg>

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/images/Logo%20Horizontal.png" width="240" alt="SIAP Logo">
+  <img src="public/images/logo-siap.svg" width="320" alt="SIAP Logo">
 </p>
 
 <p align="center">
