@@ -11,13 +11,13 @@
     'showGaris' => true,
 ])
 @php
-    $idt = \App\Support\Identitas::get();
-    $namaRs ??= $idt->nama;
+    $identitas = \App\Support\Identitas::get();
+    $namaRs ??= $identitas->nama;
     $alamat ??= \App\Support\Identitas::alamatLengkap();
-    $telp ??= $idt->telp;
-    $fax ??= $idt->fax;
-    $website ??= $idt->website;
-    $email ??= $idt->email;
+    $telp ??= $identitas->telp;
+    $fax ??= $identitas->fax;
+    $website ??= $identitas->website;
+    $email ??= $identitas->email;
     $logoPath = \App\Support\Identitas::logoPath();
     $kontak = collect([
         filled($telp) ? 'Telp. ' . $telp : null,

@@ -146,7 +146,7 @@ new class extends Component {
     public function contohCetak()
     {
         Identitas::lupakan();
-        $pdf = Pdf::loadView($this->printView, ['idt' => Identitas::get(), 'dicetak' => now(), 'oleh' => auth()->user()?->name])->setPaper('A4');
+        $pdf = Pdf::loadView($this->printView, ['identitas' => Identitas::get(), 'dicetak' => now(), 'oleh' => auth()->user()?->name])->setPaper('A4');
 
         return response()->streamDownload(fn() => print $pdf->output(), 'contoh-kop-identitas.pdf');
     }

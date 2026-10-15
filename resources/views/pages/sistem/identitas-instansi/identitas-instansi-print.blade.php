@@ -4,7 +4,7 @@
 
 <head>
     <meta charset="utf-8">
-    <title>Contoh Kop — {{ $idt->nama }}</title>
+    <title>Contoh Kop — {{ $identitas->nama }}</title>
     <style>
         @page { size: A4; margin: 28px 40px 34px 40px; }
         body { font-family: sans-serif; font-size: 11px; color: #111; }
@@ -29,15 +29,15 @@
     <h1>PROFIL INSTANSI</h1>
 
     <table class="isi">
-        <tr><td class="lbl">Nama Instansi</td><td>{{ $idt->nama }}</td></tr>
-        @if ($idt->nama_singkat)<tr><td class="lbl">Nama Singkat</td><td>{{ $idt->nama_singkat }}</td></tr>@endif
-        @if ($idt->tagline)<tr><td class="lbl">Tagline</td><td>{{ $idt->tagline }}</td></tr>@endif
+        <tr><td class="lbl">Nama Instansi</td><td>{{ $identitas->nama }}</td></tr>
+        @if ($identitas->nama_singkat)<tr><td class="lbl">Nama Singkat</td><td>{{ $identitas->nama_singkat }}</td></tr>@endif
+        @if ($identitas->tagline)<tr><td class="lbl">Tagline</td><td>{{ $identitas->tagline }}</td></tr>@endif
         <tr><td class="lbl">Alamat</td><td>{{ \App\Support\Identitas::alamatLengkap() ?: '-' }}</td></tr>
-        @if ($idt->jam_operasional ?? null)<tr><td class="lbl">Jam Operasional</td><td>{{ $idt->jam_operasional }}</td></tr>@endif
-        <tr><td class="lbl">Telepon / Fax</td><td>{{ collect([$idt->telp, $idt->fax ? 'Fax ' . $idt->fax : null])->filter()->implode(' · ') ?: '-' }}</td></tr>
-        <tr><td class="lbl">Email / Website</td><td>{{ collect([$idt->email, $idt->website])->filter()->implode(' · ') ?: '-' }}</td></tr>
-        @if ($idt->pimpinan)<tr><td class="lbl">{{ $idt->jabatan_pimpinan ?: 'Pimpinan' }}</td><td>{{ $idt->pimpinan }}</td></tr>@endif
-        @if ($idt->deskripsi)<tr><td class="lbl">Profil Singkat</td><td>{!! nl2br(e($idt->deskripsi)) !!}</td></tr>@endif
+        @if ($identitas->jam_operasional ?? null)<tr><td class="lbl">Jam Operasional</td><td>{{ $identitas->jam_operasional }}</td></tr>@endif
+        <tr><td class="lbl">Telepon / Fax</td><td>{{ collect([$identitas->telp, $identitas->fax ? 'Fax ' . $identitas->fax : null])->filter()->implode(' · ') ?: '-' }}</td></tr>
+        <tr><td class="lbl">Email / Website</td><td>{{ collect([$identitas->email, $identitas->website])->filter()->implode(' · ') ?: '-' }}</td></tr>
+        @if ($identitas->pimpinan)<tr><td class="lbl">{{ $identitas->jabatan_pimpinan ?: 'Pimpinan' }}</td><td>{{ $identitas->pimpinan }}</td></tr>@endif
+        @if ($identitas->deskripsi)<tr><td class="lbl">Profil Singkat</td><td>{!! nl2br(e($identitas->deskripsi)) !!}</td></tr>@endif
     </table>
 </body>
 
