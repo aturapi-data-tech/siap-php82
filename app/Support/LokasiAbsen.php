@@ -31,10 +31,10 @@ class LokasiAbsen
         $selisihLatitude = deg2rad($latitude2 - $latitude1);
         $selisihLongitude = deg2rad($longitude2 - $longitude1);
 
-        $a = sin($selisihLatitude / 2) ** 2
+        $haversine = sin($selisihLatitude / 2) ** 2
             + cos(deg2rad($latitude1)) * cos(deg2rad($latitude2)) * sin($selisihLongitude / 2) ** 2;
 
-        return self::JARI_JARI_BUMI_METER * 2 * atan2(sqrt($a), sqrt(1 - $a));
+        return self::JARI_JARI_BUMI_METER * 2 * atan2(sqrt($haversine), sqrt(1 - $haversine));
     }
 
     /**

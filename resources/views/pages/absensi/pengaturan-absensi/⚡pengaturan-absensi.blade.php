@@ -121,12 +121,12 @@ new class extends Component {
     {
         $this->validate();
 
-        $data = array_map('intval', array_intersect_key($this->form, PengaturanAbsensi::ATURAN));
-        $data['absen_hp_aktif'] = $this->form['absen_hp_aktif'];
-        $data['updated_by'] = auth()->id();
-        $data['updated_at'] = now();
+        $payload = array_map('intval', array_intersect_key($this->form, PengaturanAbsensi::ATURAN));
+        $payload['absen_hp_aktif'] = $this->form['absen_hp_aktif'];
+        $payload['updated_by'] = auth()->id();
+        $payload['updated_at'] = now();
 
-        DB::table('siapmst_pengaturan_absensis')->updateOrInsert(['id' => 1], $data);
+        DB::table('siapmst_pengaturan_absensis')->updateOrInsert(['id' => 1], $payload);
         PengaturanAbsensi::lupakan();
         unset($this->ringkasan);
 

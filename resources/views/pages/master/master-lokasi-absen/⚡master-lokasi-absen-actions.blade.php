@@ -79,12 +79,12 @@ new class extends Component {
 
             $this->dispatch('toast', type: 'success', message: 'Lokasi berhasil dihapus.');
             $this->dispatch('master.lokasi-absen.saved');
-        } catch (QueryException $e) {
-            if (str_contains($e->getMessage(), 'ORA-02292')) {
+        } catch (QueryException $exception) {
+            if (str_contains($exception->getMessage(), 'ORA-02292')) {
                 $this->dispatch('toast', type: 'error', message: 'Lokasi tidak bisa dihapus karena sudah dipakai karyawan / data absensi. Non-aktifkan saja.');
                 return;
             }
-            throw $e;
+            throw $exception;
         }
     }
 

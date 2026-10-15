@@ -237,8 +237,8 @@ new class extends Component {
      */
     private function pulangDobelShift(Carbon $tanggalKerja, Carbon $masuk, string $jam): Carbon
     {
-        [$h, $m] = array_map('intval', explode(':', $jam));
-        $pulang = $tanggalKerja->copy()->setTime($h, $m);
+        [$jamPulang, $menitPulang] = array_map('intval', explode(':', $jam));
+        $pulang = $tanggalKerja->copy()->setTime($jamPulang, $menitPulang);
 
         return $pulang->lessThanOrEqualTo($masuk) ? $pulang->addDay() : $pulang;
     }

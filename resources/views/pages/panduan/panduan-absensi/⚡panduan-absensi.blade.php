@@ -19,7 +19,7 @@ new class extends Component {
 
 @php
     $A = \App\Support\Absensi::class;
-    $P = \App\Support\PengaturanAbsensi::class;
+    $pengaturan = \App\Support\PengaturanAbsensi::class;
     $tautan = fn(string $route, string $label, array $parameter = []) => \Illuminate\Support\Facades\Route::has($route)
         ? '<a href="' . route($route, $parameter) . '" wire:navigate class="font-semibold text-brand-green underline hover:no-underline dark:text-brand-lime">' . e($label) . '</a>'
         : '<b>' . e($label) . '</b>';
@@ -184,7 +184,7 @@ new class extends Component {
                         <tbody>
                             <tr><td>Terjadwal P/S hari ini, belum absen</td><td>Langsung tercatat <b>MASUK</b> dengan shift jadwal ("sesuai jadwal")</td></tr>
                             <tr><td>Sudah masuk, belum pulang</td><td>Tercatat <b>PULANG</b> (jam saat itu)</td></tr>
-                            <tr><td>Scan ulang &lt; {{ $P::jedaMinPulangMenit() }} menit setelah masuk</td><td>Hanya info — dianggap scan dobel, <i>tidak</i> dicatat pulang</td></tr>
+                            <tr><td>Scan ulang &lt; {{ $pengaturan::jedaMinPulangMenit() }} menit setelah masuk</td><td>Hanya info — dianggap scan dobel, <i>tidak</i> dicatat pulang</td></tr>
                             <tr><td>Tidak terjadwal (libur)</td><td>Diminta <b>pilih shift</b> (untuk tukar dinas) dengan catatan "tidak terjadwal"</td></tr>
                             <tr><td>Terjadwal I / C, atau sudah diisi Izin/Sakit/dll.</td><td>Hanya info — hubungi HRD bila ternyata masuk</td></tr>
                             <tr><td>Masuk & pulang sudah lengkap</td><td>Info "absen hari ini sudah lengkap" (+ saran lapor HRD bila dobel shift)</td></tr>
@@ -193,11 +193,11 @@ new class extends Component {
                     <h3 class="mt-5">Aturan hitungan <span class="text-sm font-normal text-muted">(berlaku juga untuk absen HP)</span></h3>
                     <ul class="mt-1 text-sm">
                         <li><b>Terlambat</b>: masuk lewat jam masuk shift + toleransi → status <i>Terlambat</i>, menit terlambat dihitung dari jam masuk shift.</li>
-                        <li><b>Lembur</b>: pulang ≥ <b>{{ $P::minLemburMenit() }} menit</b> lewat jadwal pulang → lembur dicatat dengan status <i>Menunggu</i> (dinilai di Rekap Bulanan). Kurang dari itu tidak dihitung.</li>
-                        <li><b>Pulang lewat tengah malam</b> (lembur panjang) tetap tercatat sebagai pulang shift tersebut, selama masih dalam {{ $P::batasPulangJam() }} jam setelah jadwal pulang (atau setelah jam masuk, bila baru masuk sesudah jadwal pulang lewat).</li>
+                        <li><b>Lembur</b>: pulang ≥ <b>{{ $pengaturan::minLemburMenit() }} menit</b> lewat jadwal pulang → lembur dicatat dengan status <i>Menunggu</i> (dinilai di Rekap Bulanan). Kurang dari itu tidak dihitung.</li>
+                        <li><b>Pulang lewat tengah malam</b> (lembur panjang) tetap tercatat sebagai pulang shift tersebut, selama masih dalam {{ $pengaturan::batasPulangJam() }} jam setelah jadwal pulang (atau setelah jam masuk, bila baru masuk sesudah jadwal pulang lewat).</li>
                         <li><b>Dobel shift</b> (menggantikan jadwal rekan, mis. Pagi + Sore): sebaiknya <i>tidak</i> absen pulang di antara dua shift — cukup absen pulang setelah shift kedua. HRD lalu membuka <b>Koreksi</b> di Rekap Harian dan memilih <b>shift kedua</b>; lembur dihitung dari jam kerja shift kedua saja (jeda antar-shift tidak ikut) dan langsung berstatus Dihitung. Bila sudah terlanjur absen pulang, HRD cukup mengganti Jam Pulang dengan jam pulang shift kedua.</li>
                         <li><b>Shift malam, datang lewat tengah malam</b> (mis. jadwal M Senin, baru datang Selasa 00:30) → otomatis tercatat sebagai shift malam Senin (terlambat), tidak perlu pilih shift.</li>
-                        <li><b>Lupa absen pulang</b> lebih dari {{ $P::batasPulangJam() }} jam → scan berikutnya dianggap absen masuk hari baru. Jam pulang yang terlewat diisi HRD lewat Koreksi.</li>
+                        <li><b>Lupa absen pulang</b> lebih dari {{ $pengaturan::batasPulangJam() }} jam → scan berikutnya dianggap absen masuk hari baru. Jam pulang yang terlewat diisi HRD lewat Koreksi.</li>
                     </ul>
                 </section>
 
@@ -210,7 +210,7 @@ new class extends Component {
                         Bisa dibuka lewat kartu <b>Absensi</b> di halaman depan, atau link langsung
                         <code class="break-all">{{ route('absensi.hp') }}</code>.
                     </p>
-                    @unless ($P::absenHpAktif())
+                    @unless ($pengaturan::absenHpAktif())
                         <p class="p-3 mt-3 text-sm border rounded-xl border-amber-300 bg-amber-50 text-amber-900">
                             ⏸️ Absen HP <b>sedang dinonaktifkan</b> — aktifkan di {!! $tautan('absensi.pengaturan', 'Pengaturan Absensi') !!}.
                         </p>
@@ -231,7 +231,7 @@ new class extends Component {
                         <thead><tr><th>Pesan</th><th>Artinya / yang dilakukan</th></tr></thead>
                         <tbody>
                             <tr><td>"Anda berada … dari … Absen hanya bisa dalam radius …"</td><td>Di luar area. Mendekat ke RS / klinik lalu <i>Coba Lagi</i>.</td></tr>
-                            <tr><td>"Sinyal GPS kurang akurat (±… m)"</td><td>Akurasi lebih buruk dari {{ $P::maksAkurasiMeter() }} m (biasanya di dalam gedung). Aktifkan mode lokasi akurasi tinggi, dekati jendela / keluar sebentar, coba lagi.</td></tr>
+                            <tr><td>"Sinyal GPS kurang akurat (±… m)"</td><td>Akurasi lebih buruk dari {{ $pengaturan::maksAkurasiMeter() }} m (biasanya di dalam gedung). Aktifkan mode lokasi akurasi tinggi, dekati jendela / keluar sebentar, coba lagi.</td></tr>
                             <tr><td>"Izin lokasi ditolak"</td><td>Buka pengaturan browser → izin situs → Lokasi → <i>Izinkan</i>, lalu muat ulang.</td></tr>
                             <tr><td>"Halaman ini harus dibuka lewat HTTPS"</td><td>Link yang dibuka bukan HTTPS — hubungi admin untuk link yang benar.</td></tr>
                             <tr><td>"ID … tidak terdaftar"</td><td>Salah ketik ID, atau karyawan belum didaftarkan HRD.</td></tr>
@@ -312,12 +312,12 @@ new class extends Component {
                     <table class="mt-2 ds-table">
                         <thead><tr><th>Aturan</th><th class="ds-c">Sekarang</th><th>Artinya</th></tr></thead>
                         <tbody>
-                            <tr><td>Absen HP</td><td class="ds-c">{{ $P::absenHpAktif() ? 'Aktif' : 'Nonaktif' }}</td><td>Matikan sementara bila ada masalah — karyawan diarahkan ke kiosk.</td></tr>
-                            <tr><td>Akurasi GPS maksimal</td><td class="ds-c">{{ $P::maksAkurasiMeter() }} m</td><td>GPS yang kurang akurat dari ini diminta coba lagi.</td></tr>
-                            <tr><td>Jeda minimal masuk → pulang</td><td class="ds-c">{{ $P::jedaMinPulangMenit() }} mnt</td><td>Absen ulang lebih cepat dianggap dobel, tidak dicatat pulang.</td></tr>
-                            <tr><td>Batas absen pulang</td><td class="ds-c">{{ $P::batasPulangJam() }} jam</td><td>Setelah jadwal pulang (atau jam masuk, mana yang lebih akhir). Lewat dari itu = lupa absen pulang.</td></tr>
-                            <tr><td>Batas jam shift malam</td><td class="ds-c">{{ sprintf('%02d:00', $P::batasJamLintasHari()) }}</td><td>Absen shift lintas hari sebelum jam ini dihitung milik tanggal kemarin.</td></tr>
-                            <tr><td>Minimal lembur</td><td class="ds-c">{{ $P::minLemburMenit() }} mnt</td><td>Pulang lewat jadwal kurang dari ini tidak dihitung lembur.</td></tr>
+                            <tr><td>Absen HP</td><td class="ds-c">{{ $pengaturan::absenHpAktif() ? 'Aktif' : 'Nonaktif' }}</td><td>Matikan sementara bila ada masalah — karyawan diarahkan ke kiosk.</td></tr>
+                            <tr><td>Akurasi GPS maksimal</td><td class="ds-c">{{ $pengaturan::maksAkurasiMeter() }} m</td><td>GPS yang kurang akurat dari ini diminta coba lagi.</td></tr>
+                            <tr><td>Jeda minimal masuk → pulang</td><td class="ds-c">{{ $pengaturan::jedaMinPulangMenit() }} mnt</td><td>Absen ulang lebih cepat dianggap dobel, tidak dicatat pulang.</td></tr>
+                            <tr><td>Batas absen pulang</td><td class="ds-c">{{ $pengaturan::batasPulangJam() }} jam</td><td>Setelah jadwal pulang (atau jam masuk, mana yang lebih akhir). Lewat dari itu = lupa absen pulang.</td></tr>
+                            <tr><td>Batas jam shift malam</td><td class="ds-c">{{ sprintf('%02d:00', $pengaturan::batasJamLintasHari()) }}</td><td>Absen shift lintas hari sebelum jam ini dihitung milik tanggal kemarin.</td></tr>
+                            <tr><td>Minimal lembur</td><td class="ds-c">{{ $pengaturan::minLemburMenit() }} mnt</td><td>Pulang lewat jadwal kurang dari ini tidak dihitung lembur.</td></tr>
                         </tbody>
                     </table>
                     <p class="mt-2 text-sm">Ubah angka → <b>Simpan</b>; langsung berlaku di kiosk & HP. <i>Isi nilai bawaan</i> mengembalikan angka awal (perlu Simpan). Toleransi terlambat diatur per shift, radius per titik lokasi.</p>
@@ -359,7 +359,7 @@ new class extends Component {
                             ['Tukar dinas mendadak hari ini?', 'Ubah sel hari ini di Jadwal Dinas (masih bisa), atau biarkan karyawan memilih shift di kiosk saat tidak terjadwal.'],
                             ['Izin mendadak (tidak ada di jadwal)?', 'Isi di Rekap Harian → Izin + keterangan. Ini menurunkan % kehadiran; izin yang direncanakan sebaiknya dijadwalkan sebagai I.'],
                             ['Jadwal tanggal lalu salah?', 'Tanggal lalu terkunci. Kehadiran tetap bisa dikoreksi di Rekap Harian; bila jadwalnya sendiri harus diubah, hubungi Admin.'],
-                            ['Lembur tidak muncul?', 'Lembur hanya tercatat bila pulang ≥ ' . $P::minLemburMenit() . ' menit lewat jadwal pulang shift.'],
+                            ['Lembur tidak muncul?', 'Lembur hanya tercatat bila pulang ≥ ' . $pengaturan::minLemburMenit() . ' menit lewat jadwal pulang shift.'],
                             ['Karyawan sudah keluar?', 'Non-aktifkan di Master Karyawan — tidak muncul lagi di kiosk, jadwal, dan rekap, tetapi riwayatnya aman.'],
                             ['Absen HP ditolak "di luar area" padahal sudah di RS?', 'Cek titik koordinat di Pengaturan Absensi › Titik Lokasi HP (klik koordinatnya untuk membuka peta), dan pastikan lokasi kerja karyawan di tab Lokasi Karyawan benar. Bila GPS di dalam gedung meleset, minta karyawan mendekati jendela, atau perbesar radius.'],
                             ['Karyawan lupa ID-nya?', 'ID ada di Master Karyawan (mis. KMP-001). HP mengingat ID terakhir yang berhasil dipakai, jadi biasanya cukup sekali ketik.'],

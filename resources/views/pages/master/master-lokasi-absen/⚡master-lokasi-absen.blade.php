@@ -60,18 +60,18 @@ new class extends Component {
     #[Computed]
     public function rows()
     {
-        $q = DB::table('siapmst_lokasi_absens as lk')
+        $query = DB::table('siapmst_lokasi_absens as lk')
             ->select('lk.lokasi_id', 'lk.lokasi_name', 'lk.alamat', 'lk.latitude', 'lk.longitude', 'lk.radius_meter', 'lk.active_status',
                 DB::raw('(SELECT COUNT(*) FROM siapmst_employers em WHERE em.emp_lokasi_id = lk.lokasi_id) AS jumlah_karyawan'))
             ->orderBy('lk.lokasi_name');
 
         if (trim($this->searchKeyword) !== '') {
             $keyword = mb_strtoupper(trim($this->searchKeyword));
-            $q->where(fn($subQuery) => $subQuery->whereRaw('UPPER(lk.lokasi_id) LIKE ?', ["%{$keyword}%"])
+            $query->where(fn($subQuery) => $subQuery->whereRaw('UPPER(lk.lokasi_id) LIKE ?', ["%{$keyword}%"])
                 ->orWhereRaw('UPPER(lk.lokasi_name) LIKE ?', ["%{$keyword}%"]));
         }
 
-        return $q->paginate($this->itemsPerPage);
+        return $query->paginate($this->itemsPerPage);
     }
 };
 ?>
