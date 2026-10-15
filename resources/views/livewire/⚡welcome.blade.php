@@ -84,14 +84,17 @@ new class extends Component {
                             </div>
                             @php
                                 $modules = [
-                                    ['label' => 'Absensi', 'desc' => 'Kehadiran & jadwal kerja', 'icon' => 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z'],
+                                    ['label' => 'Absensi', 'desc' => 'Absen HP — GPS & selfie', 'href' => route('absensi.hp'), 'icon' => 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z'],
                                     ['label' => 'Kepegawaian', 'desc' => 'Data karyawan & STR/SIP', 'icon' => 'M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z'],
                                     ['label' => 'Manajemen Aset', 'desc' => 'Inventaris & sarana RS', 'icon' => 'M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z'],
                                 ];
                             @endphp
                             <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
                                 @foreach ($modules as $m)
-                                    <div class="flex items-start gap-2.5 px-3.5 py-3 rounded-xl bg-surface-card ring-1 ring-hairline dark:bg-white/5 dark:ring-white/10">
+                                    {{-- Modul ber-href (Absensi → Absen HP, publik) bisa diklik tanpa login. --}}
+                                    <a @isset($m['href']) href="{{ $m['href'] }}" @endisset
+                                        class="flex items-start gap-2.5 px-3.5 py-3 rounded-xl bg-surface-card ring-1 ring-hairline dark:bg-white/5 dark:ring-white/10
+                                            {{ isset($m['href']) ? 'transition hover:ring-2 hover:ring-brand-green dark:hover:ring-brand-lime' : '' }}">
                                         <svg class="w-5 h-5 mt-0.5 text-brand-green shrink-0 dark:text-brand-lime"
                                             fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="{{ $m['icon'] }}" />
@@ -99,8 +102,11 @@ new class extends Component {
                                         <div>
                                             <p class="text-sm font-semibold text-ink dark:text-slate-100">{{ $m['label'] }}</p>
                                             <p class="text-xs text-muted dark:text-gray-400">{{ $m['desc'] }}</p>
+                                            @isset($m['href'])
+                                                <p class="mt-1 text-xs font-semibold text-brand-green dark:text-brand-lime">Absen sekarang →</p>
+                                            @endisset
                                         </div>
-                                    </div>
+                                    </a>
                                 @endforeach
                             </div>
                         </div>

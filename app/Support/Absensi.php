@@ -3,19 +3,26 @@
 namespace App\Support;
 
 use Carbon\Carbon;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Aturan absensi SIAP — satu sumber untuk kiosk, rekap harian & rekap bulanan.
  *
+ * Angka aturan (jeda, batas pulang, minimal lembur, jam lintas hari) diatur HRD di
+ * Absensi › Pengaturan Absensi → App\Support\PengaturanAbsensi.
+ *
  * - Tanggal kerja (abs_date) = tanggal MULAI shift. Shift lintas hari (malam) yang
- *   di-absen sebelum jam 12:00 dianggap shift kemarin.
+ *   di-absen sebelum batas jam lintas hari (bawaan 12:00) dianggap shift kemarin.
  * - Terlambat dihitung dari jam masuk shift; status 'T' bila lewat toleransi.
+ * - Karyawan yang datang lewat tengah malam untuk shift malam kemarin (belum diabsen, shift masih
+ *   berjalan) otomatis dicatat ke shift malam kemarin, bukan diminta pilih shift.
  * - Absen pulang mencari catatan yang masih terbuka (sudah masuk, belum pulang) yang
- *   jadwal pulangnya + BATAS_PULANG_JAM belum lewat — jadi lembur lewat tengah malam
- *   tetap tercatat pulang, sedangkan lupa pulang kemarin tidak menahan absen masuk hari ini.
- * - Lembur = jam pulang aktual − jadwal pulang shift, dihitung bila ≥ MIN_LEMBUR_MENIT.
+ *   (jadwal pulang atau jam masuk, mana yang lebih akhir) + batas pulang (jam) belum lewat —
+ *   jadi lembur lewat tengah malam tetap tercatat pulang, sedangkan lupa pulang kemarin
+ *   tidak menahan absen masuk hari ini.
+ * - Lembur = jam pulang aktual − jadwal pulang shift, dihitung bila ≥ minimal lembur (menit).
  */
 class Absensi
 {
@@ -43,11 +50,8 @@ class Absensi
         'L' => 'gray',
     ];
 
-    /** Jeda minimal masuk → pulang; scan ulang lebih cepat dianggap dobel. */
-    public const JEDA_MIN_PULANG_MENIT = 10;
-
-    /** Lewat jadwal pulang kurang dari ini (mis. beres-beres) tidak dihitung lembur. */
-    public const MIN_LEMBUR_MENIT = 30;
+    /** Datang sejauh ini sebelum jam masuk shift hari ini = datang untuk shift hari ini (bukan shift malam kemarin). */
+    private const MENIT_DATANG_AWAL = 60;
 
     /** Status penilaian lembur oleh admin (kolom lembur_status). */
     public const LEMBUR_STATUS = [
@@ -131,12 +135,6 @@ class Absensi
         return array_values(array_diff(array_intersect($empIds, $punyaRiwayat), $pernahMasuk));
     }
 
-    /** Jendela absen pulang setelah jadwal pulang (menampung lembur panjang). */
-    public const BATAS_PULANG_JAM = 6;
-
-    /** Batas jam: absen shift lintas hari sebelum jam ini masih milik tanggal kemarin. */
-    private const BATAS_JAM_LINTAS_HARI = 12;
-
     /** @return Collection<int, object> shift aktif, urut jam masuk */
     public static function shiftAktif(): Collection
     {
@@ -147,7 +145,7 @@ class Absensi
     {
         $tanggal = $waktu->copy()->startOfDay();
 
-        if ((string) $shift->lintas_hari === '1' && $waktu->hour < self::BATAS_JAM_LINTAS_HARI) {
+        if ((string) $shift->lintas_hari === '1' && $waktu->hour < PengaturanAbsensi::batasJamLintasHari()) {
             return $tanggal->subDay();
         }
 
@@ -184,12 +182,34 @@ class Absensi
         return (string) $shift->lintas_hari === '1' ? $pulang->addDay() : $pulang;
     }
 
-    /** Menit lembur; 0 bila pulang kurang dari MIN_LEMBUR_MENIT setelah jadwal pulang. */
+    /** Menit lembur; 0 bila pulang kurang dari minimal lembur setelah jadwal pulang. */
     public static function lemburMenit(object $shift, Carbon $tanggalKerja, Carbon $waktuPulang): int
     {
         $menit = (int) floor(self::jadwalPulang($shift, $tanggalKerja)->diffInMinutes($waktuPulang, false));
 
-        return $menit >= self::MIN_LEMBUR_MENIT ? $menit : 0;
+        return $menit >= PengaturanAbsensi::minLemburMenit() ? $menit : 0;
+    }
+
+    /**
+     * Lembur catatan DOBEL SHIFT (shift pertama + shift kedua dalam satu catatan, pulang setelah shift kedua).
+     * = jam kerja di shift kedua (jadwal masuk shift kedua → pulang, maksimal sampai jadwal pulangnya)
+     *   + kelebihan setelah jadwal pulang shift kedua (bila ≥ minimal lembur).
+     * Jeda antara dua shift (mis. Pagi 12:00 → Sore 17:00) TIDAK dihitung.
+     */
+    public static function lemburDobelShift(object $shiftPertama, object $shiftKedua, Carbon $tanggalKerja, Carbon $waktuPulang): int
+    {
+        // Shift kedua = kemunculan jam masuknya yang pertama setelah jam masuk shift pertama (Malam → Pagi = esok hari).
+        $masukKedua = self::jadwalMasuk($shiftKedua, $tanggalKerja);
+        if ($masukKedua->lessThanOrEqualTo(self::jadwalMasuk($shiftPertama, $tanggalKerja))) {
+            $masukKedua->addDay();
+        }
+        $pulangKedua = $masukKedua->copy()->addMinutes(
+            self::jadwalMasuk($shiftKedua, $tanggalKerja)->diffInMinutes(self::jadwalPulang($shiftKedua, $tanggalKerja)));
+
+        $kerjaShiftKedua = max(0, (int) floor($masukKedua->diffInMinutes($waktuPulang->copy()->min($pulangKedua), false)));
+        $lewatShiftKedua = (int) floor($pulangKedua->diffInMinutes($waktuPulang, false));
+
+        return $kerjaShiftKedua + ($lewatShiftKedua >= PengaturanAbsensi::minLemburMenit() ? $lewatShiftKedua : 0);
     }
 
     /** @return array{0: string, 1: int} [status H|T, menit terlambat] */
@@ -220,8 +240,11 @@ class Absensi
 
             // Masih dalam jendela pulang → lembur panjang (termasuk lewat tengah malam) tetap terhitung pulang.
             // Lewat jendela → dianggap lupa absen pulang; scan berikutnya jadi absen masuk baru.
+            // Jendela dihitung dari yang LEBIH AKHIR: jadwal pulang atau jam masuk aktual — karyawan yang
+            // baru absen masuk setelah jadwal pulang shift-nya lewat tetap bisa absen pulang.
             $shift = (object) ['jam_pulang' => $row->shift_jam_pulang, 'lintas_hari' => $row->lintas_hari];
-            $batas = self::jadwalPulang($shift, Carbon::parse($row->abs_date)->startOfDay())->addHours(self::BATAS_PULANG_JAM);
+            $jadwalPulang = self::jadwalPulang($shift, Carbon::parse($row->abs_date)->startOfDay());
+            $batas = $jadwalPulang->max(Carbon::parse($row->jam_masuk))->addHours(PengaturanAbsensi::batasPulangJam());
 
             return $waktu->lessThanOrEqualTo($batas);
         });
@@ -234,6 +257,171 @@ class Absensi
             ->where('emp_id', $empId)
             ->where('abs_date', self::tanggalSql($tanggalKerja))
             ->first();
+    }
+
+    /**
+     * Keputusan saat karyawan absen (kiosk / HP) — belum menulis apa pun.
+     *
+     * @param  Collection<int, object>  $shifts  shift aktif
+     * @return array{aksi: 'pulang'|'masuk'|'pilih-shift'|'info'|'error', pesan?: string, terbuka?: object,
+     *               shift?: object, catatan?: ?string, saranShiftId?: ?string}
+     */
+    public static function tentukanAksi(string $empId, Collection $shifts, Carbon $sekarang): array
+    {
+        // Sudah masuk & belum pulang → absen pulang.
+        if ($terbuka = self::absenTerbuka($empId, $sekarang)) {
+            $sejakMasuk = (int) Carbon::parse($terbuka->jam_masuk)->diffInMinutes($sekarang);
+            if ($sejakMasuk < PengaturanAbsensi::jedaMinPulangMenit()) {
+                return ['aksi' => 'info', 'pesan' => 'Sudah absen MASUK pukul ' . Carbon::parse($terbuka->jam_masuk)->format('H:i') . '. Absen pulang bisa dilakukan nanti.'];
+            }
+
+            return ['aksi' => 'pulang', 'terbuka' => $terbuka];
+        }
+
+        // Catatan hari ini sudah ada (lengkap / diisi admin) → info saja.
+        if ($hariIni = self::absenTanggal($empId, $sekarang)) {
+            if (in_array($hariIni->abs_status, self::STATUS_MANUAL, true) && !$hariIni->jam_masuk) {
+                return ['aksi' => 'info', 'pesan' => 'Hari ini tercatat ' . self::STATUS[$hariIni->abs_status] . '. Hubungi HRD bila ternyata masuk kerja.'];
+            }
+            if ($hariIni->jam_pulang) {
+                return ['aksi' => 'info', 'pesan' => 'Absen hari ini sudah lengkap (masuk ' . Carbon::parse($hariIni->jam_masuk)->format('H:i')
+                    . ', pulang ' . Carbon::parse($hariIni->jam_pulang)->format('H:i') . ').'
+                    . ' Bila Anda dobel shift (menggantikan jadwal rekan), lapor HRD agar dicatat.'];
+            }
+        }
+
+        if ($shifts->isEmpty()) {
+            return ['aksi' => 'error', 'pesan' => 'Belum ada shift aktif. Hubungi HRD.'];
+        }
+
+        // Jadwal dinas hari ini menentukan shift.
+        $jadwal = Jadwal::pada($empId, $sekarang);
+        $shiftHariIni = $jadwal && $jadwal->jdw_jenis === 'K' ? $shifts->firstWhere('shift_id', $jadwal->shift_id) : null;
+
+        // Datang lewat tengah malam untuk shift malam KEMARIN (mis. jadwal M Senin, datang Selasa 00:30).
+        if ($shiftMalam = self::shiftMalamKemarin($empId, $shifts, $sekarang, $shiftHariIni)) {
+            return ['aksi' => 'masuk', 'shift' => $shiftMalam];
+        }
+
+        if ($shiftHariIni) {
+            return ['aksi' => 'masuk', 'shift' => $shiftHariIni];
+        }
+        if ($jadwal && isset(Jadwal::KHUSUS[$jadwal->jdw_jenis])) {
+            return ['aksi' => 'info', 'pesan' => 'Hari ini terjadwal ' . Jadwal::KHUSUS[$jadwal->jdw_jenis] . '. Hubungi HRD bila ternyata masuk kerja.'];
+        }
+
+        // Tidak ada jadwal → pilih shift (tukar dinas / tambahan).
+        return [
+            'aksi'         => 'pilih-shift',
+            'catatan'      => Jadwal::adaJadwalBulan($sekarang)
+                ? 'Anda tidak terjadwal masuk hari ini (libur). Pilih shift bila memang bertugas (tukar dinas).'
+                : null,
+            'saranShiftId' => self::sarankanShift($shifts, $sekarang)?->shift_id,
+        ];
+    }
+
+    /**
+     * Shift lintas hari dari jadwal KEMARIN yang masih berjalan dan belum diabsen — dipakai bila
+     * karyawan baru datang lewat tengah malam. Syarat:
+     *   - sebelum batas jam lintas hari (tanggal kerjanya memang jatuh ke kemarin),
+     *   - shift kemarin belum lewat jadwal pulangnya & belum ada absensi tanggal kemarin,
+     *   - karyawan tidak sedang datang untuk shift HARI INI (≤ MENIT_DATANG_AWAL sebelum jam masuknya).
+     */
+    private static function shiftMalamKemarin(string $empId, Collection $shifts, Carbon $sekarang, ?object $shiftHariIni): ?object
+    {
+        if ($sekarang->hour >= PengaturanAbsensi::batasJamLintasHari()) {
+            return null;
+        }
+
+        $kemarin = $sekarang->copy()->subDay()->startOfDay();
+        $jadwalKemarin = Jadwal::pada($empId, $kemarin);
+        $shift = $jadwalKemarin && $jadwalKemarin->jdw_jenis === 'K' ? $shifts->firstWhere('shift_id', $jadwalKemarin->shift_id) : null;
+        if (!$shift || (string) $shift->lintas_hari !== '1') {
+            return null;
+        }
+        if ($sekarang->greaterThanOrEqualTo(self::jadwalPulang($shift, $kemarin)) || self::absenTanggal($empId, $kemarin)) {
+            return null;
+        }
+        if ($shiftHariIni && $sekarang->greaterThanOrEqualTo(self::jadwalMasuk($shiftHariIni, $sekarang->copy()->startOfDay())->subMinutes(self::MENIT_DATANG_AWAL))) {
+            return null;
+        }
+
+        return $shift;
+    }
+
+    /**
+     * Catat absen PULANG pada catatan terbuka (hasil tentukanAksi 'pulang').
+     * $kolomTambahan: kolom bukti absen HP (pulang_latitude, pulang_foto, …).
+     * @return string pesan untuk layar
+     */
+    public static function catatPulang(object $terbuka, Carbon $sekarang, array $kolomTambahan = []): string
+    {
+        $lembur = $terbuka->shift_jam_pulang
+            ? self::lemburMenit(
+                (object) ['jam_pulang' => $terbuka->shift_jam_pulang, 'lintas_hari' => $terbuka->lintas_hari],
+                Carbon::parse($terbuka->abs_date)->startOfDay(),
+                $sekarang)
+            : 0;
+
+        DB::table('siaptxn_absensis')->where('abs_id', $terbuka->abs_id)->update([
+            'jam_pulang'        => $sekarang,
+            'lembur_menit'      => $lembur,
+            'lembur_status'     => self::statusLemburAwal($lembur),
+            'lembur_oleh'       => null,
+            'lembur_dinilai_at' => null,
+            'updated_at'        => $sekarang,
+            ...$kolomTambahan,
+        ]);
+
+        $pesan = 'Absen PULANG pukul ' . $sekarang->format('H:i') . ' · ' . ($terbuka->shift_name ?? $terbuka->shift_id)
+            . ' (masuk ' . Carbon::parse($terbuka->jam_masuk)->format('H:i') . ')';
+        if ($lembur > 0) {
+            $pesan .= ' — lembur ' . self::labelMenit($lembur) . ' (menunggu persetujuan)';
+        }
+
+        return $pesan;
+    }
+
+    /**
+     * Catat absen MASUK dengan shift tertentu (dari jadwal atau pilihan karyawan).
+     * $sumber: KIOSK | MOBILE. $kolomTambahan: kolom bukti absen HP (masuk_latitude, masuk_foto, …).
+     * @return array{tipe: 'masuk'|'info', pesan: string, status: ?string}
+     */
+    public static function catatMasuk(string $empId, object $shift, bool $sesuaiJadwal, Carbon $sekarang,
+        string $sumber, ?int $userId, array $kolomTambahan = []): array
+    {
+        $tanggalKerja = self::tanggalKerja($shift, $sekarang);
+        [$status, $terlambat] = self::statusMasuk($shift, $tanggalKerja, $sekarang);
+
+        if (self::absenTanggal($empId, $tanggalKerja)) {
+            return ['tipe' => 'info', 'pesan' => 'Sudah ada absensi untuk tanggal kerja ' . $tanggalKerja->format('d/m/Y') . '.', 'status' => null];
+        }
+
+        try {
+            DB::table('siaptxn_absensis')->insert([
+                'emp_id'          => $empId,
+                'abs_date'        => self::tanggalSql($tanggalKerja),
+                'shift_id'        => $shift->shift_id,
+                'jam_masuk'       => $sekarang,
+                'abs_status'      => $status,
+                'terlambat_menit' => $terlambat,
+                'sumber'          => $sumber,
+                'updated_by'      => $userId,
+                'created_at'      => $sekarang,
+                'updated_at'      => $sekarang,
+                ...$kolomTambahan,
+            ]);
+        } catch (UniqueConstraintViolationException) {
+            // Scan dobel bersamaan → baris pertama sudah tercatat.
+            return ['tipe' => 'info', 'pesan' => 'Absen masuk sudah tercatat.', 'status' => null];
+        }
+
+        $pesan = 'Absen MASUK pukul ' . $sekarang->format('H:i') . ' · ' . $shift->shift_name . ($sesuaiJadwal ? ' (sesuai jadwal)' : '');
+        if ($status === 'T') {
+            $pesan .= ' — terlambat ' . self::labelTerlambat($terlambat);
+        }
+
+        return ['tipe' => 'masuk', 'pesan' => $pesan, 'status' => $status];
     }
 
     /** Ekspresi tanggal Oracle (tanpa jam) untuk kolom DATE. */

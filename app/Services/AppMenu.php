@@ -88,6 +88,7 @@ class AppMenu
             $entry(['group' => 'Master', 'groupOrder' => 1, 'order' => 1, 'route' => 'master.karyawan', 'title' => 'Master Karyawan', 'desc' => 'Data karyawan, penanda nakes & status aktif', 'roles' => $masterRoles, 'badge' => 'KRY']),
             $entry(['group' => 'Master', 'groupOrder' => 1, 'order' => 2, 'route' => 'master.shift', 'title' => 'Master Shift', 'desc' => 'Jam kerja shift untuk absensi', 'roles' => [...$masterRoles, 'hrd'], 'badge' => 'SFT']),
 
+            $entry(['group' => 'Master', 'groupOrder' => 1, 'order' => 2.5, 'route' => 'master.lokasi-absen', 'title' => 'Lokasi Absen HP', 'desc' => 'Titik RS / klinik + radius untuk absen GPS & selfie', 'roles' => [...$masterRoles, 'hrd'], 'badge' => 'LOK']),
             $entry(['group' => 'Master', 'groupOrder' => 1, 'order' => 3, 'route' => 'master.ruang', 'title' => 'Master Ruang', 'desc' => 'Ruang / unit — lokasi alat & awalan kode alat', 'roles' => [...$masterRoles, 'ipsrs'], 'badge' => 'RNG']),
 
             // ── Aset ───────────────────────────────────────────────────
@@ -99,8 +100,11 @@ class AppMenu
             // ── Absensi ────────────────────────────────────────────────
             $entry(['group' => 'Absensi', 'groupOrder' => 2, 'order' => 0, 'route' => 'absensi.jadwal-dinas', 'title' => 'Jadwal Dinas', 'desc' => 'Jadwal masuk kerja bulanan (P / S / M / I / C) + cetak', 'roles' => ['admin', 'hrd', 'kepala ruang'], 'badge' => 'JDW']),
             $entry(['group' => 'Absensi', 'groupOrder' => 2, 'order' => 1, 'route' => 'absensi.kiosk', 'title' => 'Kiosk Absensi', 'desc' => 'Layar absen masuk/pulang — ketik/scan ID karyawan', 'roles' => ['admin', 'hrd', 'kiosk'], 'badge' => 'ABS']),
+            $entry(['group' => 'Absensi', 'groupOrder' => 2, 'order' => 1.5, 'route' => 'absensi.hp', 'title' => 'Absen HP', 'desc' => 'Absen masuk/pulang sendiri dari HP — GPS + selfie', 'roles' => [self::SEMUA_ROLE], 'badge' => 'HP']),
             $entry(['group' => 'Absensi', 'groupOrder' => 2, 'order' => 2, 'route' => 'absensi.rekap-harian', 'title' => 'Rekap Harian', 'desc' => 'Kehadiran per tanggal + isi Izin/Sakit/Cuti/Alpa', 'roles' => ['admin', 'hrd'], 'badge' => 'HRI']),
             $entry(['group' => 'Absensi', 'groupOrder' => 2, 'order' => 3, 'route' => 'absensi.rekap-bulanan', 'title' => 'Rekap Bulanan', 'desc' => 'Jumlah H/T/I/S/C/A per karyawan per bulan', 'roles' => ['admin', 'hrd'], 'badge' => 'BLN']),
+
+            $entry(['group' => 'Absensi', 'groupOrder' => 2, 'order' => 4, 'route' => 'absensi.pengaturan', 'title' => 'Pengaturan Absensi', 'desc' => 'Satu dasbor: aturan absen, shift, titik lokasi HP & lokasi karyawan', 'roles' => ['admin', 'hrd'], 'badge' => 'SET']),
 
             // ── Panduan (semua user) ───────────────────────────────────
             $entry(['group' => 'Panduan', 'groupOrder' => 90, 'order' => 1, 'route' => 'panduan.absensi', 'title' => 'Panduan Absensi', 'desc' => 'Cara pakai jadwal dinas, kiosk, rekap & lembur', 'roles' => [self::SEMUA_ROLE], 'badge' => '?']),

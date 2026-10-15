@@ -2,6 +2,7 @@
 
 use Livewire\Component;
 use Livewire\Attributes\On;
+use Livewire\Attributes\Computed;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Database\QueryException;
 use Carbon\Carbon;
@@ -25,6 +26,12 @@ new class extends Component {
     {
         $this->registerAreas(['modal']);
         $this->resetForm();
+    }
+
+    #[Computed]
+    public function lokasiAbsenList()
+    {
+        return DB::table('siapmst_lokasi_absens')->orderBy('lokasi_name')->get(['lokasi_id', 'lokasi_name', 'active_status']);
     }
 
     // ─── Open Create ──────────────────────────────────────────────────────────
@@ -64,6 +71,7 @@ new class extends Component {
             'emp_join_date'   => $this->formatTanggal($row->emp_join_date),
             'emp_is_nakes'    => (string) $row->emp_is_nakes === '1' ? '1' : '0',
             'emp_shift_default' => (string) ($row->emp_shift_default ?? ''),
+            'emp_lokasi_id'   => (string) ($row->emp_lokasi_id ?? ''),
             // Hanya '1' yang aktif; null/'0' → non-aktif (konsisten dgn toggle di tabel).
             'active_status'   => (string) $row->active_status === '1' ? '1' : '0',
         ];
@@ -118,6 +126,7 @@ new class extends Component {
             'form.emp_join_date'   => 'nullable|date_format:d/m/Y',
             'form.emp_is_nakes'    => 'required|in:0,1',
             'form.emp_shift_default' => 'nullable|exists:siapmst_shifts,shift_id',
+            'form.emp_lokasi_id'   => 'nullable|exists:siapmst_lokasi_absens,lokasi_id',
             'form.active_status'   => 'required|in:0,1',
         ];
     }
@@ -149,6 +158,7 @@ new class extends Component {
             'form.emp_join_date'   => 'Tanggal Masuk',
             'form.emp_is_nakes'    => 'Tenaga Kesehatan',
             'form.emp_shift_default' => 'Shift Default (P/S)',
+            'form.emp_lokasi_id'   => 'Lokasi Absen HP',
             'form.active_status'   => 'Status Aktif',
         ];
     }
@@ -170,6 +180,7 @@ new class extends Component {
             'emp_join_date'   => $this->tanggalOracle($form['emp_join_date']),
             'emp_is_nakes'    => $form['emp_is_nakes'],
             'emp_shift_default' => $form['emp_shift_default'] !== '' ? $form['emp_shift_default'] : null,
+            'emp_lokasi_id'   => $form['emp_lokasi_id'] !== '' ? $form['emp_lokasi_id'] : null,
             'active_status'   => $form['active_status'],
             'updated_at'      => now(),
         ];
@@ -211,6 +222,7 @@ new class extends Component {
             'emp_join_date'   => '',
             'emp_is_nakes'    => '0',
             'emp_shift_default' => '',
+            'emp_lokasi_id'   => '',
             'active_status'   => '1',
         ];
         $this->resetValidation();
@@ -388,6 +400,18 @@ new class extends Component {
                                 </x-select-input>
                                 <p class="mt-1 text-[11px] text-muted dark:text-gray-400">Kolom P/S di jadwal — dipakai tombol "Isi Sen–Sab" pada Jadwal Dinas.</p>
                                 <x-input-error :messages="$errors->get('form.emp_shift_default')" class="mt-1" />
+                            </div>
+
+                            <div>
+                                <x-input-label value="Lokasi Absen HP" />
+                                <x-select-input wire:model.live="form.emp_lokasi_id" :error="$errors->has('form.emp_lokasi_id')" class="mt-1">
+                                    <option value="">— semua titik aktif —</option>
+                                    @foreach ($this->lokasiAbsenList as $lokasi)
+                                        <option value="{{ $lokasi->lokasi_id }}">{{ $lokasi->lokasi_name }}{{ (string) $lokasi->active_status === '1' ? '' : ' (non-aktif)' }}</option>
+                                    @endforeach
+                                </x-select-input>
+                                <p class="mt-1 text-[11px] text-muted dark:text-gray-400">RS / klinik tempat bekerja — absen HP hanya diterima di dalam radius titik ini.</p>
+                                <x-input-error :messages="$errors->get('form.emp_lokasi_id')" class="mt-1" />
                             </div>
 
                             <div class="flex flex-wrap gap-6 pt-2">

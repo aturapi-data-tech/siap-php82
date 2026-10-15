@@ -18,6 +18,7 @@ new class extends Component {
 
 @php
     $A = \App\Support\Absensi::class;
+    $P = \App\Support\PengaturanAbsensi::class;
     $tautan = fn(string $route, string $label) => \Illuminate\Support\Facades\Route::has($route)
         ? '<a href="' . route($route) . '" wire:navigate class="font-semibold text-brand-green underline hover:no-underline dark:text-brand-lime">' . e($label) . '</a>'
         : '<b>' . e($label) . '</b>';
@@ -150,7 +151,7 @@ new class extends Component {
                         <tbody>
                             <tr><td>Terjadwal P/S hari ini, belum absen</td><td>Langsung tercatat <b>MASUK</b> dengan shift jadwal ("sesuai jadwal")</td></tr>
                             <tr><td>Sudah masuk, belum pulang</td><td>Tercatat <b>PULANG</b> (jam saat itu)</td></tr>
-                            <tr><td>Scan ulang &lt; {{ $A::JEDA_MIN_PULANG_MENIT }} menit setelah masuk</td><td>Hanya info — dianggap scan dobel, <i>tidak</i> dicatat pulang</td></tr>
+                            <tr><td>Scan ulang &lt; {{ $P::jedaMinPulangMenit() }} menit setelah masuk</td><td>Hanya info — dianggap scan dobel, <i>tidak</i> dicatat pulang</td></tr>
                             <tr><td>Tidak terjadwal (libur)</td><td>Diminta <b>pilih shift</b> (untuk tukar dinas) dengan catatan "tidak terjadwal"</td></tr>
                             <tr><td>Terjadwal I / C, atau sudah diisi Izin/Sakit/dll.</td><td>Hanya info — hubungi HRD bila ternyata masuk</td></tr>
                             <tr><td>Masuk & pulang sudah lengkap</td><td>Info "absen hari ini sudah lengkap"</td></tr>
@@ -159,9 +160,11 @@ new class extends Component {
                     <h3 class="mt-5">Aturan hitungan</h3>
                     <ul class="mt-1 text-sm">
                         <li><b>Terlambat</b>: masuk lewat jam masuk shift + toleransi → status <i>Terlambat</i>, menit terlambat dihitung dari jam masuk shift.</li>
-                        <li><b>Lembur</b>: pulang ≥ <b>{{ $A::MIN_LEMBUR_MENIT }} menit</b> lewat jadwal pulang → lembur dicatat dengan status <i>Menunggu</i> (dinilai di Rekap Bulanan). Kurang dari itu tidak dihitung.</li>
-                        <li><b>Pulang lewat tengah malam</b> (lembur panjang) tetap tercatat sebagai pulang shift tersebut, selama masih dalam {{ $A::BATAS_PULANG_JAM }} jam setelah jadwal pulang.</li>
-                        <li><b>Lupa absen pulang</b> lebih dari {{ $A::BATAS_PULANG_JAM }} jam → scan berikutnya dianggap absen masuk hari baru. Jam pulang yang terlewat diisi HRD lewat Koreksi.</li>
+                        <li><b>Lembur</b>: pulang ≥ <b>{{ $P::minLemburMenit() }} menit</b> lewat jadwal pulang → lembur dicatat dengan status <i>Menunggu</i> (dinilai di Rekap Bulanan). Kurang dari itu tidak dihitung.</li>
+                        <li><b>Pulang lewat tengah malam</b> (lembur panjang) tetap tercatat sebagai pulang shift tersebut, selama masih dalam {{ $P::batasPulangJam() }} jam setelah jadwal pulang (atau setelah jam masuk, bila baru masuk sesudah jadwal pulang lewat).</li>
+                        <li><b>Dobel shift</b> (menggantikan jadwal rekan, mis. Pagi + Sore): sebaiknya <i>tidak</i> absen pulang di antara dua shift — cukup absen pulang setelah shift kedua. HRD lalu membuka <b>Koreksi</b> di Rekap Harian dan memilih <b>shift kedua</b>; lembur dihitung dari jam kerja shift kedua saja (jeda antar-shift tidak ikut) dan langsung berstatus Dihitung. Bila sudah terlanjur absen pulang, HRD cukup mengganti Jam Pulang dengan jam pulang shift kedua.</li>
+                        <li><b>Shift malam, datang lewat tengah malam</b> (mis. jadwal M Senin, baru datang Selasa 00:30) → otomatis tercatat sebagai shift malam Senin (terlambat), tidak perlu pilih shift.</li>
+                        <li><b>Lupa absen pulang</b> lebih dari {{ $P::batasPulangJam() }} jam → scan berikutnya dianggap absen masuk hari baru. Jam pulang yang terlewat diisi HRD lewat Koreksi.</li>
                     </ul>
                 </section>
 
@@ -242,7 +245,7 @@ new class extends Component {
                             ['Tukar dinas mendadak hari ini?', 'Ubah sel hari ini di Jadwal Dinas (masih bisa), atau biarkan karyawan memilih shift di kiosk saat tidak terjadwal.'],
                             ['Izin mendadak (tidak ada di jadwal)?', 'Isi di Rekap Harian → Izin + keterangan. Ini menurunkan % kehadiran; izin yang direncanakan sebaiknya dijadwalkan sebagai I.'],
                             ['Jadwal tanggal lalu salah?', 'Tanggal lalu terkunci. Kehadiran tetap bisa dikoreksi di Rekap Harian; bila jadwalnya sendiri harus diubah, hubungi Admin.'],
-                            ['Lembur tidak muncul?', 'Lembur hanya tercatat bila pulang ≥ ' . $A::MIN_LEMBUR_MENIT . ' menit lewat jadwal pulang shift.'],
+                            ['Lembur tidak muncul?', 'Lembur hanya tercatat bila pulang ≥ ' . $P::minLemburMenit() . ' menit lewat jadwal pulang shift.'],
                             ['Karyawan sudah keluar?', 'Non-aktifkan di Master Karyawan — tidak muncul lagi di kiosk, jadwal, dan rekap, tetapi riwayatnya aman.'],
                         ] as [$tanya, $jawab])
                             <details class="p-3 border rounded-xl border-hairline dark:border-gray-700">

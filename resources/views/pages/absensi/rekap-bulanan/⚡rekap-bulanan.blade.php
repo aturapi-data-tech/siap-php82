@@ -126,6 +126,7 @@ new class extends Component {
                 DB::raw("NVL(SUM(CASE WHEN ab.lembur_status = 'Y' THEN ab.lembur_menit END), 0) AS total_lembur"),
                 DB::raw("SUM(CASE WHEN ab.lembur_status = 'Y' THEN 1 ELSE 0 END) AS hari_lembur"),
                 DB::raw("NVL(SUM(CASE WHEN ab.lembur_status = 'P' THEN ab.lembur_menit END), 0) AS lembur_menunggu"),
+                DB::raw('SUM(CASE WHEN ab.dobel_shift_id IS NOT NULL THEN 1 ELSE 0 END) AS jml_dobel_shift'),
                 $terjadwal($batasL, 'hari_terjadwal'),
                 $terjadwal($sampaiL, 'terjadwal_sebulan'),
                 DB::raw("(SELECT COUNT(*) FROM siaptxn_absensis a2
@@ -251,7 +252,9 @@ new class extends Component {
                                     <td class="font-mono ds-c">
                                         @if ((int) $row->total_lembur > 0)
                                             <span class="text-indigo-700">{{ \App\Support\Absensi::labelMenit((int) $row->total_lembur) }}</span>
-                                            <div class="text-[11px] text-muted-soft">{{ (int) $row->hari_lembur }} hari</div>
+                                            <div class="text-[11px] text-muted-soft">
+                                                {{ (int) $row->hari_lembur }} hari{{ (int) $row->jml_dobel_shift > 0 ? ' · ' . (int) $row->jml_dobel_shift . '× dobel shift' : '' }}
+                                            </div>
                                         @else
                                             —
                                         @endif

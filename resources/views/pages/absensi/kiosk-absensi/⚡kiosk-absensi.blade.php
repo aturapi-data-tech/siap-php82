@@ -4,10 +4,7 @@ use Livewire\Component;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Computed;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Database\UniqueConstraintViolationException;
-use Carbon\Carbon;
 use App\Support\Absensi;
-use App\Support\Jadwal;
 
 /**
  * KIOSK ABSENSI — layar penuh di dekat pintu masuk.
@@ -76,79 +73,24 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
 
         $this->karyawan = ['emp_id' => $emp->emp_id, 'emp_name' => $emp->emp_name];
         $sekarang = now();
+        $keputusan = Absensi::tentukanAksi($emp->emp_id, $this->shifts, $sekarang);
 
-        // Sudah masuk & belum pulang → absen pulang.
-        if ($terbuka = Absensi::absenTerbuka($emp->emp_id, $sekarang)) {
-            $sejakMasuk = (int) Carbon::parse($terbuka->jam_masuk)->diffInMinutes($sekarang);
-            if ($sejakMasuk < Absensi::JEDA_MIN_PULANG_MENIT) {
-                $this->tampilkanHasil('info', $emp->emp_name,
-                    'Sudah absen MASUK pukul ' . Carbon::parse($terbuka->jam_masuk)->format('H:i') . '. Absen pulang bisa dilakukan nanti.');
-                return;
-            }
-
-            $lembur = $terbuka->shift_jam_pulang
-                ? Absensi::lemburMenit(
-                    (object) ['jam_pulang' => $terbuka->shift_jam_pulang, 'lintas_hari' => $terbuka->lintas_hari],
-                    Carbon::parse($terbuka->abs_date)->startOfDay(),
-                    $sekarang)
-                : 0;
-
-            DB::table('siaptxn_absensis')->where('abs_id', $terbuka->abs_id)->update([
-                'jam_pulang'        => $sekarang,
-                'lembur_menit'      => $lembur,
-                'lembur_status'     => Absensi::statusLemburAwal($lembur),
-                'lembur_oleh'       => null,
-                'lembur_dinilai_at' => null,
-                'updated_at'        => $sekarang,
-            ]);
-
-            $pesan = 'Absen PULANG pukul ' . $sekarang->format('H:i') . ' · ' . ($terbuka->shift_name ?? $terbuka->shift_id)
-                . ' (masuk ' . Carbon::parse($terbuka->jam_masuk)->format('H:i') . ')';
-            if ($lembur > 0) {
-                $pesan .= ' — lembur ' . Absensi::labelMenit($lembur) . ' (menunggu persetujuan)';
-            }
-            $this->tampilkanHasil('pulang', $emp->emp_name, $pesan, $terbuka->abs_status);
+        if ($keputusan['aksi'] === 'pulang') {
+            $this->tampilkanHasil('pulang', $emp->emp_name, Absensi::catatPulang($keputusan['terbuka'], $sekarang), $keputusan['terbuka']->abs_status);
+            return;
+        }
+        if ($keputusan['aksi'] === 'masuk') {
+            $this->catatMasuk($keputusan['shift'], true);
+            return;
+        }
+        if ($keputusan['aksi'] === 'pilih-shift') {
+            $this->catatanJadwal = $keputusan['catatan'];
+            $this->saranShiftId = $keputusan['saranShiftId'];
+            $this->step = 'pilih-shift';
             return;
         }
 
-        // Catatan hari ini sudah ada (lengkap / diisi admin) → info saja.
-        if ($hariIni = Absensi::absenTanggal($emp->emp_id, $sekarang)) {
-            if (in_array($hariIni->abs_status, Absensi::STATUS_MANUAL, true) && !$hariIni->jam_masuk) {
-                $this->tampilkanHasil('info', $emp->emp_name,
-                    'Hari ini tercatat ' . Absensi::STATUS[$hariIni->abs_status] . '. Hubungi HRD bila ternyata masuk kerja.');
-                return;
-            }
-            if ($hariIni->jam_pulang) {
-                $this->tampilkanHasil('info', $emp->emp_name,
-                    'Absen hari ini sudah lengkap (masuk ' . Carbon::parse($hariIni->jam_masuk)->format('H:i')
-                    . ', pulang ' . Carbon::parse($hariIni->jam_pulang)->format('H:i') . ').');
-                return;
-            }
-        }
-
-        if ($this->shifts->isEmpty()) {
-            $this->tampilkanHasil('error', $emp->emp_name, 'Belum ada shift aktif. Hubungi HRD.');
-            return;
-        }
-
-        // Jadwal dinas hari ini menentukan shift.
-        $jadwal = Jadwal::pada($emp->emp_id, $sekarang);
-        if ($jadwal && $jadwal->jdw_jenis === 'K' && ($shift = $this->shifts->firstWhere('shift_id', $jadwal->shift_id))) {
-            $this->catatMasuk($shift, true);
-            return;
-        }
-        if ($jadwal && isset(Jadwal::KHUSUS[$jadwal->jdw_jenis])) {
-            $this->tampilkanHasil('info', $emp->emp_name,
-                'Hari ini terjadwal ' . Jadwal::KHUSUS[$jadwal->jdw_jenis] . '. Hubungi HRD bila ternyata masuk kerja.');
-            return;
-        }
-
-        // Tidak ada jadwal → pilih shift (tukar dinas / tambahan).
-        $this->catatanJadwal = Jadwal::adaJadwalBulan($sekarang)
-            ? 'Anda tidak terjadwal masuk hari ini (libur). Pilih shift bila memang bertugas (tukar dinas).'
-            : null;
-        $this->saranShiftId = Absensi::sarankanShift($this->shifts, $sekarang)?->shift_id;
-        $this->step = 'pilih-shift';
+        $this->tampilkanHasil($keputusan['aksi'], $emp->emp_name, $keputusan['pesan']);
     }
 
     // ─── Langkah 2: pilih shift → absen masuk ─────────────────────────────────
@@ -169,41 +111,8 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
     /** Catat absen MASUK dengan shift tertentu (dari jadwal atau pilihan karyawan). */
     private function catatMasuk(object $shift, bool $sesuaiJadwal): void
     {
-        $sekarang = now();
-        $tanggalKerja = Absensi::tanggalKerja($shift, $sekarang);
-        [$status, $terlambat] = Absensi::statusMasuk($shift, $tanggalKerja, $sekarang);
-        $empId = $this->karyawan['emp_id'];
-
-        if (Absensi::absenTanggal($empId, $tanggalKerja)) {
-            $this->tampilkanHasil('info', $this->karyawan['emp_name'],
-                'Sudah ada absensi untuk tanggal kerja ' . $tanggalKerja->format('d/m/Y') . '.');
-            return;
-        }
-
-        try {
-            DB::table('siaptxn_absensis')->insert([
-                'emp_id'          => $empId,
-                'abs_date'        => Absensi::tanggalSql($tanggalKerja),
-                'shift_id'        => $shift->shift_id,
-                'jam_masuk'       => $sekarang,
-                'abs_status'      => $status,
-                'terlambat_menit' => $terlambat,
-                'sumber'          => 'KIOSK',
-                'updated_by'      => auth()->id(),
-                'created_at'      => $sekarang,
-                'updated_at'      => $sekarang,
-            ]);
-        } catch (UniqueConstraintViolationException) {
-            // Scan dobel bersamaan → baris pertama sudah tercatat.
-            $this->tampilkanHasil('info', $this->karyawan['emp_name'], 'Absen masuk sudah tercatat.');
-            return;
-        }
-
-        $pesan = 'Absen MASUK pukul ' . $sekarang->format('H:i') . ' · ' . $shift->shift_name . ($sesuaiJadwal ? ' (sesuai jadwal)' : '');
-        if ($status === 'T') {
-            $pesan .= ' — terlambat ' . Absensi::labelTerlambat($terlambat);
-        }
-        $this->tampilkanHasil('masuk', $this->karyawan['emp_name'], $pesan, $status);
+        $hasilMasuk = Absensi::catatMasuk($this->karyawan['emp_id'], $shift, $sesuaiJadwal, now(), 'KIOSK', auth()->id());
+        $this->tampilkanHasil($hasilMasuk['tipe'], $this->karyawan['emp_name'], $hasilMasuk['pesan'], $hasilMasuk['status']);
     }
 
     public function resetKiosk(): void

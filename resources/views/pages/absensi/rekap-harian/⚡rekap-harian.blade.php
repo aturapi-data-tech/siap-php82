@@ -98,8 +98,10 @@ new class extends Component {
                 $join->on('jd.emp_id', '=', 'em.emp_id')->where('jd.jdw_tanggal', '=', $tgl);
             })
             ->leftJoin('siapmst_shifts as sj', 'sj.shift_id', '=', 'jd.shift_id')
-            ->select('jd.jdw_jenis', 'sj.shift_kode as jadwal_kode', 'sj.shift_name as jadwal_shift','em.emp_id', 'em.emp_name', 'ab.abs_id', 'ab.abs_status', 'ab.shift_id', 'sh.shift_name',
+            ->leftJoin('siapmst_shifts as sd', 'sd.shift_id', '=', 'ab.dobel_shift_id')
+            ->select('sd.shift_name as dobel_shift_name', 'jd.jdw_jenis', 'sj.shift_kode as jadwal_kode', 'sj.shift_name as jadwal_shift','em.emp_id', 'em.emp_name', 'ab.abs_id', 'ab.abs_status', 'ab.shift_id', 'sh.shift_name',
                 'ab.jam_masuk', 'ab.jam_pulang', 'ab.terlambat_menit', 'ab.lembur_menit', 'ab.lembur_status', 'ab.lembur_dinilai_at', 'ab.keterangan', 'ab.sumber',
+                'ab.masuk_foto', 'ab.masuk_jarak_meter', 'ab.pulang_foto', 'ab.pulang_jarak_meter',
                 DB::raw('(SELECT us.name FROM users us WHERE us.id = ab.lembur_oleh) AS lembur_penilai'))
             ->orderBy('em.emp_name');
 
@@ -242,11 +244,20 @@ new class extends Component {
                                             <span class="text-[11px] text-muted-soft">libur</span>
                                         @endif
                                     </td>
-                                    <td>{{ $row->shift_name ?? '—' }}</td>
+                                    <td>
+                                        {{ $row->shift_name ?? '—' }}
+                                        @if ($row->dobel_shift_name)
+                                            <div class="text-xs">+ {{ $row->dobel_shift_name }} <x-badge variant="purple">dobel shift</x-badge></div>
+                                        @endif
+                                    </td>
                                     <td class="font-mono">
                                         {{ $row->jam_masuk ? \Carbon\Carbon::parse($row->jam_masuk)->format('H:i') : '—' }}
                                         @if ((int) $row->terlambat_menit > 0)
                                             <div class="text-[11px] text-amber-700">+{{ \App\Support\Absensi::labelTerlambat((int) $row->terlambat_menit) }}</div>
+                                        @endif
+                                        @if ($row->masuk_foto)
+                                            <a href="{{ route('absensi.foto', [$row->abs_id, 'masuk']) }}" target="_blank" rel="noopener"
+                                                class="block font-sans text-[11px] underline text-brand-green">📷 selfie · {{ \App\Support\LokasiAbsen::labelJarak((int) $row->masuk_jarak_meter) }}</a>
                                         @endif
                                     </td>
                                     <td class="font-mono">
@@ -269,6 +280,10 @@ new class extends Component {
                                                     @endif
                                                 </div>
                                             @endif
+                                            @if ($row->pulang_foto)
+                                                <a href="{{ route('absensi.foto', [$row->abs_id, 'pulang']) }}" target="_blank" rel="noopener"
+                                                    class="block font-sans text-[11px] underline text-brand-green">📷 selfie · {{ \App\Support\LokasiAbsen::labelJarak((int) $row->pulang_jarak_meter) }}</a>
+                                            @endif
                                         @elseif ($row->jam_masuk)
                                             <span class="text-xs text-muted-soft">belum pulang</span>
                                         @else
@@ -280,6 +295,8 @@ new class extends Component {
                                             <x-badge :variant="\App\Support\Absensi::BADGE[$row->abs_status] ?? 'gray'">{{ \App\Support\Absensi::STATUS[$row->abs_status] ?? $row->abs_status }}</x-badge>
                                             @if ($row->sumber === 'MANUAL')
                                                 <span class="ml-1 text-[10px] text-muted-soft">manual</span>
+                                            @elseif ($row->sumber === 'MOBILE')
+                                                <span class="ml-1 text-[10px] text-muted-soft">HP</span>
                                             @endif
                                         @else
                                             <span class="text-xs italic text-muted-soft">Belum absen</span>
