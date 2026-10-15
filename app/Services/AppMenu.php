@@ -30,12 +30,12 @@ class AppMenu
     /** @return array<int, array<string, mixed>> */
     public static function all(): array
     {
-        $entry = function (array $m): ?array {
-            if (!Route::has($m['route'])) {
+        $entry = function (array $menu): ?array {
+            if (!Route::has($menu['route'])) {
                 return null;
             }
-            $m['href'] = route($m['route'], $m['params'] ?? []);
-            return $m;
+            $menu['href'] = route($menu['route'], $menu['params'] ?? []);
+            return $menu;
         };
 
         return array_values(array_filter(self::definitions($entry)));
@@ -52,11 +52,11 @@ class AppMenu
     {
         // trim() penting: nama role di DB pernah mengandung trailing space ('Manager Umum')
         // → strtolower saja tidak match dan seluruh menu role tsb hilang.
-        $roles = array_map(fn($r) => trim(strtolower($r)), $userRoles);
+        $roles = array_map(fn($role) => trim(strtolower($role)), $userRoles);
 
         return array_values(array_filter(
             self::all(),
-            fn($m) => in_array(self::SEMUA_ROLE, $m['roles'], true) || !empty(array_intersect($m['roles'], $roles)),
+            fn($menu) => in_array(self::SEMUA_ROLE, $menu['roles'], true) || !empty(array_intersect($menu['roles'], $roles)),
         ));
     }
 

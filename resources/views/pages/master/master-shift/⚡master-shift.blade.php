@@ -60,17 +60,17 @@ new class extends Component {
     #[Computed]
     public function rows()
     {
-        $q = DB::table('siapmst_shifts')
+        $query = DB::table('siapmst_shifts')
             ->select('shift_id', 'shift_name', 'shift_kode', 'jam_masuk', 'jam_pulang', 'toleransi_menit', 'lintas_hari', 'active_status')
             ->orderBy('jam_masuk');
 
         if (trim($this->searchKeyword) !== '') {
-            $kw = mb_strtoupper(trim($this->searchKeyword));
-            $q->where(fn($sub) => $sub->whereRaw('UPPER(shift_id) LIKE ?', ["%{$kw}%"])
-                ->orWhereRaw('UPPER(shift_name) LIKE ?', ["%{$kw}%"]));
+            $keyword = mb_strtoupper(trim($this->searchKeyword));
+            $query->where(fn($subQuery) => $subQuery->whereRaw('UPPER(shift_id) LIKE ?', ["%{$keyword}%"])
+                ->orWhereRaw('UPPER(shift_name) LIKE ?', ["%{$keyword}%"]));
         }
 
-        return $q->paginate($this->itemsPerPage);
+        return $query->paginate($this->itemsPerPage);
     }
 };
 ?>

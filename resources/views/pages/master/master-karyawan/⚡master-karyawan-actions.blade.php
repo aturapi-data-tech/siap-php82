@@ -99,13 +99,13 @@ new class extends Component {
 
             $this->dispatch('toast', type: 'success', message: 'Data karyawan berhasil dihapus.');
             $this->dispatch('master.karyawan.saved');
-        } catch (QueryException $e) {
+        } catch (QueryException $exception) {
             // FK dari siapmst_emp_licenses (STR/SIP) & transaksi SIAP lain
-            if (str_contains($e->getMessage(), 'ORA-02292')) {
+            if (str_contains($exception->getMessage(), 'ORA-02292')) {
                 $this->dispatch('toast', type: 'error', message: 'Karyawan tidak bisa dihapus karena masih dipakai di data STR/SIP atau transaksi. Non-aktifkan saja.');
                 return;
             }
-            throw $e;
+            throw $exception;
         }
     }
 
@@ -394,8 +394,8 @@ new class extends Component {
                                 <x-input-label value="Shift Default (P/S)" />
                                 <x-select-input wire:model.live="form.emp_shift_default" :error="$errors->has('form.emp_shift_default')" class="mt-1">
                                     <option value="">— tidak ada —</option>
-                                    @foreach (\App\Support\Jadwal::shiftBerkode() as $kode => $sh)
-                                        <option value="{{ $sh->shift_id }}">{{ $kode }} — {{ $sh->shift_name }} ({{ $sh->jam_masuk }}–{{ $sh->jam_pulang }})</option>
+                                    @foreach (\App\Support\Jadwal::shiftBerkode() as $kode => $shift)
+                                        <option value="{{ $shift->shift_id }}">{{ $kode }} — {{ $shift->shift_name }} ({{ $shift->jam_masuk }}–{{ $shift->jam_pulang }})</option>
                                     @endforeach
                                 </x-select-input>
                                 <p class="mt-1 text-[11px] text-muted dark:text-gray-400">Kolom P/S di jadwal — dipakai tombol "Isi Sen–Sab" pada Jadwal Dinas.</p>

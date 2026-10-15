@@ -60,23 +60,23 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
             return;
         }
 
-        $emp = DB::table('siapmst_employers')->select('emp_id', 'emp_name', 'active_status')->where('emp_id', $empId)->first();
+        $dataKaryawan = DB::table('siapmst_employers')->select('emp_id', 'emp_name', 'active_status')->where('emp_id', $empId)->first();
 
-        if (!$emp) {
+        if (!$dataKaryawan) {
             $this->tampilkanHasil('error', 'ID tidak dikenal', "ID \"{$empId}\" tidak terdaftar sebagai karyawan.");
             return;
         }
-        if ((string) $emp->active_status !== '1') {
-            $this->tampilkanHasil('error', $emp->emp_name, 'Karyawan berstatus non-aktif. Hubungi HRD.');
+        if ((string) $dataKaryawan->active_status !== '1') {
+            $this->tampilkanHasil('error', $dataKaryawan->emp_name, 'Karyawan berstatus non-aktif. Hubungi HRD.');
             return;
         }
 
-        $this->karyawan = ['emp_id' => $emp->emp_id, 'emp_name' => $emp->emp_name];
+        $this->karyawan = ['emp_id' => $dataKaryawan->emp_id, 'emp_name' => $dataKaryawan->emp_name];
         $sekarang = now();
-        $keputusan = Absensi::tentukanAksi($emp->emp_id, $this->shifts, $sekarang);
+        $keputusan = Absensi::tentukanAksi($dataKaryawan->emp_id, $this->shifts, $sekarang);
 
         if ($keputusan['aksi'] === 'pulang') {
-            $this->tampilkanHasil('pulang', $emp->emp_name, Absensi::catatPulang($keputusan['terbuka'], $sekarang), $keputusan['terbuka']->abs_status);
+            $this->tampilkanHasil('pulang', $dataKaryawan->emp_name, Absensi::catatPulang($keputusan['terbuka'], $sekarang), $keputusan['terbuka']->abs_status);
             return;
         }
         if ($keputusan['aksi'] === 'masuk') {
@@ -90,7 +90,7 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
             return;
         }
 
-        $this->tampilkanHasil($keputusan['aksi'], $emp->emp_name, $keputusan['pesan']);
+        $this->tampilkanHasil($keputusan['aksi'], $dataKaryawan->emp_name, $keputusan['pesan']);
     }
 
     // ─── Langkah 2: pilih shift → absen masuk ─────────────────────────────────

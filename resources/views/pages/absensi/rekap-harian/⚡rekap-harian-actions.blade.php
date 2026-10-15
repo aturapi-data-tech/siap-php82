@@ -44,15 +44,15 @@ new class extends Component {
     #[On('absensi.rekap-harian.openInput')]
     public function openInput(string $empId, string $tanggal): void
     {
-        $emp = DB::table('siapmst_employers')->where('emp_id', $empId)->first(['emp_id', 'emp_name']);
-        if (!$emp) {
+        $dataKaryawan = DB::table('siapmst_employers')->where('emp_id', $empId)->first(['emp_id', 'emp_name']);
+        if (!$dataKaryawan) {
             $this->dispatch('toast', type: 'error', message: 'Data karyawan tidak ditemukan.');
             return;
         }
 
         $this->resetForm();
-        $this->empId   = (string) $emp->emp_id;
-        $this->empName = (string) $emp->emp_name;
+        $this->empId   = (string) $dataKaryawan->emp_id;
+        $this->empName = (string) $dataKaryawan->emp_name;
         $this->tanggal = $tanggal;
 
         $row = Absensi::absenTanggal($this->empId, Carbon::createFromFormat('!d/m/Y', $tanggal));
@@ -121,7 +121,7 @@ new class extends Component {
         $tanggalKerja = Carbon::createFromFormat('!d/m/Y', $this->tanggal);
         $form = $this->form;
 
-        $data = [
+        $payload = [
             'shift_id'        => null,
             'jam_masuk'       => null,
             'jam_pulang'      => null,
@@ -158,7 +158,7 @@ new class extends Component {
                 $pulang = $this->pulangDobelShift($tanggalKerja, $masuk, $form['jam_pulang']);
             }
 
-            $data = [...$data,
+            $payload = [...$payload,
                 'shift_id'        => $shift->shift_id,
                 'jam_masuk'       => $masuk,
                 'jam_pulang'      => $pulang,
@@ -174,15 +174,15 @@ new class extends Component {
         }
 
         // Dobel shift: lembur sudah ditetapkan HRD di sini → langsung Dihitung.
-        $data = [...$data, ...($data['dobel_shift_id'] && $data['lembur_menit'] > 0
+        $payload = [...$payload, ...($payload['dobel_shift_id'] && $payload['lembur_menit'] > 0
             ? ['lembur_status' => 'Y', 'lembur_oleh' => auth()->id(), 'lembur_dinilai_at' => now()]
-            : $this->penilaianLembur((int) $data['lembur_menit']))];
+            : $this->penilaianLembur((int) $payload['lembur_menit']))];
 
         if ($this->absId) {
-            DB::table('siaptxn_absensis')->where('abs_id', $this->absId)->update($data);
+            DB::table('siaptxn_absensis')->where('abs_id', $this->absId)->update($payload);
         } else {
             DB::table('siaptxn_absensis')->insert([
-                ...$data,
+                ...$payload,
                 'emp_id'     => $this->empId,
                 'abs_date'   => Absensi::tanggalSql($tanggalKerja),
                 'created_at' => now(),
@@ -221,10 +221,10 @@ new class extends Component {
      */
     private function waktuPada(Carbon $tanggalKerja, string $jam, object $shift, bool $isPulang): Carbon
     {
-        [$h, $m] = array_map('intval', explode(':', $jam));
-        $waktu = $tanggalKerja->copy()->setTime($h, $m);
+        [$angkaJam, $angkaMenit] = array_map('intval', explode(':', $jam));
+        $waktu = $tanggalKerja->copy()->setTime($angkaJam, $angkaMenit);
 
-        if ((string) $shift->lintas_hari === '1' && $jam < $shift->jam_masuk && ($isPulang || $h < 12)) {
+        if ((string) $shift->lintas_hari === '1' && $jam < $shift->jam_masuk && ($isPulang || $angkaJam < 12)) {
             $waktu->addDay();
         }
 

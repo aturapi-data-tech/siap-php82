@@ -88,8 +88,8 @@ new class extends Component {
     protected function rules(): array
     {
         $rules = ['form.absen_hp_aktif' => 'required|in:0,1'];
-        foreach (PengaturanAbsensi::ATURAN as $kolom => [, $min, $maks]) {
-            $rules["form.{$kolom}"] = "required|integer|min:{$min}|max:{$maks}";
+        foreach (PengaturanAbsensi::ATURAN as $kolom => [, $minimal, $maksimal]) {
+            $rules["form.{$kolom}"] = "required|integer|min:{$minimal}|max:{$maksimal}";
         }
 
         return $rules;

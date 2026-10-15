@@ -18,8 +18,8 @@ new class extends Component {
         </div>
 
         @php
-            $idt = \App\Support\Identitas::get();
-            $logoIdt = \App\Support\Identitas::logoUrl();
+            $identitas = \App\Support\Identitas::get();
+            $logoIdentitas = \App\Support\Identitas::logoUrl();
             $slides = [
                 asset('images/landing/slide-1.png'),
                 asset('images/landing/slide-2.png'),
@@ -54,11 +54,11 @@ new class extends Component {
                         </h1>
 
                         <p class="max-w-xl mt-5 text-lg leading-relaxed text-body dark:text-gray-300">
-                            Sistem Informasi Aset &amp; Pegawai <b>{{ $idt->nama }}</b> — absensi, kepegawaian,
+                            Sistem Informasi Aset &amp; Pegawai <b>{{ $identitas->nama }}</b> — absensi, kepegawaian,
                             dan manajemen aset dalam satu aplikasi.
                         </p>
-                        @if (filled($idt->tagline))
-                            <p class="max-w-xl mt-2 italic text-muted dark:text-gray-400">“{{ $idt->tagline }}”</p>
+                        @if (filled($identitas->tagline))
+                            <p class="max-w-xl mt-2 italic text-muted dark:text-gray-400">“{{ $identitas->tagline }}”</p>
                         @endif
 
                         {{-- CTA --}}
@@ -90,19 +90,19 @@ new class extends Component {
                                 ];
                             @endphp
                             <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                                @foreach ($modules as $m)
+                                @foreach ($modules as $modul)
                                     {{-- Modul ber-href (Absensi → Absen HP, publik) bisa diklik tanpa login. --}}
-                                    <a @isset($m['href']) href="{{ $m['href'] }}" @endisset
+                                    <a @isset($modul['href']) href="{{ $modul['href'] }}" @endisset
                                         class="flex items-start gap-2.5 px-3.5 py-3 rounded-xl bg-surface-card ring-1 ring-hairline dark:bg-white/5 dark:ring-white/10
-                                            {{ isset($m['href']) ? 'transition hover:ring-2 hover:ring-brand-green dark:hover:ring-brand-lime' : '' }}">
+                                            {{ isset($modul['href']) ? 'transition hover:ring-2 hover:ring-brand-green dark:hover:ring-brand-lime' : '' }}">
                                         <svg class="w-5 h-5 mt-0.5 text-brand-green shrink-0 dark:text-brand-lime"
                                             fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="{{ $m['icon'] }}" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="{{ $modul['icon'] }}" />
                                         </svg>
                                         <div>
-                                            <p class="text-sm font-semibold text-ink dark:text-slate-100">{{ $m['label'] }}</p>
-                                            <p class="text-xs text-muted dark:text-gray-400">{{ $m['desc'] }}</p>
-                                            @isset($m['href'])
+                                            <p class="text-sm font-semibold text-ink dark:text-slate-100">{{ $modul['label'] }}</p>
+                                            <p class="text-xs text-muted dark:text-gray-400">{{ $modul['desc'] }}</p>
+                                            @isset($modul['href'])
                                                 <p class="mt-1 text-xs font-semibold text-brand-green dark:text-brand-lime">Absen sekarang →</p>
                                             @endisset
                                         </div>
@@ -162,28 +162,28 @@ new class extends Component {
             <div id="tentang" class="px-6 py-12 border-t scroll-mt-24 border-hairline bg-surface-soft/60 dark:bg-white/5 dark:border-white/10">
                 <div class="grid items-start grid-cols-1 gap-8 mx-auto max-w-7xl lg:grid-cols-3">
                     <div class="flex flex-col items-center text-center lg:items-start lg:text-left">
-                        @if ($logoIdt)
-                            <img src="{{ $logoIdt }}" alt="{{ $idt->nama }}" class="object-contain w-auto h-20 max-w-full p-3 bg-white rounded-2xl">
+                        @if ($logoIdentitas)
+                            <img src="{{ $logoIdentitas }}" alt="{{ $identitas->nama }}" class="object-contain w-auto h-20 max-w-full p-3 bg-white rounded-2xl">
                         @endif
                         {{-- Ada logo → judul nama hanya untuk pembaca layar (logo sudah memuat nama) --}}
-                        <h2 class="{{ $logoIdt ? 'sr-only' : 'text-2xl font-bold text-ink dark:text-white' }}">{{ $idt->nama }}</h2>
-                        @if (filled($idt->tagline))
-                            <p class="mt-1 italic text-muted dark:text-gray-400">{{ $idt->tagline }}</p>
+                        <h2 class="{{ $logoIdentitas ? 'sr-only' : 'text-2xl font-bold text-ink dark:text-white' }}">{{ $identitas->nama }}</h2>
+                        @if (filled($identitas->tagline))
+                            <p class="mt-1 italic text-muted dark:text-gray-400">{{ $identitas->tagline }}</p>
                         @endif
                     </div>
 
                     <div class="lg:col-span-2">
                         <p class="text-xs font-semibold tracking-[0.12em] uppercase text-brand-green dark:text-brand-lime">Tentang kami</p>
-                        <p class="mt-2 leading-relaxed whitespace-pre-line text-body dark:text-gray-300">{{ $idt->deskripsi ?: 'Profil instansi belum diisi — atur di menu Sistem › Identitas Instansi.' }}</p>
+                        <p class="mt-2 leading-relaxed whitespace-pre-line text-body dark:text-gray-300">{{ $identitas->deskripsi ?: 'Profil instansi belum diisi — atur di menu Sistem › Identitas Instansi.' }}</p>
 
                         <dl class="grid grid-cols-1 gap-4 mt-6 text-sm sm:grid-cols-2">
                             @foreach ([
                                 ['Alamat', \App\Support\Identitas::alamatLengkap()],
-                                ['Jam Operasional', $idt->jam_operasional ?? null],
-                                ['Telepon', collect([$idt->telp, $idt->fax ? 'Fax ' . $idt->fax : null])->filter()->implode(' · ')],
-                                ['Email', $idt->email],
-                                ['Website', $idt->website],
-                                [$idt->jabatan_pimpinan ?: 'Pimpinan', $idt->pimpinan],
+                                ['Jam Operasional', $identitas->jam_operasional ?? null],
+                                ['Telepon', collect([$identitas->telp, $identitas->fax ? 'Fax ' . $identitas->fax : null])->filter()->implode(' · ')],
+                                ['Email', $identitas->email],
+                                ['Website', $identitas->website],
+                                [$identitas->jabatan_pimpinan ?: 'Pimpinan', $identitas->pimpinan],
                             ] as [$label, $nilai])
                                 @if (filled($nilai))
                                     <div>
@@ -200,7 +200,7 @@ new class extends Component {
             {{-- FOOTER --}}
             <footer class="py-6 border-t border-hairline dark:border-white/10">
                 <p class="text-center text-caption text-muted dark:text-gray-400">
-                    © {{ date('Y') }} SIAP — {{ $idt->nama }}
+                    © {{ date('Y') }} SIAP — {{ $identitas->nama }}
                 </p>
             </footer>
         </section>

@@ -112,8 +112,8 @@ class Absensi
         }
 
         $hariSama = [];
-        for ($i = 1; $i <= self::MINGGU_POLA_LIBUR; $i++) {
-            $hariSama[] = self::tanggalSql($tanggal->copy()->subWeeks($i));
+        for ($mingguKe = 1; $mingguKe <= self::MINGGU_POLA_LIBUR; $mingguKe++) {
+            $hariSama[] = self::tanggalSql($tanggal->copy()->subWeeks($mingguKe));
         }
 
         $pernahMasuk = DB::table('siaptxn_absensis')

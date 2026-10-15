@@ -18,7 +18,7 @@ new class extends Component {
 ?>
 
 @php
-    $A = \App\Support\Absensi::class;
+    $absensi = \App\Support\Absensi::class;
     $pengaturan = \App\Support\PengaturanAbsensi::class;
     $tautan = fn(string $route, string $label, array $parameter = []) => \Illuminate\Support\Facades\Route::has($route)
         ? '<a href="' . route($route, $parameter) . '" wire:navigate class="font-semibold text-brand-green underline hover:no-underline dark:text-brand-lime">' . e($label) . '</a>'
@@ -71,9 +71,9 @@ new class extends Component {
                             ['Kiosk / HP', 'Scan ID, atau GPS + selfie di HP', 'tiap hari'],
                             ['Rekap Harian', 'Cek, isi izin, Generate', 'tiap hari'],
                             ['Rekap Bulanan', 'Nilai lembur, % hadir', 'akhir bulan'],
-                        ] as $i => [$judul, $isi, $kapan])
+                        ] as $urutan => [$judul, $isi, $kapan])
                             <div class="p-3 border rounded-xl border-hairline bg-surface-soft dark:bg-gray-800 dark:border-gray-700">
-                                <div class="text-xs font-semibold text-brand-green dark:text-brand-lime">{{ $i + 1 }} · {{ $kapan }}</div>
+                                <div class="text-xs font-semibold text-brand-green dark:text-brand-lime">{{ $urutan + 1 }} · {{ $kapan }}</div>
                                 <div class="font-semibold text-ink dark:text-gray-100">{{ $judul }}</div>
                                 <div class="text-xs text-muted">{{ $isi }}</div>
                             </div>
@@ -97,12 +97,12 @@ new class extends Component {
                     <table class="mt-2 ds-table">
                         <thead><tr><th>Kode</th><th>Shift</th><th>Jam</th><th>Toleransi terlambat</th></tr></thead>
                         <tbody>
-                            @foreach ($this->shifts() as $sh)
+                            @foreach ($this->shifts() as $shift)
                                 <tr>
-                                    <td><span class="inline-block w-7 py-0.5 text-xs font-bold text-center rounded {{ \App\Support\Jadwal::WARNA[$sh->shift_kode] ?? \App\Support\Jadwal::WARNA_LAIN }}">{{ $sh->shift_kode }}</span></td>
-                                    <td>{{ $sh->shift_name }}</td>
-                                    <td class="font-mono">{{ $sh->jam_masuk }} – {{ $sh->jam_pulang }}</td>
-                                    <td>{{ (int) $sh->toleransi_menit }} menit</td>
+                                    <td><span class="inline-block w-7 py-0.5 text-xs font-bold text-center rounded {{ \App\Support\Jadwal::WARNA[$shift->shift_kode] ?? \App\Support\Jadwal::WARNA_LAIN }}">{{ $shift->shift_kode }}</span></td>
+                                    <td>{{ $shift->shift_name }}</td>
+                                    <td class="font-mono">{{ $shift->jam_masuk }} – {{ $shift->jam_pulang }}</td>
+                                    <td>{{ (int) $shift->toleransi_menit }} menit</td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -330,16 +330,16 @@ new class extends Component {
                         <div>
                             <h3>Status absensi</h3>
                             <div class="flex flex-wrap gap-2 mt-2">
-                                @foreach ($A::STATUS as $k => $n)
-                                    <x-badge :variant="$A::BADGE[$k]">{{ $k }} = {{ $n }}</x-badge>
+                                @foreach ($absensi::STATUS as $kodeStatus => $namaStatus)
+                                    <x-badge :variant="$absensi::BADGE[$kodeStatus]">{{ $kodeStatus }} = {{ $namaStatus }}</x-badge>
                                 @endforeach
                             </div>
                         </div>
                         <div>
                             <h3>Kode jadwal</h3>
                             <div class="flex flex-wrap gap-2 mt-2 text-sm">
-                                @foreach ($this->shifts() as $sh)
-                                    <span class="px-2 py-0.5 font-bold rounded {{ \App\Support\Jadwal::WARNA[$sh->shift_kode] ?? \App\Support\Jadwal::WARNA_LAIN }}">{{ $sh->shift_kode }}</span><span>{{ $sh->shift_name }}</span>
+                                @foreach ($this->shifts() as $shift)
+                                    <span class="px-2 py-0.5 font-bold rounded {{ \App\Support\Jadwal::WARNA[$shift->shift_kode] ?? \App\Support\Jadwal::WARNA_LAIN }}">{{ $shift->shift_kode }}</span><span>{{ $shift->shift_name }}</span>
                                 @endforeach
                                 <span class="px-2 py-0.5 font-bold rounded {{ \App\Support\Jadwal::WARNA['I'] }}">I</span><span>Izin</span>
                                 <span class="px-2 py-0.5 font-bold rounded {{ \App\Support\Jadwal::WARNA['C'] }}">C</span><span>Cuti</span>

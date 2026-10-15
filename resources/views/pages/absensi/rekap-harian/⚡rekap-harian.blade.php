@@ -70,32 +70,32 @@ new class extends Component {
 
     private function baseQuery()
     {
-        $tgl = Absensi::tanggalSql($this->tanggalCarbon());
+        $tanggalSql = Absensi::tanggalSql($this->tanggalCarbon());
 
-        $q = DB::table('siapmst_employers as em')
-            ->leftJoin('siaptxn_absensis as ab', function ($join) use ($tgl) {
-                $join->on('ab.emp_id', '=', 'em.emp_id')->where('ab.abs_date', '=', $tgl);
+        $query = DB::table('siapmst_employers as em')
+            ->leftJoin('siaptxn_absensis as ab', function ($join) use ($tanggalSql) {
+                $join->on('ab.emp_id', '=', 'em.emp_id')->where('ab.abs_date', '=', $tanggalSql);
             })
             ->leftJoin('siapmst_shifts as sh', 'sh.shift_id', '=', 'ab.shift_id')
             ->where('em.active_status', '1');
 
         if (trim($this->searchKeyword) !== '') {
-            $kw = mb_strtoupper(trim($this->searchKeyword));
-            $q->where(fn($sub) => $sub->whereRaw('UPPER(em.emp_id) LIKE ?', ["%{$kw}%"])
-                ->orWhereRaw('UPPER(em.emp_name) LIKE ?', ["%{$kw}%"]));
+            $keyword = mb_strtoupper(trim($this->searchKeyword));
+            $query->where(fn($subQuery) => $subQuery->whereRaw('UPPER(em.emp_id) LIKE ?', ["%{$keyword}%"])
+                ->orWhereRaw('UPPER(em.emp_name) LIKE ?', ["%{$keyword}%"]));
         }
 
-        return $q;
+        return $query;
     }
 
     #[Computed]
     public function rows()
     {
-        $tgl = Absensi::tanggalSql($this->tanggalCarbon());
-        $q = $this->baseQuery()
+        $tanggalSql = Absensi::tanggalSql($this->tanggalCarbon());
+        $query = $this->baseQuery()
             // Jadwal dinas tanggal ini (kosong = libur/tidak dijadwalkan)
-            ->leftJoin('siaptxn_jadwals as jd', function ($join) use ($tgl) {
-                $join->on('jd.emp_id', '=', 'em.emp_id')->where('jd.jdw_tanggal', '=', $tgl);
+            ->leftJoin('siaptxn_jadwals as jd', function ($join) use ($tanggalSql) {
+                $join->on('jd.emp_id', '=', 'em.emp_id')->where('jd.jdw_tanggal', '=', $tanggalSql);
             })
             ->leftJoin('siapmst_shifts as sj', 'sj.shift_id', '=', 'jd.shift_id')
             ->leftJoin('siapmst_shifts as sd', 'sd.shift_id', '=', 'ab.dobel_shift_id')
@@ -106,14 +106,14 @@ new class extends Component {
             ->orderBy('em.emp_name');
 
         if ($this->filterStatus === 'BELUM') {
-            $q->whereNull('ab.abs_id');
+            $query->whereNull('ab.abs_id');
         } elseif ($this->filterStatus === 'LEMBUR_P') {
-            $q->where('ab.lembur_status', 'P');
+            $query->where('ab.lembur_status', 'P');
         } elseif ($this->filterStatus !== '') {
-            $q->where('ab.abs_status', $this->filterStatus);
+            $query->where('ab.abs_status', $this->filterStatus);
         }
 
-        return $q->paginate($this->itemsPerPage);
+        return $query->paginate($this->itemsPerPage);
     }
 
     /** Jumlah per status (+ BELUM) untuk kartu ringkasan — tidak terpengaruh filter status. */
@@ -125,15 +125,15 @@ new class extends Component {
             ->select('ab.abs_status', DB::raw('COUNT(*) AS jumlah'))
             ->pluck('jumlah', 'abs_status');
 
-        $hasil = [
+        $jumlahPerStatus = [
             'BELUM'    => (int) ($hitung[''] ?? 0),
             'LEMBUR_P' => (int) $this->baseQuery()->where('ab.lembur_status', 'P')->count(),
         ];
         foreach (array_keys(Absensi::STATUS) as $kode) {
-            $hasil[$kode] = (int) ($hitung[$kode] ?? 0);
+            $jumlahPerStatus[$kode] = (int) ($hitung[$kode] ?? 0);
         }
 
-        return $hasil;
+        return $jumlahPerStatus;
     }
 };
 ?>
@@ -236,10 +236,10 @@ new class extends Component {
                                     <td class="ds-td-token">{{ $row->emp_id }}</td>
                                     <td class="ds-td-strong">{{ $row->emp_name }}</td>
                                     <td class="ds-c">
-                                        @php $kj = $row->jdw_jenis === 'K' ? $row->jadwal_kode : $row->jdw_jenis; @endphp
-                                        @if ($kj)
-                                            <span class="inline-block w-7 py-0.5 text-xs font-bold rounded {{ \App\Support\Jadwal::WARNA[$kj] ?? \App\Support\Jadwal::WARNA_LAIN }}"
-                                                title="{{ $row->jadwal_shift ?? (\App\Support\Jadwal::KHUSUS[$kj] ?? '') }}">{{ $kj }}</span>
+                                        @php $kodeJadwal = $row->jdw_jenis === 'K' ? $row->jadwal_kode : $row->jdw_jenis; @endphp
+                                        @if ($kodeJadwal)
+                                            <span class="inline-block w-7 py-0.5 text-xs font-bold rounded {{ \App\Support\Jadwal::WARNA[$kodeJadwal] ?? \App\Support\Jadwal::WARNA_LAIN }}"
+                                                title="{{ $row->jadwal_shift ?? (\App\Support\Jadwal::KHUSUS[$kodeJadwal] ?? '') }}">{{ $kodeJadwal }}</span>
                                         @else
                                             <span class="text-[11px] text-muted-soft">libur</span>
                                         @endif
@@ -267,13 +267,13 @@ new class extends Component {
                                                 <span class="text-[10px] text-muted-soft">(+1 hari)</span>
                                             @endunless
                                             @if ((int) $row->lembur_menit > 0)
-                                                @php $stLembur = $row->lembur_status ?: 'P'; @endphp
-                                                <div class="mt-1 p-1.5 rounded-lg border {{ $stLembur === 'P' ? 'border-amber-300 bg-amber-50' : 'border-hairline' }} font-sans">
+                                                @php $statusLembur = $row->lembur_status ?: 'P'; @endphp
+                                                <div class="mt-1 p-1.5 rounded-lg border {{ $statusLembur === 'P' ? 'border-amber-300 bg-amber-50' : 'border-hairline' }} font-sans">
                                                     <div class="flex items-center gap-1.5">
                                                         <span class="text-[11px] font-semibold text-indigo-700">Lembur {{ \App\Support\Absensi::labelMenit((int) $row->lembur_menit) }}</span>
-                                                        <x-badge :variant="\App\Support\Absensi::LEMBUR_BADGE[$stLembur]">{{ \App\Support\Absensi::LEMBUR_STATUS[$stLembur] }}</x-badge>
+                                                        <x-badge :variant="\App\Support\Absensi::LEMBUR_BADGE[$statusLembur]">{{ \App\Support\Absensi::LEMBUR_STATUS[$statusLembur] }}</x-badge>
                                                     </div>
-                                                    @if ($stLembur !== 'P' && $row->lembur_penilai)
+                                                    @if ($statusLembur !== 'P' && $row->lembur_penilai)
                                                         <div class="mt-0.5 text-[10px] text-muted-soft">
                                                             oleh {{ $row->lembur_penilai }}{{ $row->lembur_dinilai_at ? ', ' . \App\Support\Format::waktu($row->lembur_dinilai_at) : '' }}
                                                         </div>

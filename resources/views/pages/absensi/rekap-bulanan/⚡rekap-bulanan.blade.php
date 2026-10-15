@@ -43,9 +43,9 @@ new class extends Component {
         $this->resetPage();
     }
 
-    public function geserBulan(int $n): void
+    public function geserBulan(int $jumlahBulan): void
     {
-        $this->bulan = $this->awalBulan()->addMonthsNoOverflow($n)->format(Format::BULAN);
+        $this->bulan = $this->awalBulan()->addMonthsNoOverflow($jumlahBulan)->format(Format::BULAN);
         $this->resetPage();
     }
 
@@ -103,15 +103,15 @@ new class extends Component {
         $hitung = fn(string $kode) => DB::raw("SUM(CASE WHEN ab.abs_status = '{$kode}' THEN 1 ELSE 0 END) AS jml_" . strtolower($kode));
 
         // Tanggal literal untuk subquery jadwal (nilai dari Carbon, bukan input user).
-        $lit = fn(Carbon $t) => "to_date('" . $t->format('Y-m-d') . "', 'YYYY-MM-DD')";
-        $dariL   = $lit($awal);
-        $sampaiL = $lit($awal->copy()->endOfMonth());
-        $batasL  = $this->batasKehadiran ? $lit($this->batasKehadiran) : $lit($awal->copy()->subDay()); // kosong → 0
-        $terjadwal = fn(string $sd, string $alias) => DB::raw(
+        $tanggalLiteral = fn(Carbon $tanggal) => "to_date('" . $tanggal->format('Y-m-d') . "', 'YYYY-MM-DD')";
+        $dariLiteral   = $tanggalLiteral($awal);
+        $sampaiLiteral = $tanggalLiteral($awal->copy()->endOfMonth());
+        $batasLiteral  = $this->batasKehadiran ? $tanggalLiteral($this->batasKehadiran) : $tanggalLiteral($awal->copy()->subDay()); // kosong → 0
+        $terjadwal = fn(string $sampaiDengan, string $alias) => DB::raw(
             "(SELECT COUNT(*) FROM siaptxn_jadwals jd WHERE jd.emp_id = em.emp_id AND jd.jdw_jenis = 'K'
-               AND jd.jdw_tanggal BETWEEN {$dariL} AND {$sd}) AS {$alias}");
+               AND jd.jdw_tanggal BETWEEN {$dariLiteral} AND {$sampaiDengan}) AS {$alias}");
 
-        $q = DB::table('siapmst_employers as em')
+        $query = DB::table('siapmst_employers as em')
             ->leftJoin('siaptxn_absensis as ab', function ($join) use ($dari, $sampai) {
                 $join->on('ab.emp_id', '=', 'em.emp_id')
                     ->where('ab.abs_date', '>=', $dari)
@@ -127,21 +127,21 @@ new class extends Component {
                 DB::raw("SUM(CASE WHEN ab.lembur_status = 'Y' THEN 1 ELSE 0 END) AS hari_lembur"),
                 DB::raw("NVL(SUM(CASE WHEN ab.lembur_status = 'P' THEN ab.lembur_menit END), 0) AS lembur_menunggu"),
                 DB::raw('SUM(CASE WHEN ab.dobel_shift_id IS NOT NULL THEN 1 ELSE 0 END) AS jml_dobel_shift'),
-                $terjadwal($batasL, 'hari_terjadwal'),
-                $terjadwal($sampaiL, 'terjadwal_sebulan'),
+                $terjadwal($batasLiteral, 'hari_terjadwal'),
+                $terjadwal($sampaiLiteral, 'terjadwal_sebulan'),
                 DB::raw("(SELECT COUNT(*) FROM siaptxn_absensis a2
                            JOIN siaptxn_jadwals j2 ON j2.emp_id = a2.emp_id AND j2.jdw_tanggal = a2.abs_date AND j2.jdw_jenis = 'K'
                           WHERE a2.emp_id = em.emp_id AND a2.abs_status IN ('H', 'T')
-                            AND a2.abs_date BETWEEN {$dariL} AND {$batasL}) AS hadir_terjadwal"))
+                            AND a2.abs_date BETWEEN {$dariLiteral} AND {$batasLiteral}) AS hadir_terjadwal"))
             ->orderBy('em.emp_id');
 
         if (trim($this->searchKeyword) !== '') {
-            $kw = mb_strtoupper(trim($this->searchKeyword));
-            $q->where(fn($sub) => $sub->whereRaw('UPPER(em.emp_id) LIKE ?', ["%{$kw}%"])
-                ->orWhereRaw('UPPER(em.emp_name) LIKE ?', ["%{$kw}%"]));
+            $keyword = mb_strtoupper(trim($this->searchKeyword));
+            $query->where(fn($subQuery) => $subQuery->whereRaw('UPPER(em.emp_id) LIKE ?', ["%{$keyword}%"])
+                ->orWhereRaw('UPPER(em.emp_name) LIKE ?', ["%{$keyword}%"]));
         }
 
-        return $q->paginate($this->itemsPerPage);
+        return $query->paginate($this->itemsPerPage);
     }
 };
 ?>
@@ -218,29 +218,29 @@ new class extends Component {
                                         <span class="font-mono text-xs text-muted dark:text-gray-400">{{ $row->emp_id }}</span>
                                     </td>
                                     @php
-                                        $terj = (int) $row->hari_terjadwal;
-                                        $persen = $terj > 0 ? round((int) $row->hadir_terjadwal / $terj * 100) : null;
+                                        $hariTerjadwal = (int) $row->hari_terjadwal;
+                                        $persen = $hariTerjadwal > 0 ? round((int) $row->hadir_terjadwal / $hariTerjadwal * 100) : null;
                                         $warnaPersen = $persen === null ? 'text-muted-soft' : ($persen >= 95 ? 'bg-emerald-100 text-emerald-800' : ($persen >= 85 ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'));
                                     @endphp
                                     <td class="ds-c">
-                                        <div class="font-mono font-semibold">{{ $terj }}</div>
-                                        @if ((int) $row->terjadwal_sebulan !== $terj)
+                                        <div class="font-mono font-semibold">{{ $hariTerjadwal }}</div>
+                                        @if ((int) $row->terjadwal_sebulan !== $hariTerjadwal)
                                             <div class="text-[10px] text-muted-soft">dari {{ (int) $row->terjadwal_sebulan }} sebulan</div>
                                         @endif
                                     </td>
                                     <td class="ds-c">
                                         @if ($persen !== null)
                                             <span class="inline-block px-2 py-0.5 rounded font-mono font-bold text-sm {{ $warnaPersen }}">{{ $persen }}%</span>
-                                            <div class="text-[10px] text-muted-soft">{{ (int) $row->hadir_terjadwal }}/{{ $terj }} hari</div>
+                                            <div class="text-[10px] text-muted-soft">{{ (int) $row->hadir_terjadwal }}/{{ $hariTerjadwal }} hari</div>
                                         @else
                                             <span class="text-muted-soft" title="Belum ada hari terjadwal yang lewat">—</span>
                                         @endif
                                     </td>
                                     @foreach (array_keys(\App\Support\Absensi::STATUS) as $kode)
-                                        @php $jml = (int) $row->{'jml_' . strtolower($kode)}; @endphp
+                                        @php $jumlah = (int) $row->{'jml_' . strtolower($kode)}; @endphp
                                         <td class="ds-c">
-                                            @if ($jml > 0)
-                                                <x-badge :variant="\App\Support\Absensi::BADGE[$kode]">{{ $jml }}</x-badge>
+                                            @if ($jumlah > 0)
+                                                <x-badge :variant="\App\Support\Absensi::BADGE[$kode]">{{ $jumlah }}</x-badge>
                                             @else
                                                 <span class="text-muted-soft">0</span>
                                             @endif
