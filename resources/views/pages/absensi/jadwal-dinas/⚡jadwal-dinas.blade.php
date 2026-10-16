@@ -2,6 +2,7 @@
 
 use Livewire\Component;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Url;
 use Illuminate\Support\Facades\DB;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
@@ -17,7 +18,8 @@ use App\Support\UnitKerja;
  * Jadwal dipakai kiosk (shift otomatis), Generate Libur/Alpa, dan Rekap Harian.
  *
  * Unit kerja (UnitKerja::cakupanUser):
- *   - admin / HRD   → pilih unit (atau semua unit); kuas = shift unit terpilih.
+ *   - admin / HRD   → pilih unit; kuas = shift unit terpilih. "Semua unit" = HANYA LIHAT & CETAK
+ *                     (kuas tiap unit berbeda — P Gizi 05:00 ≠ P IGD 07:00, M hanya ada di unit tertentu).
  *   - role lain     → DIKUNCI ke unit karyawan yang terhubung ke akunnya (mis. kepala ruang).
  * Semua aksi hanya menyentuh karyawan di $this->karyawan (sudah tersaring unit), dan kode yang
  * diisikan divalidasi terhadap shift unit karyawan masing-masing.
@@ -26,7 +28,8 @@ new class extends Component {
     public string $bulan = '';      // mm/yyyy
     public string $kuas  = 'P';     // kode shift / I / C / '' (libur)
     public string $searchKeyword = '';
-    public string $filterUnit = ''; // admin/HRD: '' = semua unit
+    #[Url(as: 'unit')]
+    public string $filterUnit = ''; // admin/HRD: '' = semua unit (lihat & cetak saja)
 
     private string $printView = 'pages.absensi.jadwal-dinas.jadwal-dinas-print';
 
@@ -36,6 +39,10 @@ new class extends Component {
     public function mount(): void
     {
         $this->bulan = now()->format(Format::BULAN);
+        // Admin / HRD langsung masuk ke satu unit (mengisi jadwal wajib per unit).
+        if ($this->cakupan['semuaUnit'] && $this->filterUnit === '') {
+            $this->filterUnit = (string) ($this->unitList->first()->unit_id ?? '');
+        }
         $this->kuas = (string) ($this->shifts->keys()->first() ?? 'I');
     }
 
@@ -74,6 +81,22 @@ new class extends Component {
         }
 
         return $this->filterUnit !== '' ? $this->filterUnit : null;
+    }
+
+    /** Jadwal hanya bisa DIISI per unit — mode semua unit = lihat & cetak. */
+    public function bisaIsi(): bool
+    {
+        return $this->unitAktif() !== null;
+    }
+
+    private function tolakSemuaUnit(): bool
+    {
+        if ($this->bisaIsi()) {
+            return false;
+        }
+        $this->dispatch('toast', type: 'error', message: 'Pilih unit dulu — jadwal diisi per unit (kuas tiap unit berbeda).');
+
+        return true;
     }
 
     public function bolehAkses(): bool
@@ -146,6 +169,9 @@ new class extends Component {
     // ─── Isi sel ──────────────────────────────────────────────────────────────
     public function isiSel(string $empId, int $hari): void
     {
+        if ($this->tolakSemuaUnit()) {
+            return;
+        }
         $awal = $this->awalBulan();
         $karyawan = $this->karyawan->firstWhere('emp_id', $empId);
         if (!$this->kuasValid() || $hari < 1 || $hari > $awal->daysInMonth || !$karyawan) {
@@ -174,6 +200,9 @@ new class extends Component {
      */
     public function isiHariKerja(string $empId): void
     {
+        if ($this->tolakSemuaUnit()) {
+            return;
+        }
         $karyawan = $this->karyawan->firstWhere('emp_id', $empId);
         if (!$karyawan) {
             return;
@@ -206,6 +235,9 @@ new class extends Component {
      */
     public function salinBulanLalu(): void
     {
+        if ($this->tolakSemuaUnit()) {
+            return;
+        }
         $awal = $this->awalBulan();
         $bulanLalu = $awal->copy()->subMonthNoOverflow();
         $jadwalLalu = Jadwal::bulan($this->karyawan->pluck('emp_id')->all(), $bulanLalu);
@@ -236,6 +268,9 @@ new class extends Component {
     /** Kosongkan jadwal bulan ini mulai HARI INI (tanggal yang sudah lewat terkunci). */
     public function kosongkanBulan(): void
     {
+        if ($this->tolakSemuaUnit()) {
+            return;
+        }
         $awal = $this->awalBulan();
         $dari = $awal->copy()->max(now()->startOfDay());
         if ($dari->gt($awal->copy()->endOfMonth())) {
@@ -309,7 +344,7 @@ new class extends Component {
                         @if ($this->cakupan['semuaUnit'])
                             <div class="w-52">
                                 <x-select-input wire:model.live="filterUnit">
-                                    <option value="">Semua unit</option>
+                                    <option value="">Semua unit (lihat &amp; cetak)</option>
                                     @foreach ($this->unitList as $unit)
                                         <option value="{{ $unit->unit_id }}">{{ $unit->unit_name }}</option>
                                     @endforeach
@@ -323,7 +358,8 @@ new class extends Component {
                         <div class="w-56">
                             <x-text-input type="text" wire:model.live.debounce.300ms="searchKeyword" placeholder="Cari karyawan..." class="block w-full" />
                         </div>
-                        {{-- KUAS --}}
+                        {{-- KUAS — hanya saat satu unit dipilih --}}
+                        @if ($this->bisaIsi())
                         <div class="flex flex-wrap items-center gap-1 px-2 py-1 border rounded-xl bg-canvas border-hairline dark:border-gray-700">
                             <span class="mr-1 text-xs font-semibold text-muted">Kuas:</span>
                             @foreach ($this->shifts as $kode => $shift)
@@ -339,19 +375,23 @@ new class extends Component {
                             <button type="button" wire:click="$set('kuas', '')" title="Libur / hapus jadwal"
                                 class="px-2 h-8 text-xs font-bold rounded-lg border border-hairline bg-white text-gray-700 {{ $kuas === '' ? 'ring-4 ring-offset-1 ring-brand-green' : 'opacity-70 hover:opacity-100' }}">Libur</button>
                         </div>
+                        @endif
                     </div>
                     <div class="flex flex-wrap items-center justify-end gap-2">
-                        <x-secondary-button type="button" wire:click="salinBulanLalu" wire:loading.attr="disabled" wire:target="salinBulanLalu">Salin bulan lalu</x-secondary-button>
-                        <x-confirm-button variant="danger-soft" action="kosongkanBulan()" title="Kosongkan Jadwal"
-                            message="Hapus jadwal {{ $bulan }} mulai hari ini untuk karyawan yang tampil? Tanggal yang sudah lewat tetap (terkunci)." confirmText="Ya, kosongkan" cancelText="Batal">
-                            Kosongkan
-                        </x-confirm-button>
+                        @if ($this->bisaIsi())
+                            <x-secondary-button type="button" wire:click="salinBulanLalu" wire:loading.attr="disabled" wire:target="salinBulanLalu">Salin bulan lalu</x-secondary-button>
+                            <x-confirm-button variant="danger-soft" action="kosongkanBulan()" title="Kosongkan Jadwal"
+                                message="Hapus jadwal {{ $bulan }} mulai hari ini untuk karyawan yang tampil? Tanggal yang sudah lewat tetap (terkunci)." confirmText="Ya, kosongkan" cancelText="Batal">
+                                Kosongkan
+                            </x-confirm-button>
+                        @endif
                         <x-primary-button type="button" wire:click="cetak" wire:loading.attr="disabled" wire:target="cetak">
                             <span wire:loading.remove wire:target="cetak">Cetak PDF</span>
                             <span wire:loading wire:target="cetak">Menyiapkan...</span>
                         </x-primary-button>
                     </div>
                 </div>
+                @if ($this->bisaIsi())
                 <p class="mt-2 text-xs text-muted dark:text-gray-400">
                     Pilih kuas lalu klik sel. Klik sel yang isinya sama dengan kuas = hapus. Sel <b>kosong = libur/off</b>.
                     Tanggal yang sudah lewat 🔒 <b>terkunci</b> — tidak bisa diubah (menjaga keaslian data absensi).
@@ -360,8 +400,11 @@ new class extends Component {
                     @endforeach
                     · <b>I</b> Izin · <b>C</b> Cuti
                 </p>
-                @if ($this->cakupan['semuaUnit'] && $filterUnit === '')
-                    <p class="mt-1 text-xs text-amber-700">Mode <b>semua unit</b>: kuas hanya berisi shift yang berlaku untuk semua unit. Pilih unit untuk memakai shift khusus unit.</p>
+                @else
+                    <p class="px-3 py-2 mt-2 text-xs border rounded-xl border-amber-300 bg-amber-50 text-amber-800">
+                        Mode <b>semua unit</b> — hanya <b>lihat &amp; cetak</b>. Untuk mengisi jadwal, <b>pilih unit</b> dulu:
+                        jam shift tiap unit berbeda (mis. P Gizi 05:00, P IGD 07:00) dan shift Malam hanya ada di unit tertentu.
+                    </p>
                 @endif
             </div>
 
@@ -416,10 +459,10 @@ new class extends Component {
                                         $terkunci = \App\Support\Jadwal::terkunci($awal->copy()->day($hari));
                                     @endphp
                                     <td class="p-0 border border-hairline {{ !$sel && $minggu ? 'bg-[#ff0000]' : '' }}">
-                                        @if ($terkunci)
-                                            {{-- Tanggal lewat: terkunci, hanya tampil --}}
-                                            <div title="{{ \App\Support\Format::tanggal($awal->copy()->day($hari)) }} · terkunci (sudah lewat)" style="{{ $gayaSel }}"
-                                                class="flex items-center justify-center w-9 h-9 text-sm font-bold cursor-not-allowed {{ $kode ? 'opacity-75' : '' }}">
+                                        @if ($terkunci || !$this->bisaIsi())
+                                            {{-- Tanggal lewat (terkunci) / mode semua unit: hanya tampil --}}
+                                            <div title="{{ \App\Support\Format::tanggal($awal->copy()->day($hari)) }}{{ $sel && $sel->shift_name ? ' · ' . $sel->shift_name : '' }}{{ $terkunci ? ' · terkunci (sudah lewat)' : ' · pilih unit untuk mengubah' }}" style="{{ $gayaSel }}"
+                                                class="flex items-center justify-center w-9 h-9 text-sm font-bold {{ $terkunci ? 'cursor-not-allowed' : '' }} {{ $kode && $terkunci ? 'opacity-75' : '' }}">
                                                 {{ $kode }}
                                             </div>
                                         @else
@@ -439,11 +482,13 @@ new class extends Component {
                                     </div>
                                 </td>
                                 <td class="px-2 border border-hairline">
+                                    @if ($this->bisaIsi())
                                     <button type="button" wire:click="isiHariKerja(@js($karyawan->emp_id))"
                                         class="text-xs font-semibold whitespace-nowrap text-brand-green hover:underline"
                                         title="Isi Senin–Sabtu bulan ini dengan shift default {{ $karyawan->shift_default_kode ?: '(belum ada — pakai kuas)' }}">
                                         Isi Sen–Sab{{ $karyawan->shift_default_kode ? ' (' . $karyawan->shift_default_kode . ')' : '' }}
                                     </button>
+                                    @endif
                                 </td>
                             </tr>
                             @endforeach

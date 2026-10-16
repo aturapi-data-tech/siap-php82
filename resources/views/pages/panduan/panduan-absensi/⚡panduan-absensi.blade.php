@@ -121,8 +121,8 @@ new class extends Component {
                         <li><b>Toleransi terlambat</b> diatur per shift. Contoh: shift 07:00 toleransi 10 menit → masuk 07:10 masih Hadir, 07:11 Terlambat.</li>
                         <li><b>Unit</b>: kosong = <i>shift umum</i>, dipakai unit yang belum punya shift khusus. Isi unit bila jam shift-nya khusus satu unit —
                             begitu unit punya shift khusus, kuas jadwal, kiosk, dan absen HP unit itu <b>hanya</b> memakai shift khususnya (shift umum tidak tampil).</li>
-                        <li><b>Kode jadwal unik per unit</b>: Gizi dan Rawat Inap boleh sama-sama memakai <code>P</code> asalkan masing-masing shift khusus unitnya.
-                            Shift semua-unit kodenya harus unik di seluruh RS.</li>
+                        <li><b>Kode jadwal unik per unit</b>: Gizi, Rawat Inap, dan shift umum boleh sama-sama memakai <code>P</code> (Pagi) dengan jam berbeda —
+                            unit yang punya shift khusus hanya memakai shift khususnya, jadi tidak tertukar. Dalam satu unit kodenya tetap tidak boleh kembar.</li>
                         <li><b>Warna di jadwal</b> dipilih per shift dari palet warna terang (tanpa hitam / warna gelap supaya kode tetap terbaca); pilih <i>Bawaan</i> untuk kembali ke warna standar (P kuning, S hijau, M biru).</li>
                     </ul>
                     <div class="p-3 mt-3 text-sm border rounded-xl border-hairline bg-surface-soft dark:bg-gray-800 dark:border-gray-700">
@@ -131,18 +131,19 @@ new class extends Component {
                         <table class="mt-2 ds-table">
                             <thead><tr><th>Unit</th><th>Kode</th><th>Nama</th><th>Jam</th></tr></thead>
                             <tbody>
-                                <tr><td rowspan="3">Ruang Rawat Inap</td><td>R1</td><td>Rawat Inap Pagi</td><td class="font-mono">07:00–14:00</td></tr>
-                                <tr><td>R2</td><td>Rawat Inap Sore</td><td class="font-mono">14:00–21:00</td></tr>
-                                <tr><td>M</td><td>Shift Malam Rawat Inap</td><td class="font-mono">21:00–07:00 (+1)</td></tr>
-                                <tr><td rowspan="2">Gizi</td><td>G1</td><td>Gizi Shift 1</td><td class="font-mono">06:00–13:00</td></tr>
-                                <tr><td>G2</td><td>Gizi Shift 2</td><td class="font-mono">13:00–20:00</td></tr>
-                                <tr><td rowspan="3">Satpam</td><td>K1</td><td>Satpam Shift 1</td><td class="font-mono">06:00–14:00</td></tr>
-                                <tr><td>K2</td><td>Satpam Shift 2</td><td class="font-mono">14:00–22:00</td></tr>
-                                <tr><td>K3</td><td>Satpam Shift 3</td><td class="font-mono">22:00–06:00 (+1)</td></tr>
-                                <tr><td>(umum)</td><td>P / S</td><td>Shift Pagi / Sore</td><td class="font-mono">07:00–12:00 / 17:00–21:00</td></tr>
+                                <tr><td rowspan="3">Ruang Rawat Inap (perawat)</td><td>P</td><td>Pagi</td><td class="font-mono">07:00–14:00</td></tr>
+                                <tr><td>S</td><td>Sore</td><td class="font-mono">14:00–21:00</td></tr>
+                                <tr><td>M</td><td>Malam</td><td class="font-mono">21:00–07:00 (+1)</td></tr>
+                                <tr><td rowspan="2">Gizi</td><td>P</td><td>Pagi</td><td class="font-mono">06:00–13:00</td></tr>
+                                <tr><td>S</td><td>Sore</td><td class="font-mono">13:00–20:00</td></tr>
+                                <tr><td rowspan="3">Satpam</td><td>P</td><td>Pagi</td><td class="font-mono">06:00–14:00</td></tr>
+                                <tr><td>S</td><td>Sore</td><td class="font-mono">14:00–22:00</td></tr>
+                                <tr><td>M</td><td>Malam</td><td class="font-mono">22:00–06:00 (+1)</td></tr>
+                                <tr><td>(umum — unit tanpa shift khusus)</td><td>P / S</td><td>Pagi / Sore</td><td class="font-mono">07:00–12:00 / 17:00–21:00</td></tr>
                             </tbody>
                         </table>
-                        Kode dibuat beda per unit (R, G, K) supaya di mode <i>Semua unit</i> &amp; cetakan tetap jelas shift unit mana.
+                        Semua unit boleh memakai kode <b>P / S / M</b> yang sama — jamnya mengikuti shift khusus unit karyawan itu.
+                        Beri <b>nama shift</b> yang menyebut unitnya (mis. "Gizi Pagi") supaya jelas di kiosk, rekap &amp; cetakan.
                     </div>
                     <div class="p-3 mt-3 text-sm border rounded-xl border-hairline bg-surface-soft dark:bg-gray-800 dark:border-gray-700">
                         <b>Contoh membuat shift malam (shift 3)</b> — klik <i>+ Tambah Shift</i>, isi:
@@ -190,7 +191,8 @@ new class extends Component {
                     <h2>2. Jadwal Dinas bulanan — {!! $tautan('absensi.jadwal-dinas', 'buka') !!}</h2>
                     <p class="mt-2 text-sm">Buat sebelum bulan berjalan. Satu baris = satu karyawan, satu kolom = satu tanggal.</p>
                     <ol class="mt-3 text-sm">
-                        <li>Pilih <b>bulan</b> (tombol ‹ ›) dan <b>unit</b>. Kepala ruang otomatis hanya melihat unitnya; admin & HRD bisa memilih unit atau <i>Semua unit</i>.</li>
+                        <li>Pilih <b>bulan</b> (tombol ‹ ›) dan <b>unit</b>. Jadwal <b>diisi per unit</b>: kepala ruang otomatis di unitnya; admin & HRD memilih unit (saat dibuka langsung terpilih satu unit).
+                            <i>Semua unit</i> hanya untuk <b>melihat &amp; mencetak</b> semua unit sekaligus — kuas &amp; tombol isi disembunyikan.</li>
                         <li>Pilih <b>kuas</b>: P, S, I (izin), C (cuti), atau <b>Libur</b> (menghapus isi sel).</li>
                         <li><b>Klik sel</b> untuk mengisi. Klik sel yang isinya sama dengan kuas = menghapus.</li>
                         <li>Cara cepat:
@@ -201,8 +203,8 @@ new class extends Component {
                         </li>
                         <li><b>Cetak PDF</b> untuk ditempel / dibagikan (format "Jadwal Masuk Kerja Bulan … — nama unit").</li>
                     </ol>
-                    <p class="mt-3 text-sm"><b>Kuas</b> berisi shift khusus unit yang dipilih (atau shift umum bila unit itu belum punya shift khusus). Pada <i>Semua unit</i>, kuas hanya berisi shift umum —
-                        pilih unitnya dulu untuk memakai shift khusus unit. Kode yang bukan shift unit karyawan tersebut ditolak.</p>
+                    <p class="mt-3 text-sm"><b>Kuas</b> berisi shift unit yang dipilih — shift khusus unitnya, atau shift umum bila unit itu belum punya shift khusus.
+                        Kode yang bukan shift unit karyawan tersebut ditolak.</p>
                     <div class="p-3 mt-4 text-sm border rounded-xl border-amber-300 bg-amber-50 text-amber-900">
                         🔒 <b>Tanggal yang sudah lewat terkunci</b> — tidak bisa diubah, supaya absensi, Generate, dan % kehadiran yang sudah dihitung tetap asli.
                         Hari ini & seterusnya masih bisa diubah (mis. tukar dinas mendadak).

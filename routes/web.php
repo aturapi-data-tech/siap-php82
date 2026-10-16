@@ -76,6 +76,15 @@ Route::middleware(['auth'])->group(function () {
         ->name('panduan.aset');
     Route::livewire('/panduan/gaji', 'pages::panduan.panduan-gaji.panduan-gaji')
         ->name('panduan.gaji');
+    Route::livewire('/panduan/struktur-database', 'pages::panduan.panduan-struktur-db.panduan-struktur-db')
+        ->name('panduan.struktur-db');
+    // Unduh SQL struktur database (Admin) — berkas dibuat `php artisan siap:struktur-db`.
+    Route::get('/panduan/struktur-database/sql', function () {
+        abort_unless(auth()->user()?->can('sistem.strukturDb'), 403);
+        abort_unless(is_file(base_path(\App\Support\StrukturDatabase::BERKAS_SQL)), 404);
+
+        return response()->download(base_path(\App\Support\StrukturDatabase::BERKAS_SQL), 'siap-struktur.sql', ['Content-Type' => 'application/sql; charset=utf-8']);
+    })->name('panduan.struktur-db.sql');
 
     // ── SISTEM ──
     Route::livewire('/sistem/identitas', 'pages::sistem.identitas-instansi.identitas-instansi')

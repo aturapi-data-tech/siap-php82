@@ -37,6 +37,11 @@ class AksiRole
     /** Role yang boleh membuka & mengelola gaji karyawan (parameter, slip, cetak). Data gaji = rahasia. */
     public const GAJI_KELOLA = ['Admin', 'Keuangan'];
 
+    /* ─────────────── SISTEM ─────────────── */
+
+    /** Role yang boleh membuka Panduan Struktur Database & mengunduh SQL struktur (detail teknis skema). */
+    public const STRUKTUR_DB = ['Admin'];
+
     /* ─────────────── CONTOH ─────────────── */
 
     // /** Role yang boleh MENGHAPUS entri dokumen. */

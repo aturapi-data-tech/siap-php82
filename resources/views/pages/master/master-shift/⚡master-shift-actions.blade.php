@@ -14,9 +14,9 @@ use App\Http\Traits\Concerns\WithRenderVersioningTrait;
  * Modal CRUD `siapmst_shifts`. lintas_hari diturunkan otomatis:
  * jam pulang <= jam masuk berarti pulang esok hari (mis. 21:00–07:00).
  * Unit kosong = shift umum (dipakai unit yang belum punya shift khusus — UnitKerja::saringShift).
- * Kode jadwal unik dalam cakupan unit:
- * shift semua-unit tidak boleh berbagi kode dengan shift mana pun; shift unit X tidak boleh
- * berbagi kode dengan shift semua-unit / shift unit X lain (unit berbeda boleh sama, mis. P).
+ * Kode jadwal unik dalam cakupan: sesama shift umum, atau sesama shift satu unit. Shift unit boleh
+ * memakai kode shift umum (mis. "P" Gizi 06:00 vs "P" umum 07:00) — unit yang punya shift khusus
+ * hanya memakai shift khususnya, jadi tidak tertukar.
  */
 new class extends Component {
     use WithRenderVersioningTrait;
@@ -198,7 +198,9 @@ new class extends Component {
 
     /**
      * Shift lain yang kodenya bentrok dalam cakupan unit form ini (null = aman).
-     * Shift semua-unit terlihat oleh setiap unit, jadi kodenya harus unik terhadap semua shift.
+     * Kode cukup unik DALAM SATU CAKUPAN: sesama shift umum, atau sesama shift satu unit.
+     * Unit yang punya shift khusus hanya memakai shift khususnya (UnitKerja::saringShift), jadi
+     * "P" Gizi (06:00) dan "P" umum / "P" Rawat Inap (07:00) tidak pernah tertukar.
      */
     private function shiftBerkodeSama(string $kode): ?object
     {
@@ -208,7 +210,7 @@ new class extends Component {
             ->leftJoin('siapmst_unit_kerjas as un', 'un.unit_id', '=', 'sh.unit_id')
             ->whereRaw('UPPER(sh.shift_kode) = ?', [mb_strtoupper(trim($kode))])
             ->where('sh.shift_id', '!=', $this->originalShiftId !== '' ? $this->originalShiftId : mb_strtoupper(trim($this->form['shift_id'])))
-            ->when($unitId !== null, fn($query) => $query->where(fn($subQuery) => $subQuery->whereNull('sh.unit_id')->orWhere('sh.unit_id', $unitId)))
+            ->when($unitId !== null, fn($query) => $query->where('sh.unit_id', $unitId), fn($query) => $query->whereNull('sh.unit_id'))
             ->first(['sh.shift_name', 'un.unit_name']);
     }
 

@@ -13,14 +13,16 @@ new class extends Component {
     public bool $embedded = false;
 
     public string $searchKeyword = '';
+    public string $filterUnit    = ''; // '' = semua · '-' = shift umum (tanpa unit) · unit_id
     public int    $itemsPerPage  = 10;
 
     public function updatedSearchKeyword(): void { $this->resetPage(); }
+    public function updatedFilterUnit(): void    { $this->resetPage(); }
     public function updatedItemsPerPage(): void  { $this->resetPage(); }
 
     public function resetFilters(): void
     {
-        $this->reset(['searchKeyword']);
+        $this->reset(['searchKeyword', 'filterUnit']);
         $this->itemsPerPage = 10;
         $this->resetPage();
     }
@@ -57,6 +59,15 @@ new class extends Component {
         $this->resetPage();
     }
 
+    /** Unit yang punya shift khusus (+ jumlahnya) — pilihan filter. */
+    #[Computed]
+    public function unitList()
+    {
+        return DB::table('siapmst_unit_kerjas as un')
+            ->orderBy('un.unit_name')
+            ->get(['un.unit_id', 'un.unit_name', DB::raw('(SELECT COUNT(*) FROM siapmst_shifts sh WHERE sh.unit_id = un.unit_id) AS jumlah_shift')]);
+    }
+
     #[Computed]
     public function rows()
     {
@@ -64,6 +75,8 @@ new class extends Component {
             ->leftJoin('siapmst_unit_kerjas as un', 'un.unit_id', '=', 'sh.unit_id')
             ->select('sh.shift_id', 'sh.shift_name', 'sh.shift_kode', 'sh.shift_warna', 'sh.jam_masuk', 'sh.jam_pulang', 'sh.toleransi_menit',
                 'sh.lintas_hari', 'sh.active_status', 'un.unit_name')
+            ->when($this->filterUnit === '-', fn($subQuery) => $subQuery->whereNull('sh.unit_id'))
+            ->when(!in_array($this->filterUnit, ['', '-'], true), fn($subQuery) => $subQuery->where('sh.unit_id', $this->filterUnit))
             ->orderByRaw('un.unit_name NULLS FIRST')
             ->orderBy('sh.jam_masuk');
 
@@ -93,10 +106,22 @@ new class extends Component {
             {{-- TOOLBAR --}}
             <div class="sticky z-30 px-4 py-3 bg-surface-soft border-b border-hairline top-20 dark:bg-gray-900 dark:border-gray-700">
                 <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                    <div class="w-full lg:max-w-md">
-                        <x-input-label for="searchKeyword" value="Cari Shift" class="sr-only" />
-                        <x-text-input id="searchKeyword" type="text" wire:model.live.debounce.300ms="searchKeyword"
-                            placeholder="Cari kode / nama shift..." class="block w-full" />
+                    <div class="flex flex-col gap-2 lg:flex-row">
+                        <div class="w-full lg:w-72">
+                            <x-input-label for="searchKeyword" value="Cari Shift" class="sr-only" />
+                            <x-text-input id="searchKeyword" type="text" wire:model.live.debounce.300ms="searchKeyword"
+                                placeholder="Cari kode / nama shift..." class="block w-full" />
+                        </div>
+                        <div class="w-full lg:w-64 shrink-0">
+                            <x-input-label for="filterUnit" value="Unit Kerja" class="sr-only" />
+                            <x-select-input id="filterUnit" wire:model.live="filterUnit">
+                                <option value="">Semua unit</option>
+                                <option value="-">Shift umum (tanpa unit)</option>
+                                @foreach ($this->unitList as $unit)
+                                    <option value="{{ $unit->unit_id }}">{{ $unit->unit_name }}{{ (int) $unit->jumlah_shift > 0 ? ' (' . (int) $unit->jumlah_shift . ')' : ' — pakai shift umum' }}</option>
+                                @endforeach
+                            </x-select-input>
+                        </div>
                     </div>
                     <div class="flex items-center justify-end gap-2">
                         <div class="w-28">
@@ -105,6 +130,7 @@ new class extends Component {
                                 <option value="5">5</option>
                                 <option value="10">10</option>
                                 <option value="20">20</option>
+                                <option value="50">50</option>
                             </x-select-input>
                         </div>
                         <x-primary-button type="button" wire:click="openCreate">
