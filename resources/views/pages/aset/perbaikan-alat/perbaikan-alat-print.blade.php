@@ -1,14 +1,11 @@
 {{-- Cetak "Laporan Perbaikan Alat Medis" (format formulir RS, bukti MFK 7 EP d) — DomPDF A4, table-based. --}}
-<!DOCTYPE html>
-<html lang="id">
+{{-- Layout baku sirus: x-pdf.layout-a4-with-out-background (kop identitas instansi, kaki Dicetak). --}}
+@php $W = fn($v) => $v ? \App\Support\Format::waktu($v) : '-'; @endphp
 
-<head>
-    <meta charset="utf-8">
-    <title>Laporan Perbaikan {{ $pb->pb_no }}</title>
-    <style>
-        @page { size: A4; margin: 28px 40px 34px 40px; }
+<x-pdf.layout-a4-with-out-background :title="'LAPORAN PERBAIKAN ALAT MEDIS'" orientasi="portrait"
+    :kakiKiri="($pb->pb_no)" :dicetak="true" :showGaris="true">
+    <x-slot:gaya>
         body { font-family: sans-serif; font-size: 11px; color: #111; }
-        h1 { font-size: 14px; text-align: center; margin: 10px 0 2px; }
         .no { text-align: center; font-size: 10px; margin-bottom: 12px; }
         table.isi { width: 100%; border-collapse: collapse; }
         table.isi td { padding: 5px 4px; vertical-align: top; }
@@ -16,25 +13,10 @@
         table.isi td.tt { width: 2%; }
         .garis { border-bottom: 1px dotted #888; min-height: 14px; }
         .bagian { margin-top: 10px; font-weight: bold; font-size: 11px; border-bottom: 1px solid #333; padding-bottom: 2px; }
-        .kaki { position: fixed; bottom: -18px; left: 0; right: 0; font-size: 8px; color: #6b7280; }
         .ttd td { text-align: center; font-size: 11px; }
-    </style>
-</head>
+    </x-slot:gaya>
 
-<body>
-    @php $W = fn($v) => $v ? \App\Support\Format::waktu($v) : '-'; @endphp
-
-    <div class="kaki">
-        <table width="100%"><tr>
-            <td>{{ $pb->pb_no }}</td>
-            <td style="text-align:right">Dicetak: {{ \App\Support\Format::waktu($dicetak) }}{{ $oleh ? ' oleh ' . $oleh : '' }}</td>
-        </tr></table>
-    </div>
-
-    <x-logo.identitas :showGaris="true" />
-
-    <h1>LAPORAN PERBAIKAN ALAT MEDIS</h1>
-    <div class="no">No. {{ $pb->pb_no }} · Status: {{ \App\Support\Perbaikan::STATUS[$pb->pb_status][0] }}</div>
+<div class="no">No. {{ $pb->pb_no }} · Status: {{ \App\Support\Perbaikan::STATUS[$pb->pb_status][0] }}</div>
 
     <table class="isi">
         <tr><td class="lbl">Nama Alat</td><td class="tt">:</td><td class="garis">{{ $pb->asset_name }}</td></tr>
@@ -86,6 +68,4 @@
             <td>( {{ $pb->penerima ?: '..............................' }} )</td>
         </tr>
     </table>
-</body>
-
-</html>
+</x-pdf.layout-a4-with-out-background>

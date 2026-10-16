@@ -6,7 +6,7 @@
     'reloadArg' => null,                                       // argumen (mis. riHdrNo) yg dikirim ke reloadEvent saat "buang perubahan"
     'initialTab' => null,                                      // tab default; null = ambil dari tabs[0]
     'guardSwitch' => true,                                     // false = pindah tab langsung tanpa dialog konfirmasi (titik dirty tetap jalan)
-    'wrapperClass' => 'flex flex-col min-h-[calc(100vh-8rem)]',
+    'wrapperClass' => 'flex flex-col min-h-full',
 ])
 
 @php

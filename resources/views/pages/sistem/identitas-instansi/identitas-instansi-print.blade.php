@@ -1,32 +1,13 @@
 {{-- Contoh cetak kop + ringkasan identitas instansi (DomPDF A4). --}}
-<!DOCTYPE html>
-<html lang="id">
-
-<head>
-    <meta charset="utf-8">
-    <title>Contoh Kop — {{ $identitas->nama }}</title>
-    <style>
-        @page { size: A4; margin: 28px 40px 34px 40px; }
+{{-- Layout baku sirus: x-pdf.layout-a4-with-out-background (kop identitas instansi, kaki Dicetak). --}}
+<x-pdf.layout-a4-with-out-background :title="'PROFIL INSTANSI'" orientasi="portrait"
+    :kakiKiri="'Contoh kop cetakan SIAP'" :dicetak="true" :showGaris="true">
+    <x-slot:gaya>
         body { font-family: sans-serif; font-size: 11px; color: #111; }
-        h1 { font-size: 14px; text-align: center; margin: 16px 0 10px; }
         table.isi { width: 100%; border-collapse: collapse; }
         table.isi td { padding: 5px 4px; vertical-align: top; border-bottom: 1px dotted #bbb; }
         table.isi td.lbl { width: 28%; color: #444; }
-        .kaki { position: fixed; bottom: -18px; left: 0; right: 0; font-size: 8px; color: #6b7280; }
-    </style>
-</head>
-
-<body>
-    <div class="kaki">
-        <table width="100%"><tr>
-            <td>Contoh kop cetakan SIAP</td>
-            <td style="text-align:right">Dicetak: {{ \App\Support\Format::waktu($dicetak) }}{{ $oleh ? ' oleh ' . $oleh : '' }}</td>
-        </tr></table>
-    </div>
-
-    <x-logo.identitas :showGaris="true" />
-
-    <h1>PROFIL INSTANSI</h1>
+    </x-slot:gaya>
 
     <table class="isi">
         <tr><td class="lbl">Nama Instansi</td><td>{{ $identitas->nama }}</td></tr>
@@ -39,6 +20,4 @@
         @if ($identitas->pimpinan)<tr><td class="lbl">{{ $identitas->jabatan_pimpinan ?: 'Pimpinan' }}</td><td>{{ $identitas->pimpinan }}</td></tr>@endif
         @if ($identitas->deskripsi)<tr><td class="lbl">Profil Singkat</td><td>{!! nl2br(e($identitas->deskripsi)) !!}</td></tr>@endif
     </table>
-</body>
-
-</html>
+</x-pdf.layout-a4-with-out-background>

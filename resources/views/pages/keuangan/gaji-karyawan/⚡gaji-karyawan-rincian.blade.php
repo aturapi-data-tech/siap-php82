@@ -175,6 +175,15 @@ new class extends Component {
         }
     }
 
+    /** Tombol Kirim WA diklik (wa.me dibuka di browser) — catat waktu kirim. */
+    public function tandaiWa(int $gajiId): void
+    {
+        if ($gajiId === $this->gajiId) {
+            GajiKaryawan::tandaiWa($gajiId);
+            $this->segarkan();
+        }
+    }
+
     public function closeModal(): void
     {
         $this->gajiId = null;
@@ -216,29 +225,14 @@ new class extends Component {
                 $kelompok = ['D' => 'Pendapatan', 'P' => 'Potongan'];
                 $bulanSlip = \Carbon\Carbon::createFromFormat('!Y-m', $header->periode);
             @endphp
-            <div class="flex flex-col min-h-[calc(100vh-8rem)]" wire:key="rincian-{{ $header->gaji_id }}-{{ $header->gaji_status }}">
+            <div class="flex flex-col min-h-full" wire:key="rincian-{{ $header->gaji_id }}-{{ $header->gaji_status }}">
 
-                {{-- HEADER --}}
-                <div class="relative px-6 py-5 bg-surface-soft">
-                    <div class="flex items-start justify-between gap-4">
-                        <div>
-                            <h2 class="ds-display-sm dark:text-gray-100">Rincian Slip — {{ $header->emp_name }}</h2>
-                            <p class="mt-0.5 text-sm text-muted dark:text-gray-400">
-                                {{ $header->emp_id }}{{ $header->unit_name ? ' · ' . $header->unit_name : '' }} · Bulan kerja {{ \App\Support\Format::bulan($bulanSlip) }}
-                                · <b>{{ (int) $header->hari_hadir }}</b> hari kerja
-                            </p>
-                            <div class="mt-3">
-                                <x-badge :variant="$draft ? 'warning' : 'success'">{{ \App\Support\GajiKaryawan::STATUS[$header->gaji_status] }}</x-badge>
-                            </div>
-                        </div>
-                        <x-icon-button color="gray" type="button" wire:click="closeModal">
-                            <span class="sr-only">Tutup</span>
-                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                            </svg>
-                        </x-icon-button>
-                    </div>
-                </div>
+                {{-- HEADER — standar modal modul dokumen (x-modul-dokumen.header, diport dari sirus) --}}
+                <x-modul-dokumen.header :judul="'Rincian Slip — ' . ($header->emp_name)"
+                    ikon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                    {{ $header->emp_id }}{{ $header->unit_name ? ' · ' . $header->unit_name : '' }} · Bulan kerja {{ \App\Support\Format::bulan($bulanSlip) }} · <b>{{ (int) $header->hari_hadir }}</b> hari kerja
+                    <x-slot:badge><x-badge class="shrink-0 whitespace-nowrap" :variant="$draft ? 'warning' : 'success'">{{ \App\Support\GajiKaryawan::STATUS[$header->gaji_status] }}</x-badge></x-slot:badge>
+                </x-modul-dokumen.header>
 
                 {{-- BODY: rincian (kiri) · tambah baris + ringkasan (kanan) --}}
                 <div class="flex-1 px-4 py-4 bg-surface-soft dark:bg-gray-950/20">
@@ -377,7 +371,8 @@ new class extends Component {
                                 <x-secondary-button type="button" wire:click="susunUlang" title="Susun ulang baris otomatis dari parameter gaji terbaru (hari kerja slip tetap)">Susun ulang</x-secondary-button>
                             @endif
                         </div>
-                        <div class="flex gap-2">
+                        <div class="flex items-center gap-2">
+                            @include('pages.keuangan.gaji-karyawan.tombol-kirim-wa', ['header' => $header])
                             <x-secondary-button type="button" wire:click="closeModal">Tutup</x-secondary-button>
                             @if ($draft)
                                 <x-primary-button type="button" wire:click="ubahStatus('F')">Finalkan</x-primary-button>

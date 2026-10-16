@@ -140,26 +140,12 @@ new class extends Component {
             label="Parameter Gaji"
             :wireKey="$this->renderKey('modal', [$empId])">
 
-            {{-- HEADER --}}
-            <div class="relative px-6 py-5 bg-surface-soft">
-                <div class="relative flex items-start justify-between gap-4">
-                    <div>
-                        <h2 class="ds-display-sm dark:text-gray-100">Parameter Gaji — {{ $empName }}</h2>
-                        <p class="mt-0.5 text-sm text-muted dark:text-gray-400">
-                            {{ $empId }} · Perubahan berlaku untuk slip yang di-generate berikutnya; slip yang sudah ada tidak berubah sampai di-generate ulang (selama masih Draft).
-                        </p>
-                        <div class="mt-3">
-                            <x-badge :variant="$sudahAda ? 'warning' : 'success'">{{ $sudahAda ? 'Mode: Edit' : 'Mode: Baru' }}</x-badge>
-                        </div>
-                    </div>
-                    <x-icon-button color="gray" type="button" x-on:click="tryClose()">
-                        <span class="sr-only">Close</span>
-                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                        </svg>
-                    </x-icon-button>
-                </div>
-            </div>
+            {{-- HEADER — standar modal modul dokumen (x-modul-dokumen.header, diport dari sirus) --}}
+            <x-modul-dokumen.header :judul="'Parameter Gaji — ' . ($empName)"
+                ikon="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" tutupAlpine="tryClose()">
+                {{ $empId }} · Perubahan berlaku untuk slip yang di-generate berikutnya; slip yang sudah ada tidak berubah sampai di-generate ulang (selama masih Draft).
+                <x-slot:badge><x-badge class="shrink-0 whitespace-nowrap" :variant="$sudahAda ? 'warning' : 'success'">{{ $sudahAda ? 'Mode: Edit' : 'Mode: Baru' }}</x-badge></x-slot:badge>
+            </x-modul-dokumen.header>
 
             {{-- BODY --}}
             <div class="flex-1 px-4 py-4 bg-surface-soft dark:bg-gray-950/20" x-enter-chain>

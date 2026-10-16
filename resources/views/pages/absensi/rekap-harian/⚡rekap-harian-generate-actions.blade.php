@@ -191,34 +191,13 @@ new class extends Component {
 
 <div>
     <x-modal name="rekap-harian-generate-actions" size="full" height="full" focusable>
-        <div class="flex flex-col min-h-[calc(100vh-8rem)]" wire:key="{{ $this->renderKey('modal', [$tanggal]) }}">
+        <div class="flex flex-col min-h-full" wire:key="{{ $this->renderKey('modal', [$tanggal]) }}">
 
-            {{-- HEADER --}}
-            <div class="relative px-6 py-5 bg-surface-soft">
-                <div class="relative flex items-start justify-between gap-4">
-                    <div class="flex items-center gap-3">
-                        <div class="flex items-center justify-center w-10 h-10 rounded-xl bg-brand-green/10 dark:bg-brand-lime/15">
-                            <img src="{{ asset('images/Logogram black solid.png') }}" alt="Logo" class="block w-6 h-6 dark:hidden" />
-                            <img src="{{ asset('images/Logogram white solid.png') }}" alt="Logo" class="hidden w-6 h-6 dark:block" />
-                        </div>
-                        <div>
-                            <h2 class="ds-display-sm dark:text-gray-100">
-                                Generate Absensi — {{ $tanggal }}
-                                <span class="text-base font-normal text-muted">({{ \App\Support\Format::hari($tanggal ? \Carbon\Carbon::createFromFormat('!d/m/Y', $tanggal) : null) }})</span>
-                            </h2>
-                            <p class="mt-0.5 text-sm text-muted dark:text-gray-400">
-                                Karyawan aktif yang belum punya catatan. Pilih <b>Libur</b> atau <b>Alpa</b> per orang, lalu simpan sekaligus.
-                            </p>
-                        </div>
-                    </div>
-                    <x-icon-button color="gray" type="button" wire:click="closeModal">
-                        <span class="sr-only">Close</span>
-                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                        </svg>
-                    </x-icon-button>
-                </div>
-            </div>
+            {{-- HEADER — standar modal modul dokumen (x-modul-dokumen.header, diport dari sirus) --}}
+            <x-modul-dokumen.header :judul="'Generate Absensi — ' . $tanggal . ($tanggal ? ' (' . \App\Support\Format::hari(\Carbon\Carbon::createFromFormat('!d/m/Y', $tanggal)) . ')' : '')"
+                ikon="M13 10V3L4 14h7v7l9-11h-7z">
+                Karyawan aktif yang belum punya catatan. Pilih <b>Libur</b> atau <b>Alpa</b> per orang, lalu simpan sekaligus.
+            </x-modul-dokumen.header>
 
             {{-- BODY --}}
             <div class="flex-1 px-4 py-4 bg-surface-soft dark:bg-gray-950/20">

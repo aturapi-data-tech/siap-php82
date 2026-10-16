@@ -309,33 +309,14 @@ new class extends Component {
 
 <div>
     <x-modal name="master-str-sip-actions" size="full" height="full" focusable>
-        <div class="flex flex-col min-h-[calc(100vh-8rem)]"
+        <div class="flex flex-col min-h-full"
             wire:key="{{ $this->renderKey('modal', [$empId]) }}">
 
-            {{-- HEADER --}}
-            <div class="relative px-6 py-5 bg-surface-soft">
-                <div class="relative flex items-start justify-between gap-4">
-                    <div class="flex items-center gap-3">
-                        <div class="flex items-center justify-center w-10 h-10 rounded-xl bg-brand-green/10 dark:bg-brand-lime/15">
-                            <img src="{{ asset('images/Logogram black solid.png') }}" alt="Logo" class="block w-6 h-6 dark:hidden" />
-                            <img src="{{ asset('images/Logogram white solid.png') }}" alt="Logo" class="hidden w-6 h-6 dark:block" />
-                        </div>
-                        <div>
-                            <h2 class="ds-display-sm dark:text-gray-100">STR & SIP — {{ $empName }}</h2>
-                            <p class="mt-0.5 text-sm text-muted dark:text-gray-400">
-                                <span class="font-mono">{{ $empId }}</span> ·
-                                STR berlaku seumur hidup, SIP berlaku {{ $this::MASA_BERLAKU_SIP_TAHUN }} tahun (UU 17/2023).
-                            </p>
-                        </div>
-                    </div>
-                    <x-icon-button color="gray" type="button" wire:click="closeModal">
-                        <span class="sr-only">Close</span>
-                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                        </svg>
-                    </x-icon-button>
-                </div>
-            </div>
+            {{-- HEADER — standar modal modul dokumen (x-modul-dokumen.header, diport dari sirus) --}}
+            <x-modul-dokumen.header :judul="'STR & SIP — ' . ($empName)"
+                ikon="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z">
+                <span class="font-mono">{{ $empId }}</span> · STR berlaku seumur hidup, SIP berlaku {{ $this::MASA_BERLAKU_SIP_TAHUN }} tahun (UU 17/2023).
+            </x-modul-dokumen.header>
 
             {{-- BODY — kolom STR & kolom SIP bersebelahan --}}
             <div class="grid flex-1 grid-cols-1 gap-4 px-4 py-4 bg-surface-soft dark:bg-gray-950/20 lg:grid-cols-2">

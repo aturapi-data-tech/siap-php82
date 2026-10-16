@@ -250,38 +250,12 @@ new class extends Component {
             label="Alat"
             :wireKey="$this->renderKey('modal', [$formMode, $originalAssetId])">
 
-            {{-- HEADER --}}
-            <div class="relative px-6 py-5 bg-surface-soft">
-                <div class="relative flex items-start justify-between gap-4">
-                    <div>
-                        <div class="flex items-center gap-3">
-                            <div class="flex items-center justify-center w-10 h-10 rounded-xl bg-brand-green/10 dark:bg-brand-lime/15">
-                                <img src="{{ asset('images/Logogram black solid.png') }}" alt="Logo" class="block w-6 h-6 dark:hidden" />
-                                <img src="{{ asset('images/Logogram white solid.png') }}" alt="Logo" class="hidden w-6 h-6 dark:block" />
-                            </div>
-                            <div>
-                                <h2 class="ds-display-sm dark:text-gray-100">
-                                    {{ $formMode === 'edit' ? 'Ubah Data Alat' : 'Tambah Data Alat' }}
-                                </h2>
-                                <p class="mt-0.5 text-sm text-muted dark:text-gray-400">
-                                    Kolom mengikuti formulir Daftar Inventaris RS. Alat yang memiliki parameter ukur/keluaran wajib dikalibrasi (Permenkes 54/2015).
-                                </p>
-                            </div>
-                        </div>
-                        <div class="mt-3">
-                            <x-badge :variant="$formMode === 'edit' ? 'warning' : 'success'">
-                                {{ $formMode === 'edit' ? 'Mode: Edit' : 'Mode: Tambah' }}
-                            </x-badge>
-                        </div>
-                    </div>
-                    <x-icon-button color="gray" type="button" x-on:click="tryClose()">
-                        <span class="sr-only">Close</span>
-                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                        </svg>
-                    </x-icon-button>
-                </div>
-            </div>
+            {{-- HEADER — standar modal modul dokumen (x-modul-dokumen.header, diport dari sirus) --}}
+            <x-modul-dokumen.header :judul="($formMode === 'edit' ? 'Ubah Data Alat' : 'Tambah Data Alat')"
+                ikon="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" tutupAlpine="tryClose()">
+                Kolom mengikuti formulir Daftar Inventaris RS. Alat yang memiliki parameter ukur/keluaran wajib dikalibrasi (Permenkes 54/2015).
+                <x-slot:badge><x-badge class="shrink-0 whitespace-nowrap" :variant="$formMode === 'edit' ? 'warning' : 'success'"> {{ $formMode === 'edit' ? 'Mode: Edit' : 'Mode: Tambah' }} </x-badge></x-slot:badge>
+            </x-modul-dokumen.header>
 
             {{-- BODY --}}
             <div class="flex-1 px-4 py-4 bg-surface-soft dark:bg-gray-950/20" x-enter-chain>

@@ -2,9 +2,11 @@
 
 namespace App\Support;
 
+use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\URL;
 
 /**
  * Mesin slip gaji karyawan — siaptxn_gaji_hdrs / siaptxn_gaji_dtls.
@@ -32,6 +34,11 @@ class GajiKaryawan
     public const STATUS_FINAL = 'F';
 
     public const STATUS = [self::STATUS_DRAFT => 'Draft', self::STATUS_FINAL => 'Final'];
+
+    /** Masa berlaku link PDF slip yang dikirim lewat WhatsApp. */
+    public const MASA_LINK_SLIP_HARI = 7;
+
+    public const PRINT_VIEW = 'pages.keuangan.gaji-karyawan.gaji-karyawan-slip-print';
 
     /** Kode pendapatan (jenis D) → label slip. */
     public const PENDAPATAN = [
@@ -390,7 +397,7 @@ class GajiKaryawan
             ->leftJoin('siapmst_unit_kerjas as un', 'un.unit_id', '=', 'gh.unit_id')
             ->leftJoin('siapmst_gaji_karyawans as gk', 'gk.emp_id', '=', 'gh.emp_id')
             ->where('gh.gaji_id', $gajiId)
-            ->select('gh.*', 'em.emp_name', 'un.unit_name', 'gk.nama_bank', 'gk.no_rekening')
+            ->select('gh.*', 'em.emp_name', 'em.emp_phone', 'un.unit_name', 'gk.nama_bank', 'gk.no_rekening')
             ->first();
         if (!$header) {
             return null;
@@ -403,6 +410,71 @@ class GajiKaryawan
     public static function detail(int $gajiId): Collection
     {
         return DB::table('siaptxn_gaji_dtls')->where('gaji_id', $gajiId)->orderBy('urutan')->orderBy('dtl_id')->get();
+    }
+
+    /** PDF slip (satu atau banyak, satu karyawan satu halaman) — dipakai cetak di layar & link WA. */
+    public static function pdf(array $slipList, ?string $oleh)
+    {
+        return Pdf::loadView(self::PRINT_VIEW, ['slipList' => $slipList, 'dicetak' => now(), 'oleh' => $oleh])->setPaper('A4');
+    }
+
+    // ─── Kirim lewat WhatsApp (wa.me, klik-kirim oleh petugas) ────────────────
+
+    /** No. HP → format wa.me (62…); null bila kosong / tidak masuk akal. */
+    public static function nomorWa(?string $telepon): ?string
+    {
+        $angka = preg_replace('/\D/', '', (string) $telepon);
+        $angka = match (true) {
+            str_starts_with($angka, '62') => $angka,
+            str_starts_with($angka, '0')  => '62' . substr($angka, 1),
+            str_starts_with($angka, '8')  => '62' . $angka,
+            default                       => '',
+        };
+
+        return strlen($angka) >= 10 && strlen($angka) <= 15 ? $angka : null;
+    }
+
+    /**
+     * Link PDF slip tanpa login — bertanda tangan (URL::temporarySignedRoute) & kedaluwarsa.
+     * Hanya membuka slip ini; berhenti berlaku bila slip dibuka kembali ke Draft (dicek di controller).
+     */
+    public static function linkSlip(int $gajiId): string
+    {
+        return URL::temporarySignedRoute('keuangan.slip-gaji.unduh', now()->addDays(self::MASA_LINK_SLIP_HARI), ['gajiId' => $gajiId]);
+    }
+
+    /** URL wa.me berisi ringkasan + link PDF; null bila slip belum Final atau No. HP tidak valid. */
+    public static function tautanWa(object $header): ?string
+    {
+        $nomor = self::nomorWa($header->emp_phone ?? null);
+        if (!$nomor || $header->gaji_status !== self::STATUS_FINAL) {
+            return null;
+        }
+
+        $bulan = Carbon::createFromFormat('!Y-m', $header->periode);
+        $namaBulan = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'][$bulan->month];
+        $berlaku = now()->addDays(self::MASA_LINK_SLIP_HARI)->format('d/m/Y');
+
+        $pesan = implode("\n", [
+            "Assalamu'alaikum {$header->emp_name},",
+            '',
+            "Berikut slip gaji bulan kerja *{$namaBulan} {$bulan->year}* — " . Identitas::namaPendek() . ':',
+            'Pendapatan: Rp ' . self::rupiah($header->total_pendapatan),
+            'Potongan: Rp ' . self::rupiah(abs((float) $header->total_potongan)),
+            '*Gaji diterima: Rp ' . self::rupiah($header->gaji_diterima) . '*',
+            '',
+            "Unduh slip (PDF, berlaku s/d {$berlaku}):",
+            self::linkSlip((int) $header->gaji_id),
+            '',
+            'Slip ini rahasia, mohon tidak diteruskan. Bila ada yang tidak sesuai, hubungi bagian keuangan.',
+        ]);
+
+        return 'https://wa.me/' . $nomor . '?text=' . rawurlencode($pesan);
+    }
+
+    public static function tandaiWa(int $gajiId): void
+    {
+        DB::table('siaptxn_gaji_hdrs')->where('gaji_id', $gajiId)->update(['wa_dikirim_at' => now()]);
     }
 
     public static function rupiah(float|int|string|null $nilai): string

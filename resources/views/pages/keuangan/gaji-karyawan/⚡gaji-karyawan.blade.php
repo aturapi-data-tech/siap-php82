@@ -5,7 +5,6 @@ use Livewire\WithPagination;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\On;
 use Illuminate\Support\Facades\DB;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use App\Support\Format;
 use App\Support\GajiKaryawan;
@@ -25,10 +24,8 @@ new class extends Component {
     public string $bulan         = ''; // mm/yyyy (bulan kerja)
     public string $searchKeyword = '';
     public string $filterUnit    = '';
-    public string $filterStatus  = ''; // '' | D | F
+    public string $filterStatus  = ''; // '' | D | F | WA (Final, belum dikirim WA)
     public int    $itemsPerPage  = 20;
-
-    private string $printView = 'pages.keuangan.gaji-karyawan.gaji-karyawan-slip-print';
 
     public function boot(): void
     {
@@ -145,15 +142,17 @@ new class extends Component {
 
     private function unduhPdf(array $slipList, string $namaBerkas)
     {
-        $pdf = Pdf::loadView($this->printView, [
-            'slipList' => $slipList,
-            'dicetak'  => now(),
-            'oleh'     => auth()->user()?->name,
-        ])->setPaper('A5', 'portrait');
+        $pdf = GajiKaryawan::pdf($slipList, auth()->user()?->name);
 
         return response()->streamDownload(fn() => print $pdf->output(), $namaBerkas);
     }
 
+    /** Dipanggil saat tombol Kirim WA diklik (wa.me dibuka langsung di browser) — penanda sudah dikirimi. */
+    public function tandaiWa(int $gajiId): void
+    {
+        GajiKaryawan::tandaiWa($gajiId);
+        unset($this->ringkasan);
+    }
     // ─── Data ─────────────────────────────────────────────────────────────────
     #[Computed]
     public function unitList()
@@ -185,6 +184,7 @@ new class extends Component {
         $baris = $this->querySlip()
             ->select(DB::raw('COUNT(*) AS jumlah'),
                 DB::raw("SUM(CASE WHEN gh.gaji_status = 'D' THEN 1 ELSE 0 END) AS draft"),
+                DB::raw("SUM(CASE WHEN gh.gaji_status = 'F' AND gh.wa_dikirim_at IS NULL THEN 1 ELSE 0 END) AS belum_wa"),
                 DB::raw('NVL(SUM(gh.total_pendapatan), 0) AS pendapatan'),
                 DB::raw('NVL(SUM(gh.total_potongan), 0) AS potongan'),
                 DB::raw('NVL(SUM(gh.gaji_diterima), 0) AS diterima'))
@@ -193,6 +193,7 @@ new class extends Component {
         return [
             'jumlah'     => (int) $baris->jumlah,
             'draft'      => (int) $baris->draft,
+            'belumWa'    => (int) $baris->belum_wa,
             'pendapatan' => (float) $baris->pendapatan,
             'potongan'   => (float) $baris->potongan,
             'diterima'   => (float) $baris->diterima,
@@ -203,9 +204,10 @@ new class extends Component {
     public function rows()
     {
         return $this->querySlip()
-            ->when($this->filterStatus !== '', fn($subQuery) => $subQuery->where('gh.gaji_status', $this->filterStatus))
-            ->select('gh.gaji_id', 'gh.emp_id', 'em.emp_name', 'un.unit_name', 'gh.hari_hadir', 'gh.total_pendapatan',
-                'gh.total_potongan', 'gh.gaji_diterima', 'gh.gaji_status', 'gh.difinalkan_at')
+            ->when(in_array($this->filterStatus, ['D', 'F'], true), fn($subQuery) => $subQuery->where('gh.gaji_status', $this->filterStatus))
+            ->when($this->filterStatus === 'WA', fn($subQuery) => $subQuery->where('gh.gaji_status', 'F')->whereNull('gh.wa_dikirim_at'))
+            ->select('gh.gaji_id', 'gh.emp_id', 'em.emp_name', 'em.emp_phone', 'un.unit_name', 'gh.periode', 'gh.hari_hadir', 'gh.total_pendapatan',
+                'gh.total_potongan', 'gh.gaji_diterima', 'gh.gaji_status', 'gh.difinalkan_at', 'gh.wa_dikirim_at')
             ->orderBy('gh.emp_id')
             ->paginate($this->itemsPerPage);
     }
@@ -255,6 +257,7 @@ new class extends Component {
                                 <option value="">Semua</option>
                                 <option value="D">Draft</option>
                                 <option value="F">Final</option>
+                                <option value="WA">Final, belum dikirim WA</option>
                             </x-select-input>
                         </div>
                     </div>
@@ -279,6 +282,9 @@ new class extends Component {
                 @php $ringkasan = $this->ringkasan; @endphp
                 <div class="flex flex-wrap gap-2 mt-3">
                     <x-badge variant="gray">{{ $ringkasan['jumlah'] }} slip · {{ $ringkasan['draft'] }} draft</x-badge>
+                    @if ($ringkasan['belumWa'] > 0)
+                        <x-badge variant="warning">{{ $ringkasan['belumWa'] }} slip final belum dikirim WA</x-badge>
+                    @endif
                     <x-badge variant="info">Pendapatan Rp {{ \App\Support\GajiKaryawan::rupiah($ringkasan['pendapatan']) }}</x-badge>
                     <x-badge variant="danger">Potongan Rp {{ \App\Support\GajiKaryawan::rupiah(abs($ringkasan['potongan'])) }}</x-badge>
                     <x-badge variant="success">Diterima Rp {{ \App\Support\GajiKaryawan::rupiah($ringkasan['diterima']) }}</x-badge>
@@ -314,9 +320,12 @@ new class extends Component {
                                     <td class="font-mono font-bold text-right">{{ \App\Support\GajiKaryawan::rupiah($row->gaji_diterima) }}</td>
                                     <td class="ds-c">
                                         <x-badge :variant="$final ? 'success' : 'warning'">{{ \App\Support\GajiKaryawan::STATUS[$row->gaji_status] ?? $row->gaji_status }}</x-badge>
+                                        @if ($row->wa_dikirim_at)
+                                            <div class="mt-1 text-[10px] text-muted" title="Tombol Kirim WA terakhir diklik">WA ✓ {{ \App\Support\Format::tanggal($row->wa_dikirim_at) }}</div>
+                                        @endif
                                     </td>
                                     <td class="ds-c">
-                                        {{-- Urutan tetap: Rincian · Final/Buka · Cetak --}}
+                                        {{-- Urutan tetap: Rincian · Final/Buka · Cetak · Kirim WA --}}
                                         <div class="flex items-center justify-center gap-2 whitespace-nowrap">
                                             <x-lihat-button wire:click="openRincian({{ $row->gaji_id }})" title="Rincian slip {{ $row->emp_name }}" />
                                             @if ($final)
@@ -331,6 +340,7 @@ new class extends Component {
                                                 </x-primary-button>
                                             @endif
                                             <x-cetak-button wire:click="cetakSlip({{ $row->gaji_id }})" title="Cetak slip {{ $row->emp_name }}" />
+                                            @include('pages.keuangan.gaji-karyawan.tombol-kirim-wa', ['header' => $row])
                                         </div>
                                     </td>
                                 </tr>

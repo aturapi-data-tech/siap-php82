@@ -1,4 +1,8 @@
-{{-- resources/views/components/pdf/layout-a4.blade.php --}}
+{{-- resources/views/components/pdf/layout-a4-with-out-background.blade.php
+     Diport dari sirus-php82. Tambahan SIAP (bawaan tidak mengubah perilaku sirus):
+       orientasi = portrait | landscape · kakiKiri = teks kaki kiri bila tanpa kode RM ·
+       dicetak = tampilkan "Dicetak: … oleh …" di kaki kanan walau tanpa kode RM ·
+       slot "gaya" = CSS khusus dokumen (ditaruh SETELAH CSS build supaya tidak tertimpa preflight). --}}
 @props([
     'title' => null,
     'showGaris' => false,
@@ -6,7 +10,14 @@
     'patientData' => null,
     // Kode formulir RM (mis. "RM-02.01 · Rev.0") — lihat /panduan-dev/koding-formulir-rm.
     'kode' => null,
+    'orientasi' => 'portrait',
+    'kakiKiri' => null,
+    'dicetak' => false,
 ])
+@php
+    $namaPencetak = auth()->user()?->myuser_name ?? auth()->user()?->name;
+    $tampilKaki = filled($kode) || filled($kakiKiri) || $dicetak;
+@endphp
 
 <!DOCTYPE html>
 <html lang="id">
@@ -20,7 +31,7 @@
     @endphp
     <style>
         @page {
-            size: A4;
+            size: A4 {{ $orientasi === 'landscape' ? 'landscape' : '' }};
             margin: 30px 0 20px 0;
         }
 
@@ -64,6 +75,8 @@
         }
 
         {!! $pdfCss ? file_get_contents(public_path('build/' . $pdfCss)) : '' !!}
+
+        {{ $gaya ?? '' }}
     </style>
 </head>
 
@@ -71,12 +84,12 @@
     {{-- KAKI FORMULIR RM — SETIAP halaman (fixed, di margin bawah sehingga tak menimpa isi):
          kiri kode apa adanya (mis. "RM-02.01 · Rev.0"), kanan "Dicetak: dd/mm/yyyy hh:mi:ss oleh <user>". Satu-satunya footer
          cetakan formulir RM — nama/alamat RS sudah di kop, No. RM di identitas pasien. --}}
-    @if (filled($kode))
-        <div class="kaki-formulir kiri">{{ $kode }}</div>
+    @if ($tampilKaki)
+        <div class="kaki-formulir kiri">{{ filled($kode) ? $kode : $kakiKiri }}</div>
         <div class="kaki-formulir kanan">
             Dicetak: {{ \Carbon\Carbon::now(config('app.timezone'))->format('d/m/Y H:i:s') }}
-            @if (filled(auth()->user()?->myuser_name))
-                oleh {{ auth()->user()->myuser_name }}
+            @if (filled($namaPencetak))
+                oleh {{ $namaPencetak }}
             @endif
         </div>
     @endif

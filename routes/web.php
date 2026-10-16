@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\FotoAbsensiController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SlipGajiController;
 use Illuminate\Support\Facades\Route;
 
 Route::livewire('/', 'welcome')->name('home');
@@ -9,6 +10,11 @@ Route::livewire('/', 'welcome')->name('home');
 // Absen HP — publik (tanpa login): karyawan ketik ID sendiri + GPS + selfie.
 Route::livewire('/absensi/hp', 'pages::absensi.absen-hp.absen-hp')
     ->name('absensi.hp');
+
+// PDF slip gaji dari link WhatsApp — publik tapi bertanda tangan & kedaluwarsa (lihat SlipGajiController).
+Route::get('/slip-gaji/{gajiId}', SlipGajiController::class)
+    ->whereNumber('gajiId')->middleware(['signed', 'throttle:30,1'])
+    ->name('keuangan.slip-gaji.unduh');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('/dashboard', 'dashboard')->name('dashboard');

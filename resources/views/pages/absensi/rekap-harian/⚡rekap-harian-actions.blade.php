@@ -325,36 +325,12 @@ new class extends Component {
             label="Absensi"
             :wireKey="$this->renderKey('modal', [$empId, $tanggal])">
 
-            {{-- HEADER --}}
-            <div class="relative px-6 py-5 bg-surface-soft">
-                <div class="relative flex items-start justify-between gap-4">
-                    <div>
-                        <div class="flex items-center gap-3">
-                            <div class="flex items-center justify-center w-10 h-10 rounded-xl bg-brand-green/10 dark:bg-brand-lime/15">
-                                <img src="{{ asset('images/Logogram black solid.png') }}" alt="Logo" class="block w-6 h-6 dark:hidden" />
-                                <img src="{{ asset('images/Logogram white solid.png') }}" alt="Logo" class="hidden w-6 h-6 dark:block" />
-                            </div>
-                            <div>
-                                <h2 class="ds-display-sm dark:text-gray-100">
-                                    {{ $absId ? 'Koreksi' : 'Isi' }} Absensi — {{ $empName }}
-                                </h2>
-                                <p class="mt-0.5 text-sm text-muted dark:text-gray-400">
-                                    <span class="font-mono">{{ $empId }}</span> · Tanggal kerja <b>{{ $tanggal }}</b>
-                                </p>
-                            </div>
-                        </div>
-                        <div class="mt-3">
-                            <x-badge :variant="$absId ? 'warning' : 'success'">{{ $absId ? 'Mode: Koreksi' : 'Mode: Isi Manual' }}</x-badge>
-                        </div>
-                    </div>
-                    <x-icon-button color="gray" type="button" x-on:click="tryClose()">
-                        <span class="sr-only">Close</span>
-                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                        </svg>
-                    </x-icon-button>
-                </div>
-            </div>
+            {{-- HEADER — standar modal modul dokumen (x-modul-dokumen.header, diport dari sirus) --}}
+            <x-modul-dokumen.header :judul="($absId ? 'Koreksi' : 'Isi') . ' Absensi — ' . ($empName)"
+                ikon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" tutupAlpine="tryClose()">
+                <span class="font-mono">{{ $empId }}</span> · Tanggal kerja <b>{{ $tanggal }}</b>
+                <x-slot:badge><x-badge class="shrink-0 whitespace-nowrap" :variant="$absId ? 'warning' : 'success'">{{ $absId ? 'Mode: Koreksi' : 'Mode: Isi Manual' }}</x-badge></x-slot:badge>
+            </x-modul-dokumen.header>
 
             {{-- BODY --}}
             <div class="flex-1 px-4 py-4 bg-surface-soft dark:bg-gray-950/20" x-enter-chain>

@@ -4,7 +4,7 @@
     'label',                                                   // teks form di warning
     'wireKey',                                                 // wire:key untuk container
     'saveEvents' => [],                                        // array nama event child yang akan di-broadcast saat 'Tutup dan Simpan' (pattern eresep-RJ: hindari $wire.save() collide dgn $wire.closeModal())
-    'wrapperClass' => 'flex flex-col min-h-[calc(100vh-8rem)]', // override class wrapper bila perlu (mis. min-h-0)
+    'wrapperClass' => 'flex flex-col min-h-full', // override class wrapper bila perlu (mis. min-h-0)
 ])
 
 {{-- CONTAINER UTAMA — dirty tracking pure-Alpine (no server dispatch) --}}

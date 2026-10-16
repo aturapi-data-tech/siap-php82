@@ -1,14 +1,9 @@
 {{-- Cetak Jadwal Kalibrasi Alat (DomPDF, A4 melintang) — table-based, tanpa flex/grid. --}}
-<!DOCTYPE html>
-<html lang="id">
-
-<head>
-    <meta charset="utf-8">
-    <title>Jadwal Kalibrasi Alat {{ $tahun }}</title>
-    <style>
-        @page { size: A4 landscape; margin: 22px 26px 30px 26px; }
+{{-- Layout baku sirus: x-pdf.layout-a4-with-out-background (kop identitas instansi, kaki Dicetak). --}}
+<x-pdf.layout-a4-with-out-background :title="'JADWAL KALIBRASI ALAT KESEHATAN TAHUN ' . ($tahun)" orientasi="landscape"
+    :kakiKiri="'Jadwal Kalibrasi Alat ' . ($tahun) . ' — ' . ($ruang)" :dicetak="true" :showGaris="true">
+    <x-slot:gaya>
         body { font-family: sans-serif; font-size: 9.5px; color: #111; }
-        h1 { font-size: 13px; text-align: center; margin: 8px 0 2px; text-decoration: underline; }
         .sub { text-align: center; margin: 0 0 10px; font-size: 10px; }
         table.jadwal { width: 100%; border-collapse: collapse; }
         table.jadwal th, table.jadwal td { border: 1px solid #555; padding: 3px 4px; vertical-align: middle; }
@@ -22,22 +17,9 @@
         .ok { color: #047857; font-weight: bold; font-family: 'DejaVu Sans', sans-serif; }
         .tl { color: #b91c1c; font-weight: bold; }
         .legenda td { padding: 2px 6px; font-size: 9px; }
-        .kaki { position: fixed; bottom: -16px; left: 0; right: 0; font-size: 8px; color: #6b7280; }
         .ttd td { font-size: 10px; padding-top: 4px; }
-    </style>
-</head>
+    </x-slot:gaya>
 
-<body>
-    <div class="kaki">
-        <table width="100%"><tr>
-            <td>Jadwal Kalibrasi Alat {{ $tahun }} — {{ $ruang }}</td>
-            <td style="text-align:right">Dicetak: {{ \App\Support\Format::waktu($dicetak) }}{{ $oleh ? ' oleh ' . $oleh : '' }}</td>
-        </tr></table>
-    </div>
-
-    <x-logo.identitas :showGaris="true" />
-
-    <h1>JADWAL KALIBRASI ALAT KESEHATAN TAHUN {{ $tahun }}</h1>
     <p class="sub">Ruang: {{ $ruang }} · Acuan: Permenkes No. 54 Tahun 2015 (kalibrasi paling sedikit 1 kali dalam 1 tahun)</p>
 
     <table class="jadwal">
@@ -98,6 +80,4 @@
             </td>
         </tr>
     </table>
-</body>
-
-</html>
+</x-pdf.layout-a4-with-out-background>

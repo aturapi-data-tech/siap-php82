@@ -1,15 +1,15 @@
 {{-- Cetak "Jadwal Masuk Kerja Bulan …" (format lapangan) — DomPDF A4 melintang, table-based.
      Data: $awal, $karyawan, $jadwal, $shifts (kuas unit yang dicetak), $namaUnit (null = semua unit). --}}
-<!DOCTYPE html>
-<html lang="id">
+{{-- Layout baku sirus: x-pdf.layout-a4-with-out-background (kop identitas instansi, kaki Dicetak). --}}
+@php
+    $namaBulan = ['', 'JANUARI', 'FEBRUARI', 'MARET', 'APRIL', 'MEI', 'JUNI', 'JULI', 'AGUSTUS', 'SEPTEMBER', 'OKTOBER', 'NOVEMBER', 'DESEMBER'][$awal->month];
+    $jumlahHari = $awal->daysInMonth;
+@endphp
 
-<head>
-    <meta charset="utf-8">
-    <title>Jadwal Masuk Kerja</title>
-    <style>
-        @page { size: A4 landscape; margin: 22px 22px 30px 22px; }
+<x-pdf.layout-a4-with-out-background :title="'JADWAL MASUK KERJA BULAN ' . ($namaBulan) . ' ' . ($awal->year) . ($namaUnit ? ' — ' . mb_strtoupper($namaUnit) : '')" orientasi="landscape"
+    :kakiKiri="'Jadwal Masuk Kerja ' . (\App\Support\Format::bulan($awal)) . ($namaUnit ? ' · ' . $namaUnit : '')" :dicetak="true" :showGaris="true">
+    <x-slot:gaya>
         body { font-family: sans-serif; font-size: 9px; color: #111; }
-        h1 { font-size: 15px; text-align: center; margin: 6px 0 8px; }
         table.jd { width: 100%; border-collapse: collapse; }
         table.jd { table-layout: fixed; }
         table.jd th, table.jd td { border: 1px solid #333; text-align: center; padding: 3px 1px; }
@@ -17,29 +17,10 @@
         table.jd th.minggu, table.jd td.minggu { background: #ff0000; color: #fff; }
         table.jd th.nama { background: #fbcfe8; color: #111; text-align: left; padding-left: 4px; }
         table.jd td.nama { background: #ffedd5; text-align: left; padding-left: 4px; font-weight: bold; white-space: nowrap; }
-        .kaki { position: fixed; bottom: -16px; left: 0; right: 0; font-size: 8px; color: #6b7280; }
         .ket td { font-size: 9px; padding: 2px 6px; }
-    </style>
-</head>
+    </x-slot:gaya>
 
-<body>
-    @php
-        $namaBulan = ['', 'JANUARI', 'FEBRUARI', 'MARET', 'APRIL', 'MEI', 'JUNI', 'JULI', 'AGUSTUS', 'SEPTEMBER', 'OKTOBER', 'NOVEMBER', 'DESEMBER'][$awal->month];
-        $jumlahHari = $awal->daysInMonth;
-    @endphp
-
-    <div class="kaki">
-        <table width="100%"><tr>
-            <td>Jadwal Masuk Kerja {{ \App\Support\Format::bulan($awal) }}{{ $namaUnit ? ' · ' . $namaUnit : '' }}</td>
-            <td style="text-align:right">Dicetak: {{ \App\Support\Format::waktu($dicetak) }}{{ $oleh ? ' oleh ' . $oleh : '' }}</td>
-        </tr></table>
-    </div>
-
-    <x-logo.identitas :showGaris="true" />
-
-    <h1>JADWAL MASUK KERJA BULAN {{ $namaBulan }} {{ $awal->year }}{{ $namaUnit ? ' — ' . mb_strtoupper($namaUnit) : '' }}</h1>
-
-    <table class="jd">
+<table class="jd">
         <thead>
             <tr>
                 {{-- Lebar persentase: DomPDF mengabaikan lebar px pada table-layout fixed --}}
@@ -89,6 +70,4 @@
             <td>Kosong / merah = Libur</td>
         </tr>
     </table>
-</body>
-
-</html>
+</x-pdf.layout-a4-with-out-background>

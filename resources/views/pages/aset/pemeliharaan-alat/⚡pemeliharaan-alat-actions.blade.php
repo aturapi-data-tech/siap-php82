@@ -329,29 +329,11 @@ new class extends Component {
                 $warnaBadge = ['H' => 'danger', 'M' => 'info', '-' => 'gray'];
             @endphp
 
-            {{-- HEADER --}}
-            <div class="relative px-6 py-5 bg-surface-soft">
-                <div class="relative flex items-start justify-between gap-4">
-                    <div>
-                        <h2 class="ds-display-sm dark:text-gray-100">
-                            {{ $formMode === 'edit' ? 'Ubah Catatan Pemeliharaan' : 'Entry Pemeliharaan Alat' }}
-                        </h2>
-                        <p class="mt-0.5 text-sm text-muted dark:text-gray-400">
-                            @if ($formMode === 'edit')
-                                Satu catatan per alat per {{ ($this->alatEdit->pm_frekuensi ?? '') === 'M' ? 'minggu' : 'tanggal' }}.
-                            @else
-                                Pilih ruang & tanggal, lalu isi hasil tiap alat. Alat yang tidak dicek biarkan kosong.
-                            @endif
-                        </p>
-                    </div>
-                    <x-icon-button color="gray" type="button" x-on:click="tryClose()">
-                        <span class="sr-only">Close</span>
-                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                        </svg>
-                    </x-icon-button>
-                </div>
-            </div>
+            {{-- HEADER — standar modal modul dokumen (x-modul-dokumen.header, diport dari sirus) --}}
+            <x-modul-dokumen.header :judul="($formMode === 'edit' ? 'Ubah Catatan Pemeliharaan' : 'Entry Pemeliharaan Alat')"
+                ikon="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z" tutupAlpine="tryClose()">
+                @if ($formMode === 'edit') Satu catatan per alat per {{ ($this->alatEdit->pm_frekuensi ?? '') === 'M' ? 'minggu' : 'tanggal' }}. @else Pilih ruang & tanggal, lalu isi hasil tiap alat. Alat yang tidak dicek biarkan kosong. @endif
+            </x-modul-dokumen.header>
 
             {{-- BODY --}}
             <div class="flex-1 px-4 py-4 bg-surface-soft dark:bg-gray-950/20">

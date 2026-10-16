@@ -399,26 +399,14 @@ new class extends Component {
                 $tahap = fn(array $daftar) => in_array($st, $daftar, true);
             @endphp
 
-            {{-- HEADER --}}
-            <div class="relative px-6 py-5 bg-surface-soft">
-                <div class="relative flex items-start justify-between gap-4">
-                    <div>
-                        <div class="flex items-center gap-3">
-                            <div class="flex items-center justify-center w-10 h-10 rounded-xl bg-brand-green/10 dark:bg-brand-lime/15">
-                                <img src="{{ asset('images/Logogram black solid.png') }}" alt="Logo" class="block w-6 h-6 dark:hidden" />
-                                <img src="{{ asset('images/Logogram white solid.png') }}" alt="Logo" class="hidden w-6 h-6 dark:block" />
-                            </div>
-                            <div>
-                                <h2 class="ds-display-sm dark:text-gray-100">
-                                    {{ $formMode === 'edit' ? 'Perbaikan ' . $pbNo : 'Lapor Kerusakan Alat' }}
-                                </h2>
-                                <p class="mt-0.5 text-sm text-muted dark:text-gray-400">
-                                    Alur: lapor → teknisi respon (target ±{{ \App\Support\Perbaikan::TARGET_RESPON_MENIT }} menit) & analisa → vendor bila perlu → selesai → diserahkan kembali.
-                                </p>
-                            </div>
-                        </div>
-                        {{-- Tahapan status --}}
-                        <div class="flex flex-wrap gap-1.5 mt-3">
+            {{-- HEADER — standar modal modul dokumen (x-modul-dokumen.header, diport dari sirus) --}}
+            <x-modul-dokumen.header :judul="($formMode === 'edit' ? 'Perbaikan ' . $pbNo : 'Lapor Kerusakan Alat')"
+                ikon="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" tutupAlpine="tryClose()">
+                Alur: lapor → teknisi respon (target ±{{ \App\Support\Perbaikan::TARGET_RESPON_MENIT }} menit) & analisa → vendor bila perlu → selesai → diserahkan kembali.
+            </x-modul-dokumen.header>
+            <div class="px-6 py-3 border-b shrink-0 bg-surface-soft border-hairline dark:border-gray-700">
+                {{-- Tahapan status --}}
+                        <div class="flex flex-wrap gap-1.5">
                             @foreach (\App\Support\Perbaikan::STATUS as $kode => [$nama, $varian])
                                 <button type="button" wire:click="setStatus('{{ $kode }}')"
                                     class="px-3 py-1.5 text-xs font-semibold rounded-lg border transition
@@ -427,14 +415,6 @@ new class extends Component {
                                 </button>
                             @endforeach
                         </div>
-                    </div>
-                    <x-icon-button color="gray" type="button" x-on:click="tryClose()">
-                        <span class="sr-only">Close</span>
-                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-                        </svg>
-                    </x-icon-button>
-                </div>
             </div>
 
             {{-- BODY --}}
