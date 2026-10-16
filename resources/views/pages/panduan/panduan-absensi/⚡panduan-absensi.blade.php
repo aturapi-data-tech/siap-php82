@@ -218,6 +218,7 @@ new class extends Component {
                         <thead><tr><th>Keadaan</th><th>Yang terjadi</th></tr></thead>
                         <tbody>
                             <tr><td>Terjadwal P/S hari ini, belum absen</td><td>Langsung tercatat <b>MASUK</b> dengan shift jadwal ("sesuai jadwal")</td></tr>
+                            <tr><td>Belum absen, tapi sudah lewat <b>separuh jam shift</b></td><td>Layar bertanya: <i>"Saya baru datang"</i> → MASUK (terlambat), atau <i>"Saya lupa absen masuk, mau pulang"</i> → tercatat <b>PULANG</b> saja, ditandai <i>lupa absen masuk</i> — HRD melengkapi jam masuk lewat Koreksi</td></tr>
                             <tr><td>Sudah masuk, belum pulang</td><td>Tercatat <b>PULANG</b> (jam saat itu)</td></tr>
                             <tr><td>Scan ulang &lt; {{ $pengaturan::jedaMinPulangMenit() }} menit setelah masuk</td><td>Hanya info — dianggap scan dobel, <i>tidak</i> dicatat pulang</td></tr>
                             <tr><td>Tidak terjadwal (libur)</td><td>Diminta <b>pilih shift</b> (untuk tukar dinas) dengan catatan "tidak terjadwal" — hanya shift unit karyawan itu yang ditawarkan</td></tr>
@@ -232,7 +233,8 @@ new class extends Component {
                         <li><b>Pulang lewat tengah malam</b> (lembur panjang) tetap tercatat sebagai pulang shift tersebut, selama masih dalam {{ $pengaturan::batasPulangJam() }} jam setelah jadwal pulang (atau setelah jam masuk, bila baru masuk sesudah jadwal pulang lewat).</li>
                         <li><b>Dobel shift</b> (menggantikan jadwal rekan, mis. Pagi + Sore): sebaiknya <i>tidak</i> absen pulang di antara dua shift — cukup absen pulang setelah shift kedua. HRD lalu membuka <b>Koreksi</b> di Rekap Harian dan memilih <b>shift kedua</b>; lembur dihitung dari jam kerja shift kedua saja (jeda antar-shift tidak ikut) dan langsung berstatus Dihitung. Bila sudah terlanjur absen pulang, HRD cukup mengganti Jam Pulang dengan jam pulang shift kedua.</li>
                         <li><b>Shift malam, datang lewat tengah malam</b> (mis. jadwal M Senin, baru datang Selasa 00:30) → otomatis tercatat sebagai shift malam Senin (terlambat), tidak perlu pilih shift.</li>
-                        <li><b>Lupa absen pulang</b> lebih dari {{ $pengaturan::batasPulangJam() }} jam → scan berikutnya dianggap absen masuk hari baru. Jam pulang yang terlewat diisi HRD lewat Koreksi.</li>
+                        <li><b>Pulang cepat</b>: pulang sebelum jadwal pulang lebih dari toleransi shift → dicatat menit pulang cepatnya (tampil merah di Rekap Harian & Bulanan).</li>
+                        <li><b>Lupa absen pulang</b> lebih dari {{ $pengaturan::batasPulangJam() }} jam → scan berikutnya dianggap absen masuk hari baru; catatan lama ditandai <i>tanpa absen pulang</i>. Jam pulang yang terlewat diisi HRD lewat Koreksi.</li>
                     </ul>
                 </section>
 
@@ -294,6 +296,13 @@ new class extends Component {
                         <li>Pilih status: <b>Hadir</b> (isi shift + jam masuk/pulang — terlambat & lembur dihitung otomatis), atau <b>Izin / Sakit / Cuti / Alpa / Libur</b> (keterangan wajib untuk Izin, Sakit, Cuti).</li>
                         <li>Simpan. Salah isi? Klik Koreksi lagi, atau <b>Hapus Absensi</b> agar kembali "Belum absen".</li>
                     </ol>
+                    <h3 class="mt-4">Catatan yang perlu dicek</h3>
+                    <p class="mt-1 text-sm">Kartu merah di atas tabel (klik = filter) — juga tersedia di pilihan filter status:</p>
+                    <ul class="mt-1 text-sm">
+                        <li><b>Lupa absen masuk</b>: karyawan memilih "lupa absen masuk, mau pulang" di kiosk / HP. Buka <b>Koreksi</b>, isi Jam Masuk — status terlambat dihitung ulang dan keterangan otomatisnya hilang.</li>
+                        <li><b>Belum / tanpa absen pulang</b>: sudah masuk, belum pulang. Badge <i>tanpa absen pulang</i> muncul bila jendela absen pulang ({{ $pengaturan::batasPulangJam() }} jam) sudah lewat — isi Jam Pulang lewat Koreksi.</li>
+                        <li><b>Pulang cepat</b>: pulang sebelum jadwal (lewat toleransi shift). Bila memang diizinkan, tulis alasannya di keterangan lewat Koreksi.</li>
+                    </ul>
                     <h3 class="mt-4">Generate Libur / Alpa (sekaligus)</h3>
                     <ol class="mt-1 text-sm">
                         <li>Pilih tanggal yang <b>sudah lewat</b> (hari ini tidak bisa — shift sore mungkin belum datang).</li>
@@ -390,7 +399,7 @@ new class extends Component {
                     <h2>Tanya jawab</h2>
                     <div class="mt-3 space-y-2 text-sm">
                         @foreach ([
-                            ['Karyawan lupa absen masuk / pulang?', 'HRD membuka Rekap Harian tanggal itu → Koreksi → isi jam masuk/pulang. Status terlambat & lembur dihitung otomatis.'],
+                            ['Karyawan lupa absen masuk / pulang?', 'Pakai kartu "Lupa absen masuk" / "Belum / tanpa absen pulang" di Rekap Harian → Koreksi → isi jam masuk/pulang. Status terlambat, pulang cepat & lembur dihitung otomatis.'],
                             ['Tukar dinas mendadak hari ini?', 'Ubah sel hari ini di Jadwal Dinas (masih bisa), atau biarkan karyawan memilih shift di kiosk saat tidak terjadwal.'],
                             ['Izin mendadak (tidak ada di jadwal)?', 'Isi di Rekap Harian → Izin + keterangan. Ini menurunkan % kehadiran; izin yang direncanakan sebaiknya dijadwalkan sebagai I.'],
                             ['Jadwal tanggal lalu salah?', 'Tanggal lalu terkunci. Kehadiran tetap bisa dikoreksi di Rekap Harian; bila jadwalnya sendiri harus diubah, hubungi Admin.'],

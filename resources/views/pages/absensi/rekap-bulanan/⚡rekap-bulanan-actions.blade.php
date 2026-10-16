@@ -72,7 +72,7 @@ new class extends Component {
             ->where('ab.emp_id', $this->empId)
             ->where('ab.abs_date', '>=', Absensi::tanggalSql($awal))
             ->where('ab.abs_date', '<=', Absensi::tanggalSql($awal->copy()->endOfMonth()))
-            ->select('ab.*', 'sh.shift_name', 'sh.jam_masuk as shift_jam_masuk', 'sh.jam_pulang as shift_jam_pulang',
+            ->select('ab.*', 'sh.shift_name', 'sh.jam_masuk as shift_jam_masuk', 'sh.jam_pulang as shift_jam_pulang', 'sh.lintas_hari',
                 DB::raw('(SELECT us.name FROM users us WHERE us.id = ab.lembur_oleh) AS lembur_penilai'))
             ->get()
             ->keyBy(fn($row) => substr($row->abs_date, 0, 10));
@@ -253,16 +253,24 @@ new class extends Component {
                                             @if ((int) $absensi->terlambat_menit > 0)
                                                 <div class="text-[11px] text-amber-700">+{{ \App\Support\Absensi::labelMenit((int) $absensi->terlambat_menit) }}</div>
                                             @endif
+                                            @if (\App\Support\Absensi::lupaAbsenMasuk($absensi))
+                                                <div class="font-sans"><x-badge variant="danger">lupa absen masuk</x-badge></div>
+                                            @endif
                                         </td>
                                         <td class="font-mono">
                                             @if ($absensi->jam_pulang)
                                                 {{ \Carbon\Carbon::parse($absensi->jam_pulang)->format('H:i') }}
-                                                @unless (\Carbon\Carbon::parse($absensi->jam_pulang)->isSameDay(\Carbon\Carbon::parse($absensi->jam_masuk)))
+                                                @unless (\Carbon\Carbon::parse($absensi->jam_pulang)->isSameDay(\Carbon\Carbon::parse($absensi->jam_masuk ?? $absensi->abs_date)))
                                                     <span class="text-[10px] text-muted-soft">(+1)</span>
                                                 @endunless
                                                 @if ($absensi->shift_jam_pulang)
                                                     <div class="text-[10px] text-muted-soft">jadwal {{ $absensi->shift_jam_pulang }}</div>
                                                 @endif
+                                                @if ((int) $absensi->pulang_cepat_menit > 0)
+                                                    <div class="font-sans text-[11px] text-red-700">pulang cepat {{ \App\Support\Absensi::labelMenit((int) $absensi->pulang_cepat_menit) }}</div>
+                                                @endif
+                                            @elseif ($absensi->jam_masuk && \App\Support\Absensi::tanpaAbsenPulang($absensi))
+                                                <span class="font-sans"><x-badge variant="danger">tanpa absen pulang</x-badge></span>
                                             @elseif ($absensi->jam_masuk)
                                                 <span class="text-xs text-muted-soft">belum pulang</span>
                                             @else

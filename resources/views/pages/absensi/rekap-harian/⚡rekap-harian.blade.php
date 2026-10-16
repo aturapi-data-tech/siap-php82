@@ -18,7 +18,14 @@ new class extends Component {
 
     public string $tanggal       = '';  // dd/mm/yyyy
     public string $searchKeyword = '';
-    public string $filterStatus  = '';  // '' | H T I S C A | BELUM | LEMBUR_P
+    public string $filterStatus  = '';  // '' | H T I S C A | BELUM | LEMBUR_P | kunci CATATAN_KHUSUS
+
+    /** Catatan yang perlu perhatian HRD (filter & kartu ringkasan). */
+    public const CATATAN_KHUSUS = [
+        'LUPA_MASUK'   => 'Lupa absen masuk',
+        'BELUM_PULANG' => 'Belum / tanpa absen pulang',
+        'PULANG_CEPAT' => 'Pulang cepat',
+    ];
     public string $filterUnit    = '';  // '' = semua unit
     public int    $itemsPerPage  = 25;
 
@@ -91,6 +98,16 @@ new class extends Component {
         return $query;
     }
 
+    /** Kondisi SQL satu kunci CATATAN_KHUSUS. */
+    private function saringCatatanKhusus($query, string $kode)
+    {
+        return match ($kode) {
+            'LUPA_MASUK'   => $query->whereNull('ab.jam_masuk')->whereNotNull('ab.jam_pulang')->whereIn('ab.sumber', ['KIOSK', 'MOBILE']),
+            'BELUM_PULANG' => $query->whereNotNull('ab.jam_masuk')->whereNull('ab.jam_pulang'),
+            'PULANG_CEPAT' => $query->where('ab.pulang_cepat_menit', '>', 0),
+        };
+    }
+
     #[Computed]
     public function rows()
     {
@@ -103,6 +120,7 @@ new class extends Component {
             ->leftJoin('siapmst_shifts as sj', 'sj.shift_id', '=', 'jd.shift_id')
             ->leftJoin('siapmst_shifts as sd', 'sd.shift_id', '=', 'ab.dobel_shift_id')
             ->select('sd.shift_name as dobel_shift_name', 'jd.jdw_jenis', 'sj.shift_kode as jadwal_kode', 'sj.shift_warna as jadwal_warna', 'sj.shift_name as jadwal_shift','em.emp_id', 'em.emp_name', 'ab.abs_id', 'ab.abs_status', 'ab.shift_id', 'sh.shift_name',
+                'ab.abs_date', 'sh.jam_pulang as shift_jam_pulang', 'sh.lintas_hari', 'ab.pulang_cepat_menit',
                 'ab.jam_masuk', 'ab.jam_pulang', 'ab.terlambat_menit', 'ab.lembur_menit', 'ab.lembur_status', 'ab.lembur_dinilai_at', 'ab.keterangan', 'ab.sumber',
                 'ab.masuk_foto', 'ab.masuk_jarak_meter', 'ab.pulang_foto', 'ab.pulang_jarak_meter',
                 DB::raw('(SELECT us.name FROM users us WHERE us.id = ab.lembur_oleh) AS lembur_penilai'))
@@ -112,6 +130,8 @@ new class extends Component {
             $query->whereNull('ab.abs_id');
         } elseif ($this->filterStatus === 'LEMBUR_P') {
             $query->where('ab.lembur_status', 'P');
+        } elseif (isset(self::CATATAN_KHUSUS[$this->filterStatus])) {
+            $this->saringCatatanKhusus($query, $this->filterStatus);
         } elseif ($this->filterStatus !== '') {
             $query->where('ab.abs_status', $this->filterStatus);
         }
@@ -134,6 +154,9 @@ new class extends Component {
         ];
         foreach (array_keys(Absensi::STATUS) as $kode) {
             $jumlahPerStatus[$kode] = (int) ($hitung[$kode] ?? 0);
+        }
+        foreach (array_keys(self::CATATAN_KHUSUS) as $kode) {
+            $jumlahPerStatus[$kode] = (int) $this->saringCatatanKhusus($this->baseQuery(), $kode)->count();
         }
 
         return $jumlahPerStatus;
@@ -178,6 +201,9 @@ new class extends Component {
                                 <option value="">Semua status</option>
                                 <option value="BELUM">Belum absen</option>
                                 <option value="LEMBUR_P">Lembur menunggu penilaian</option>
+                                @foreach ($this::CATATAN_KHUSUS as $kode => $nama)
+                                    <option value="{{ $kode }}">{{ $nama }}</option>
+                                @endforeach
                                 @foreach (\App\Support\Absensi::STATUS as $kode => $nama)
                                     <option value="{{ $kode }}">{{ $nama }}</option>
                                 @endforeach
@@ -221,6 +247,14 @@ new class extends Component {
                             ⏳ Lembur menunggu penilaian: {{ $ringkasan['LEMBUR_P'] }} <span class="font-normal">(dinilai di Rekap Bulanan)</span>
                         </button>
                     @endif
+                    @foreach ($this::CATATAN_KHUSUS as $kode => $nama)
+                        @if ($ringkasan[$kode] > 0 || $filterStatus === $kode)
+                            <button type="button" wire:click="$set('filterStatus', '{{ $kode }}')"
+                                class="px-3 py-1.5 text-xs font-semibold rounded-lg border border-red-300 bg-red-50 text-red-800 {{ $filterStatus === $kode ? 'ring-2 ring-offset-1 ring-red-400' : '' }}">
+                                {{ $nama }}: {{ $ringkasan[$kode] }}
+                            </button>
+                        @endif
+                    @endforeach
                 </div>
             </div>
 
@@ -263,6 +297,9 @@ new class extends Component {
                                     </td>
                                     <td class="font-mono">
                                         {{ $row->jam_masuk ? \Carbon\Carbon::parse($row->jam_masuk)->format('H:i') : '—' }}
+                                        @if ($row->abs_id && \App\Support\Absensi::lupaAbsenMasuk($row))
+                                            <div class="mt-0.5 font-sans"><x-badge variant="danger">lupa absen masuk</x-badge></div>
+                                        @endif
                                         @if ((int) $row->terlambat_menit > 0)
                                             <div class="text-[11px] text-amber-700">+{{ \App\Support\Absensi::labelTerlambat((int) $row->terlambat_menit) }}</div>
                                         @endif
@@ -274,9 +311,12 @@ new class extends Component {
                                     <td class="font-mono">
                                         @if ($row->jam_pulang)
                                             {{ \Carbon\Carbon::parse($row->jam_pulang)->format('H:i') }}
-                                            @unless (\Carbon\Carbon::parse($row->jam_pulang)->isSameDay(\Carbon\Carbon::parse($row->jam_masuk)))
+                                            @unless (\Carbon\Carbon::parse($row->jam_pulang)->isSameDay(\Carbon\Carbon::parse($row->jam_masuk ?? $row->abs_date)))
                                                 <span class="text-[10px] text-muted-soft">(+1 hari)</span>
                                             @endunless
+                                            @if ((int) $row->pulang_cepat_menit > 0)
+                                                <div class="font-sans text-[11px] text-red-700">pulang cepat {{ \App\Support\Absensi::labelMenit((int) $row->pulang_cepat_menit) }}</div>
+                                            @endif
                                             @if ((int) $row->lembur_menit > 0)
                                                 @php $statusLembur = $row->lembur_status ?: 'P'; @endphp
                                                 <div class="mt-1 p-1.5 rounded-lg border {{ $statusLembur === 'P' ? 'border-amber-300 bg-amber-50' : 'border-hairline' }} font-sans">
@@ -295,6 +335,8 @@ new class extends Component {
                                                 <a href="{{ route('absensi.foto', [$row->abs_id, 'pulang']) }}" target="_blank" rel="noopener"
                                                     class="block font-sans text-[11px] underline text-brand-green">📷 selfie · {{ \App\Support\LokasiAbsen::labelJarak((int) $row->pulang_jarak_meter) }}</a>
                                             @endif
+                                        @elseif ($row->jam_masuk && \App\Support\Absensi::tanpaAbsenPulang($row))
+                                            <span class="font-sans"><x-badge variant="danger">tanpa absen pulang</x-badge></span>
                                         @elseif ($row->jam_masuk)
                                             <span class="text-xs text-muted-soft">belum pulang</span>
                                         @else

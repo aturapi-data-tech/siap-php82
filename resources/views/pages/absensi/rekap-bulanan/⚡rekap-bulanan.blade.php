@@ -130,6 +130,11 @@ new class extends Component {
                 DB::raw("SUM(CASE WHEN ab.lembur_status = 'Y' THEN 1 ELSE 0 END) AS hari_lembur"),
                 DB::raw("NVL(SUM(CASE WHEN ab.lembur_status = 'P' THEN ab.lembur_menit END), 0) AS lembur_menunggu"),
                 DB::raw('SUM(CASE WHEN ab.dobel_shift_id IS NOT NULL THEN 1 ELSE 0 END) AS jml_dobel_shift'),
+                DB::raw('SUM(CASE WHEN ab.pulang_cepat_menit > 0 THEN 1 ELSE 0 END) AS jml_pulang_cepat'),
+                DB::raw('NVL(SUM(ab.pulang_cepat_menit), 0) AS total_pulang_cepat'),
+                DB::raw("SUM(CASE WHEN ab.jam_masuk IS NULL AND ab.jam_pulang IS NOT NULL AND ab.sumber IN ('KIOSK', 'MOBILE') THEN 1 ELSE 0 END) AS jml_lupa_masuk"),
+                // Hanya tanggal kerja sebelum kemarin — catatan kemarin / hari ini mungkin masih dalam jendela absen pulang.
+                DB::raw('SUM(CASE WHEN ab.jam_masuk IS NOT NULL AND ab.jam_pulang IS NULL AND ab.abs_date < TRUNC(SYSDATE) - 1 THEN 1 ELSE 0 END) AS jml_tanpa_pulang'),
                 $terjadwal($batasLiteral, 'hari_terjadwal'),
                 $terjadwal($sampaiLiteral, 'terjadwal_sebulan'),
                 DB::raw("(SELECT COUNT(*) FROM siaptxn_absensis a2
@@ -213,7 +218,7 @@ new class extends Component {
                                 @foreach (\App\Support\Absensi::STATUS as $kode => $nama)
                                     <th class="ds-c" title="{{ $nama }}">{{ $nama }}</th>
                                 @endforeach
-                                <th class="ds-c">Total Terlambat</th>
+                                <th class="ds-c" title="Total terlambat + pulang cepat, lupa absen masuk &amp; tanpa absen pulang">Terlambat / Pulang</th>
                                 <th class="ds-c">Lembur Dihitung</th>
                                 <th class="ds-c">Tanpa Catatan</th>
                             </tr>
@@ -259,6 +264,15 @@ new class extends Component {
                                     @endforeach
                                     <td class="font-mono ds-c">
                                         {{ \App\Support\Absensi::labelTerlambat((int) $row->total_terlambat) ?: '—' }}
+                                        @if ((int) $row->jml_pulang_cepat > 0)
+                                            <div class="text-[11px] text-red-700">pulang cepat {{ (int) $row->jml_pulang_cepat }}× · {{ \App\Support\Absensi::labelMenit((int) $row->total_pulang_cepat) }}</div>
+                                        @endif
+                                        @if ((int) $row->jml_lupa_masuk > 0 || (int) $row->jml_tanpa_pulang > 0)
+                                            <button type="button" wire:click="openDetail('{{ $row->emp_id }}')" class="block mx-auto text-[11px] text-red-700 hover:underline">
+                                                {{ collect([(int) $row->jml_lupa_masuk > 0 ? 'lupa masuk ' . (int) $row->jml_lupa_masuk . '×' : null,
+                                                    (int) $row->jml_tanpa_pulang > 0 ? 'tanpa pulang ' . (int) $row->jml_tanpa_pulang . '×' : null])->filter()->implode(' · ') }}
+                                            </button>
+                                        @endif
                                     </td>
                                     <td class="font-mono ds-c">
                                         @if ((int) $row->total_lembur > 0)

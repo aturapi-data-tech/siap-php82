@@ -21,7 +21,8 @@ use App\Support\PengaturanAbsensi;
  *       ├─ di luar radius / GPS tidak akurat → pesan, coba lagi
  *       └─ dalam radius → ambil / upload selfie (dikecilkan ±640px di HP) → kirimAbsen()
  *            ├─ lokasi divalidasi ULANG di server, lalu alur sama dengan kiosk (Absensi::tentukanAksi)
- *            └─ tidak terjadwal → pilih shift (selfie & posisi ditahan di $buktiTertunda)
+ *            ├─ tidak terjadwal → pilih shift (selfie & posisi ditahan di $buktiTertunda)
+ *            └─ lewat separuh shift → konfirmasi: MASUK, atau lupa absen masuk → PULANG (bukti juga ditahan)
  * Karena publik: percobaan per IP dibatasi (RateLimiter) dan $empId dikunci (#[Locked]).
  * Butuh HTTPS: browser hanya mengizinkan GPS di secure context.
  */
@@ -30,7 +31,7 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
     private const BATAS_CARI_ID_PER_MENIT = 20;
     private const BATAS_KIRIM_PER_MENIT = 10;
 
-    /** input-id | mulai | pilih-shift | hasil */
+    /** input-id | mulai | pilih-shift | konfirmasi-masuk | hasil */
     public string $step = 'input-id';
 
     public string $empIdInput = '';
@@ -45,6 +46,10 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
     /** Bukti absen yang menunggu pilihan shift — dikunci agar tidak bisa diubah dari browser. */
     #[Locked]
     public ?array $buktiTertunda = null;
+
+    /** Shift jadwal yang menunggu konfirmasi "masuk atau lupa absen masuk". */
+    #[Locked]
+    public ?string $shiftKonfirmasiId = null;
 
     /** ['tipe' => masuk|pulang|info|error, 'judul', 'pesan', 'status'?] */
     public ?array $hasil = null;
@@ -127,7 +132,7 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
     public function gantiId(): void
     {
         $this->batalkanBuktiTertunda();
-        $this->reset(['empId', 'catatanJadwal', 'saranShiftId', 'buktiTertunda', 'hasil']);
+        $this->reset(['empId', 'catatanJadwal', 'saranShiftId', 'buktiTertunda', 'shiftKonfirmasiId', 'hasil']);
         $this->step = 'input-id';
         unset($this->karyawan, $this->statusHariIni);
     }
@@ -204,6 +209,12 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
             $this->tampilkanHasil('pulang', $karyawan->emp_name, $pesan, $keputusan['terbuka']->abs_status);
             return;
         }
+        if ($keputusan['aksi'] === 'masuk' && $keputusan['mungkinLupaMasuk']) {
+            $this->buktiTertunda = $bukti;
+            $this->shiftKonfirmasiId = $keputusan['shift']->shift_id;
+            $this->step = 'konfirmasi-masuk';
+            return;
+        }
         if ($keputusan['aksi'] === 'masuk') {
             $this->catatMasuk($keputusan['shift'], true, $bukti);
             return;
@@ -232,6 +243,35 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
         $this->catatMasuk($shift, false, $bukti);
     }
 
+    #[Computed]
+    public function shiftKonfirmasi(): ?object
+    {
+        return $this->shiftKonfirmasiId ? $this->shifts->firstWhere('shift_id', $this->shiftKonfirmasiId) : null;
+    }
+
+    /** $pilihan: masuk = memang baru datang (terlambat) | pulang = lupa absen masuk, sekarang mau pulang. */
+    public function konfirmasiMasuk(string $pilihan): void
+    {
+        $shift = $this->shiftKonfirmasi;
+        if ($this->step !== 'konfirmasi-masuk' || !$this->buktiTertunda || !$shift || !in_array($pilihan, ['masuk', 'pulang'], true)) {
+            return;
+        }
+
+        $bukti = $this->buktiTertunda;
+        $this->buktiTertunda = null;
+        if ($pilihan === 'masuk') {
+            $this->catatMasuk($shift, true, $bukti);
+            return;
+        }
+
+        $hasilPulang = Absensi::catatPulangTanpaMasuk($this->karyawan->emp_id, $shift, now(), 'MOBILE', auth()->id(),
+            ['lokasi_id' => $bukti['lokasi_id'], ...$this->kolomBukti('pulang', $bukti)]);
+        if ($hasilPulang['tipe'] !== 'pulang') {
+            Storage::disk('local')->delete($bukti['foto']);
+        }
+        $this->tampilkanHasil($hasilPulang['tipe'], $this->karyawan->emp_name, $hasilPulang['pesan'], $hasilPulang['status']);
+    }
+
     public function batalPilihShift(): void
     {
         $this->batalkanBuktiTertunda();
@@ -241,7 +281,7 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
     /** Kembali ke layar awal karyawan yang sama (mis. coba lagi setelah di luar radius). */
     public function selesai(): void
     {
-        $this->reset(['catatanJadwal', 'saranShiftId', 'buktiTertunda', 'hasil']);
+        $this->reset(['catatanJadwal', 'saranShiftId', 'buktiTertunda', 'shiftKonfirmasiId', 'hasil']);
         $this->step = $this->empId ? 'mulai' : 'input-id';
         unset($this->statusHariIni);
     }
@@ -528,6 +568,31 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
             </div>
         @endif
 
+        {{-- STEP: KONFIRMASI (absen setelah separuh shift — mungkin lupa absen masuk) --}}
+        @if ($step === 'konfirmasi-masuk' && $this->karyawan && $this->shiftKonfirmasi)
+            @php $shift = $this->shiftKonfirmasi; @endphp
+            <div wire:key="absen-hp-konfirmasi" class="p-5 border-4 shadow-sm border-amber-400 bg-amber-50 rounded-3xl">
+                <p class="text-2xl font-bold text-center text-ink">{{ $this->karyawan->emp_name }}</p>
+                <p class="mt-2 text-center text-body">
+                    Anda <b>belum absen masuk</b> untuk {{ $shift->shift_name }}
+                    <span class="font-mono">({{ $shift->jam_masuk }}–{{ $shift->jam_pulang }})</span>. Absen ini untuk apa?
+                </p>
+                <div class="grid grid-cols-1 gap-3 mt-4">
+                    <button type="button" wire:click="konfirmasiMasuk('masuk')" wire:loading.attr="disabled"
+                        class="px-5 py-4 text-left border-2 rounded-2xl border-hairline bg-canvas">
+                        <div class="text-lg font-semibold text-ink">✅ Saya baru datang</div>
+                        <div class="text-sm text-muted">Catat MASUK sekarang (terlambat)</div>
+                    </button>
+                    <button type="button" wire:click="konfirmasiMasuk('pulang')" wire:loading.attr="disabled"
+                        class="px-5 py-4 text-left border-2 rounded-2xl border-hairline bg-canvas">
+                        <div class="text-lg font-semibold text-ink">👋 Saya lupa absen masuk, mau pulang</div>
+                        <div class="text-sm text-muted">Catat PULANG — jam masuk dilengkapi HRD</div>
+                    </button>
+                </div>
+                <button type="button" wire:click="batalPilihShift" class="w-full mt-5 text-sm font-semibold underline text-muted">Batal</button>
+            </div>
+        @endif
+
         {{-- STEP: HASIL --}}
         @if ($step === 'hasil' && $hasil)
             @php
@@ -551,6 +616,10 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
                 <button type="button" wire:click="selesai"
                     class="w-full py-3 mt-6 font-semibold border-2 rounded-2xl border-hairline bg-canvas text-ink">Selesai</button>
             </div>
+        @endif
+
+        @if (in_array($step, ['input-id', 'mulai'], true) && \App\Support\PengaturanAbsensi::absenHpAktif())
+            <x-absensi.cara-absen mode="hp" class="mt-4" />
         @endif
     </div>
 </div>

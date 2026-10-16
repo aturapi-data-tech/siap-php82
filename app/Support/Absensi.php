@@ -23,6 +23,10 @@ use Illuminate\Support\Facades\DB;
  *   jadi lembur lewat tengah malam tetap tercatat pulang, sedangkan lupa pulang kemarin
  *   tidak menahan absen masuk hari ini.
  * - Lembur = jam pulang aktual − jadwal pulang shift, dihitung bila ≥ minimal lembur (menit).
+ * - Pulang cepat = jadwal pulang − jam pulang aktual, dicatat bila lewat toleransi shift.
+ * - Lupa absen masuk: absen yang jatuh setelah separuh jam shift dikonfirmasi dulu di kiosk / HP —
+ *   karyawan bisa memilih "mau pulang" → dicatat jam pulang saja (jam masuk dilengkapi HRD).
+ * - Tanpa absen pulang: sudah masuk, belum pulang, dan jendela absen pulang sudah lewat.
  */
 class Absensi
 {
@@ -49,6 +53,9 @@ class Absensi
         'A' => 'danger',
         'L' => 'gray',
     ];
+
+    /** Keterangan otomatis catatan "lupa absen masuk" (ASCII: karakter "—" rusak di kolom Oracle) — dihapus Koreksi begitu jam masuk dilengkapi. */
+    public const KETERANGAN_LUPA_MASUK = 'Lupa absen masuk - jam masuk dilengkapi HRD.';
 
     /** Datang sejauh ini sebelum jam masuk shift hari ini = datang untuk shift hari ini (bukan shift malam kemarin). */
     private const MENIT_DATANG_AWAL = 60;
@@ -223,6 +230,55 @@ class Absensi
         return $kerjaShiftKedua + ($lewatShiftKedua >= PengaturanAbsensi::minLemburMenit() ? $lewatShiftKedua : 0);
     }
 
+    /** Menit pulang lebih cepat dari jadwal pulang; 0 bila tidak / masih dalam toleransi shift. */
+    public static function pulangCepatMenit(object $shift, Carbon $tanggalKerja, Carbon $waktuPulang): int
+    {
+        $menit = (int) floor($waktuPulang->diffInMinutes(self::jadwalPulang($shift, $tanggalKerja), false));
+
+        return $menit > (int) ($shift->toleransi_menit ?? 0) ? $menit : 0;
+    }
+
+    /**
+     * Absen MASUK yang jatuh setelah separuh jam shift — kemungkinan karyawan lupa absen masuk
+     * dan sebenarnya mau pulang. Kiosk / HP meminta konfirmasi dulu.
+     */
+    public static function mungkinLupaMasuk(object $shift, Carbon $sekarang): bool
+    {
+        $tanggalKerja = self::tanggalKerja($shift, $sekarang);
+        $jadwalMasuk = self::jadwalMasuk($shift, $tanggalKerja);
+        $separuhShift = intdiv((int) $jadwalMasuk->diffInMinutes(self::jadwalPulang($shift, $tanggalKerja)), 2);
+
+        return $sekarang->greaterThanOrEqualTo($jadwalMasuk->copy()->addMinutes($separuhShift));
+    }
+
+    /**
+     * Batas absen pulang satu catatan: (jadwal pulang atau jam masuk, mana yang lebih akhir) + batas pulang (jam).
+     * $row: abs_date, jam_masuk, shift_jam_pulang, lintas_hari. Catatan tanpa shift → akhir tanggal kerjanya.
+     */
+    public static function batasAbsenPulang(object $row): Carbon
+    {
+        if (!$row->shift_jam_pulang) {
+            return Carbon::parse($row->abs_date)->endOfDay();
+        }
+
+        $shift = (object) ['jam_pulang' => $row->shift_jam_pulang, 'lintas_hari' => $row->lintas_hari];
+        $jadwalPulang = self::jadwalPulang($shift, Carbon::parse($row->abs_date)->startOfDay());
+
+        return $jadwalPulang->max(Carbon::parse($row->jam_masuk))->addHours(PengaturanAbsensi::batasPulangJam());
+    }
+
+    /** Sudah masuk, belum pulang, dan jendela absen pulang sudah lewat (lupa absen pulang). */
+    public static function tanpaAbsenPulang(object $row, ?Carbon $sekarang = null): bool
+    {
+        return $row->jam_masuk && !$row->jam_pulang && ($sekarang ?? now())->greaterThan(self::batasAbsenPulang($row));
+    }
+
+    /** Catatan dari kiosk / HP yang hanya punya jam pulang — karyawan lupa absen masuk. */
+    public static function lupaAbsenMasuk(object $row): bool
+    {
+        return !$row->jam_masuk && $row->jam_pulang && in_array($row->sumber, ['KIOSK', 'MOBILE'], true);
+    }
+
     /** @return array{0: string, 1: int} [status H|T, menit terlambat] */
     public static function statusMasuk(object $shift, Carbon $tanggalKerja, Carbon $waktuMasuk): array
     {
@@ -241,7 +297,8 @@ class Absensi
             ->whereNull('ab.jam_pulang')
             ->whereIn('ab.abs_date', [self::tanggalSql($waktu), self::tanggalSql($waktu->copy()->subDay())])
             ->orderByDesc('ab.abs_date')
-            ->select('ab.*', 'sh.shift_name', 'sh.jam_masuk as shift_jam_masuk', 'sh.jam_pulang as shift_jam_pulang', 'sh.lintas_hari')
+            ->select('ab.*', 'sh.shift_name', 'sh.jam_masuk as shift_jam_masuk', 'sh.jam_pulang as shift_jam_pulang', 'sh.lintas_hari',
+                'sh.toleransi_menit as shift_toleransi_menit')
             ->get();
 
         return $rows->first(function ($row) use ($waktu) {
@@ -253,11 +310,7 @@ class Absensi
             // Lewat jendela → dianggap lupa absen pulang; scan berikutnya jadi absen masuk baru.
             // Jendela dihitung dari yang LEBIH AKHIR: jadwal pulang atau jam masuk aktual — karyawan yang
             // baru absen masuk setelah jadwal pulang shift-nya lewat tetap bisa absen pulang.
-            $shift = (object) ['jam_pulang' => $row->shift_jam_pulang, 'lintas_hari' => $row->lintas_hari];
-            $jadwalPulang = self::jadwalPulang($shift, Carbon::parse($row->abs_date)->startOfDay());
-            $batas = $jadwalPulang->max(Carbon::parse($row->jam_masuk))->addHours(PengaturanAbsensi::batasPulangJam());
-
-            return $waktu->lessThanOrEqualTo($batas);
+            return $waktu->lessThanOrEqualTo(self::batasAbsenPulang($row));
         });
     }
 
@@ -275,7 +328,7 @@ class Absensi
      *
      * @param  Collection<int, object>  $shifts  shift aktif
      * @return array{aksi: 'pulang'|'masuk'|'pilih-shift'|'info'|'error', pesan?: string, terbuka?: object,
-     *               shift?: object, catatan?: ?string, saranShiftId?: ?string}
+     *               shift?: object, mungkinLupaMasuk?: bool, catatan?: ?string, saranShiftId?: ?string}
      */
     public static function tentukanAksi(string $empId, Collection $shifts, Carbon $sekarang): array
     {
@@ -295,7 +348,8 @@ class Absensi
                 return ['aksi' => 'info', 'pesan' => 'Hari ini tercatat ' . self::STATUS[$hariIni->abs_status] . '. Hubungi HRD bila ternyata masuk kerja.'];
             }
             if ($hariIni->jam_pulang) {
-                return ['aksi' => 'info', 'pesan' => 'Absen hari ini sudah lengkap (masuk ' . Carbon::parse($hariIni->jam_masuk)->format('H:i')
+                return ['aksi' => 'info', 'pesan' => 'Absen hari ini sudah lengkap (masuk '
+                    . ($hariIni->jam_masuk ? Carbon::parse($hariIni->jam_masuk)->format('H:i') : '—')
                     . ', pulang ' . Carbon::parse($hariIni->jam_pulang)->format('H:i') . ').'
                     . ' Bila Anda dobel shift (menggantikan jadwal rekan), lapor HRD agar dicatat.'];
             }
@@ -311,11 +365,11 @@ class Absensi
 
         // Datang lewat tengah malam untuk shift malam KEMARIN (mis. jadwal M Senin, datang Selasa 00:30).
         if ($shiftMalam = self::shiftMalamKemarin($empId, $shifts, $sekarang, $shiftHariIni)) {
-            return ['aksi' => 'masuk', 'shift' => $shiftMalam];
+            return ['aksi' => 'masuk', 'shift' => $shiftMalam, 'mungkinLupaMasuk' => self::mungkinLupaMasuk($shiftMalam, $sekarang)];
         }
 
         if ($shiftHariIni) {
-            return ['aksi' => 'masuk', 'shift' => $shiftHariIni];
+            return ['aksi' => 'masuk', 'shift' => $shiftHariIni, 'mungkinLupaMasuk' => self::mungkinLupaMasuk($shiftHariIni, $sekarang)];
         }
         if ($jadwal && isset(Jadwal::KHUSUS[$jadwal->jdw_jenis])) {
             return ['aksi' => 'info', 'pesan' => 'Hari ini terjadwal ' . Jadwal::KHUSUS[$jadwal->jdw_jenis] . '. Hubungi HRD bila ternyata masuk kerja.'];
@@ -374,8 +428,16 @@ class Absensi
                 $sekarang)
             : 0;
 
+        $pulangCepat = $terbuka->shift_jam_pulang
+            ? self::pulangCepatMenit(
+                (object) ['jam_pulang' => $terbuka->shift_jam_pulang, 'lintas_hari' => $terbuka->lintas_hari, 'toleransi_menit' => $terbuka->shift_toleransi_menit],
+                Carbon::parse($terbuka->abs_date)->startOfDay(),
+                $sekarang)
+            : 0;
+
         DB::table('siaptxn_absensis')->where('abs_id', $terbuka->abs_id)->update([
             'jam_pulang'        => $sekarang,
+            'pulang_cepat_menit' => $pulangCepat,
             'lembur_menit'      => $lembur,
             'lembur_status'     => self::statusLemburAwal($lembur),
             'lembur_oleh'       => null,
@@ -389,8 +451,57 @@ class Absensi
         if ($lembur > 0) {
             $pesan .= ' — lembur ' . self::labelMenit($lembur) . ' (menunggu persetujuan)';
         }
+        if ($pulangCepat > 0) {
+            $pesan .= ' — pulang lebih cepat ' . self::labelMenit($pulangCepat) . ' dari jadwal';
+        }
 
         return $pesan;
+    }
+
+    /**
+     * Karyawan LUPA absen masuk dan sekarang mau pulang (dipilih di layar konfirmasi kiosk / HP):
+     * dicatat jam pulang saja pada shift jadwalnya; jam masuk dilengkapi HRD lewat Koreksi.
+     * @return array{tipe: 'pulang'|'info', pesan: string, status: ?string}
+     */
+    public static function catatPulangTanpaMasuk(string $empId, object $shift, Carbon $sekarang,
+        string $sumber, ?int $userId, array $kolomTambahan = []): array
+    {
+        $tanggalKerja = self::tanggalKerja($shift, $sekarang);
+        if (self::absenTanggal($empId, $tanggalKerja)) {
+            return ['tipe' => 'info', 'pesan' => 'Sudah ada absensi untuk tanggal kerja ' . $tanggalKerja->format('d/m/Y') . '.', 'status' => null];
+        }
+
+        $lembur = self::lemburMenit($shift, $tanggalKerja, $sekarang);
+        $pulangCepat = self::pulangCepatMenit($shift, $tanggalKerja, $sekarang);
+
+        try {
+            DB::table('siaptxn_absensis')->insert([
+                'emp_id'             => $empId,
+                'abs_date'           => self::tanggalSql($tanggalKerja),
+                'shift_id'           => $shift->shift_id,
+                'jam_pulang'         => $sekarang,
+                'abs_status'         => 'H',
+                'terlambat_menit'    => 0,
+                'pulang_cepat_menit' => $pulangCepat,
+                'lembur_menit'       => $lembur,
+                'lembur_status'      => self::statusLemburAwal($lembur),
+                'keterangan'         => self::KETERANGAN_LUPA_MASUK,
+                'sumber'             => $sumber,
+                'updated_by'         => $userId,
+                'created_at'         => $sekarang,
+                'updated_at'         => $sekarang,
+                ...$kolomTambahan,
+            ]);
+        } catch (UniqueConstraintViolationException) {
+            return ['tipe' => 'info', 'pesan' => 'Absensi tanggal ini sudah tercatat.', 'status' => null];
+        }
+
+        return [
+            'tipe'   => 'pulang',
+            'pesan'  => 'Absen PULANG pukul ' . $sekarang->format('H:i') . ' · ' . $shift->shift_name
+                . '. Jam masuk belum tercatat — lapor HRD / kepala ruang untuk melengkapinya.',
+            'status' => 'H',
+        ];
     }
 
     /**

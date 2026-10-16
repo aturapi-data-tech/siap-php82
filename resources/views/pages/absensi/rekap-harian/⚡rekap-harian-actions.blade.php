@@ -141,6 +141,7 @@ new class extends Component {
             'abs_status'      => $form['jenis'],
             'terlambat_menit' => 0,
             'lembur_menit'    => 0,
+            'pulang_cepat_menit' => 0,
             'dobel_shift_id'  => null,
             'keterangan'      => trim($form['keterangan']) !== '' ? trim($form['keterangan']) : null,
             'sumber'          => 'MANUAL',
@@ -182,7 +183,11 @@ new class extends Component {
                     $shiftKedua !== null => Absensi::lemburDobelShift($shift, $shiftKedua, $tanggalKerja, $pulang),
                     default             => Absensi::lemburMenit($shift, $tanggalKerja, $pulang),
                 },
+                // Dobel shift: pulang setelah shift kedua → tidak dinilai pulang cepat terhadap shift pertama.
+                'pulang_cepat_menit' => $pulang && !$shiftKedua ? Absensi::pulangCepatMenit($shift, $tanggalKerja, $pulang) : 0,
                 'dobel_shift_id'  => $shiftKedua?->shift_id,
+                // Jam masuk sudah dilengkapi → keterangan otomatis "lupa absen masuk" tidak berlaku lagi.
+                'keterangan'      => $payload['keterangan'] === Absensi::KETERANGAN_LUPA_MASUK ? null : $payload['keterangan'],
             ];
         }
 

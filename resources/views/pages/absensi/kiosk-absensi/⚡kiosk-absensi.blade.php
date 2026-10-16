@@ -3,6 +3,7 @@
 use Livewire\Component;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Locked;
 use Illuminate\Support\Facades\DB;
 use App\Support\Absensi;
 
@@ -12,6 +13,7 @@ use App\Support\Absensi;
  * Alur:  ketik/scan ID karyawan + Enter
  *   ├─ ada absen terbuka (sudah masuk, belum pulang) → catat PULANG + menit lembur
  *   ├─ belum absen & ada JADWAL kerja hari ini        → langsung catat MASUK dgn shift jadwal (H/T)
+ *   │     └─ sudah lewat separuh shift                 → konfirmasi: MASUK, atau lupa absen masuk → PULANG
  *   ├─ jadwal hari ini Izin / Cuti                    → info saja
  *   ├─ belum absen & tidak dijadwalkan (libur)        → pilih shift (tukar dinas / lembur) → MASUK
  *   └─ sudah lengkap / tercatat Izin-Sakit-Cuti-Alpa → info saja
@@ -20,11 +22,15 @@ use App\Support\Absensi;
 new #[Layout('layouts.app-fullscreen')] class extends Component {
     public string $empIdInput = '';
 
-    /** input | pilih-shift | hasil */
+    /** input | pilih-shift | konfirmasi-masuk | hasil */
     public string $step = 'input';
 
     public ?array $karyawan = null;
     public ?string $saranShiftId = null;
+
+    /** Shift jadwal yang menunggu konfirmasi "masuk atau lupa absen masuk". */
+    #[Locked]
+    public ?string $shiftKonfirmasiId = null;
 
     /** Catatan di layar pilih shift (mis. "tidak terjadwal hari ini"). */
     public ?string $catatanJadwal = null;
@@ -50,7 +56,7 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
     {
         return DB::table('siaptxn_absensis as ab')
             ->join('siapmst_employers as em', 'em.emp_id', '=', 'ab.emp_id')
-            ->whereNotNull('ab.jam_masuk')
+            ->where(fn($subQuery) => $subQuery->whereNotNull('ab.jam_masuk')->orWhereNotNull('ab.jam_pulang'))
             ->where('ab.updated_at', '>=', now()->subDay())
             ->orderByDesc('ab.updated_at')
             ->limit(8)
@@ -86,6 +92,11 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
             $this->tampilkanHasil('pulang', $dataKaryawan->emp_name, Absensi::catatPulang($keputusan['terbuka'], $sekarang), $keputusan['terbuka']->abs_status);
             return;
         }
+        if ($keputusan['aksi'] === 'masuk' && $keputusan['mungkinLupaMasuk']) {
+            $this->shiftKonfirmasiId = $keputusan['shift']->shift_id;
+            $this->step = 'konfirmasi-masuk';
+            return;
+        }
         if ($keputusan['aksi'] === 'masuk') {
             $this->catatMasuk($keputusan['shift'], true);
             return;
@@ -115,6 +126,30 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
         $this->catatMasuk($shift, false);
     }
 
+    // ─── Konfirmasi: absen setelah separuh shift ──────────────────────────────
+    #[Computed]
+    public function shiftKonfirmasi(): ?object
+    {
+        return $this->shiftKonfirmasiId ? $this->shifts->firstWhere('shift_id', $this->shiftKonfirmasiId) : null;
+    }
+
+    /** $pilihan: masuk = memang baru datang (terlambat) | pulang = lupa absen masuk, sekarang mau pulang. */
+    public function konfirmasiMasuk(string $pilihan): void
+    {
+        $shift = $this->shiftKonfirmasi;
+        if ($this->step !== 'konfirmasi-masuk' || !$this->karyawan || !$shift || !in_array($pilihan, ['masuk', 'pulang'], true)) {
+            return;
+        }
+
+        if ($pilihan === 'masuk') {
+            $this->catatMasuk($shift, true);
+            return;
+        }
+
+        $hasilPulang = Absensi::catatPulangTanpaMasuk($this->karyawan['emp_id'], $shift, now(), 'KIOSK', auth()->id());
+        $this->tampilkanHasil($hasilPulang['tipe'], $this->karyawan['emp_name'], $hasilPulang['pesan'], $hasilPulang['status']);
+    }
+
     /** Catat absen MASUK dengan shift tertentu (dari jadwal atau pilihan karyawan). */
     private function catatMasuk(object $shift, bool $sesuaiJadwal): void
     {
@@ -124,7 +159,7 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
 
     public function resetKiosk(): void
     {
-        $this->reset(['empIdInput', 'karyawan', 'saranShiftId', 'catatanJadwal', 'hasil']);
+        $this->reset(['empIdInput', 'karyawan', 'saranShiftId', 'catatanJadwal', 'shiftKonfirmasiId', 'hasil']);
         $this->step = 'input';
         unset($this->absenTerakhir);
     }
@@ -221,6 +256,37 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
                     </div>
                 @endif
 
+                {{-- STEP: KONFIRMASI (absen setelah separuh shift — mungkin lupa absen masuk) --}}
+                @if ($step === 'konfirmasi-masuk' && $karyawan && $this->shiftKonfirmasi)
+                    @php $shift = $this->shiftKonfirmasi; @endphp
+                    <div class="p-8 border-4 shadow-sm border-amber-400 bg-amber-50 rounded-3xl"
+                        x-data="{ sisa: 30 }"
+                        x-init="const t = setInterval(() => { if (--sisa <= 0) { clearInterval(t); $wire.resetKiosk(); } }, 1000)">
+                        <p class="text-3xl font-bold text-center text-ink">{{ $karyawan['emp_name'] }}</p>
+                        <p class="mt-3 text-lg text-center text-body">
+                            Anda <b>belum absen masuk</b> untuk {{ $shift->shift_name }}
+                            <span class="font-mono">({{ $shift->jam_masuk }}–{{ $shift->jam_pulang }})</span>.
+                        </p>
+                        <p class="mb-6 text-center text-body">Absen ini untuk apa?</p>
+                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <button type="button" wire:click="konfirmasiMasuk('masuk')" wire:loading.attr="disabled"
+                                class="px-5 py-4 text-left transition border-2 rounded-2xl border-hairline bg-canvas hover:border-brand-green focus:outline-none focus:ring-4 focus:ring-brand-green/30">
+                                <div class="text-lg font-semibold text-ink">✅ Saya baru datang</div>
+                                <div class="text-sm text-muted">Catat MASUK sekarang (terlambat)</div>
+                            </button>
+                            <button type="button" wire:click="konfirmasiMasuk('pulang')" wire:loading.attr="disabled"
+                                class="px-5 py-4 text-left transition border-2 rounded-2xl border-hairline bg-canvas hover:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-300">
+                                <div class="text-lg font-semibold text-ink">👋 Saya lupa absen masuk, mau pulang</div>
+                                <div class="text-sm text-muted">Catat PULANG — jam masuk dilengkapi HRD</div>
+                            </button>
+                        </div>
+                        <div class="flex items-center justify-between mt-6 text-sm text-muted">
+                            <span>Kembali otomatis dalam <b x-text="sisa"></b> detik</span>
+                            <button type="button" wire:click="resetKiosk" class="font-semibold underline">Batal</button>
+                        </div>
+                    </div>
+                @endif
+
                 {{-- STEP: HASIL --}}
                 @if ($step === 'hasil' && $hasil)
                     @php
@@ -247,6 +313,10 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
                         <p class="mt-6 text-sm text-muted">Kembali dalam <b x-text="sisa"></b> detik · tekan Enter untuk lanjut</p>
                     </div>
                 @endif
+
+                @if ($step === 'input')
+                    <x-absensi.cara-absen mode="kiosk" class="mt-6" />
+                @endif
             </div>
         </div>
 
@@ -268,7 +338,7 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
                                 @endif
                             @else
                                 <div class="text-sm font-semibold {{ $row->abs_status === 'T' ? 'text-amber-700' : 'text-emerald-700' }}">
-                                    Masuk {{ \Carbon\Carbon::parse($row->jam_masuk)->format('H:i') }}
+                                    Masuk {{ $row->jam_masuk ? \Carbon\Carbon::parse($row->jam_masuk)->format('H:i') : '—' }}
                                 </div>
                             @endif
                             <x-badge :variant="\App\Support\Absensi::BADGE[$row->abs_status] ?? 'gray'">{{ \App\Support\Absensi::STATUS[$row->abs_status] ?? $row->abs_status }}</x-badge>
