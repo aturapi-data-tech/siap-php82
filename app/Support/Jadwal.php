@@ -118,7 +118,7 @@ class Jadwal
             ->leftJoin('siapmst_shifts as sh', 'sh.shift_id', '=', 'jd.shift_id')
             ->where('jd.emp_id', $empId)
             ->where('jd.jdw_tanggal', Absensi::tanggalSql($tanggal))
-            ->first(['jd.*', 'sh.shift_kode', 'sh.shift_name', 'sh.shift_warna', 'sh.jam_masuk', 'sh.jam_pulang', 'sh.toleransi_menit', 'sh.lintas_hari']);
+            ->first(['jd.*', 'sh.shift_kode', 'sh.shift_name', 'sh.shift_warna', 'sh.jam_masuk', 'sh.jam_pulang', 'sh.toleransi_menit', 'sh.lintas_hari', 'sh.shift_fleksibel']);
     }
 
     /** Apakah bulan ini sudah punya jadwal (minimal satu baris) — penentu dipakai/tidaknya jadwal. */

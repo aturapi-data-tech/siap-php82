@@ -74,7 +74,7 @@ new class extends Component {
         $query = DB::table('siapmst_shifts as sh')
             ->leftJoin('siapmst_unit_kerjas as un', 'un.unit_id', '=', 'sh.unit_id')
             ->select('sh.shift_id', 'sh.shift_name', 'sh.shift_kode', 'sh.shift_warna', 'sh.jam_masuk', 'sh.jam_pulang', 'sh.toleransi_menit',
-                'sh.lintas_hari', 'sh.active_status', 'un.unit_name')
+                'sh.lintas_hari', 'sh.shift_fleksibel', 'sh.active_status', 'un.unit_name')
             ->when($this->filterUnit === '-', fn($subQuery) => $subQuery->whereNull('sh.unit_id'))
             ->when(!in_array($this->filterUnit, ['', '-'], true), fn($subQuery) => $subQuery->where('sh.unit_id', $this->filterUnit))
             ->orderByRaw('un.unit_name NULLS FIRST')
@@ -180,8 +180,17 @@ new class extends Component {
                                         @if ((string) $row->lintas_hari === '1')
                                             <x-badge variant="purple">lintas hari</x-badge>
                                         @endif
+                                        @if ((string) $row->shift_fleksibel === '1')
+                                            <x-badge variant="info">fleksibel</x-badge>
+                                        @endif
                                     </td>
-                                    <td class="ds-c">{{ (int) $row->toleransi_menit }} mnt</td>
+                                    <td class="ds-c">
+                                        @if ((string) $row->shift_fleksibel === '1')
+                                            <span class="text-xs text-muted">-</span>
+                                        @else
+                                            {{ (int) $row->toleransi_menit }} mnt
+                                        @endif
+                                    </td>
                                     <td>
                                         <x-toggle wire:key="toggle-shift-{{ $row->shift_id }}-{{ $isActive ? 1 : 0 }}"
                                             :current="$isActive ? '1' : '0'" trueValue="1" falseValue="0"

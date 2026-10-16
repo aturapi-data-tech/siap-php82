@@ -29,6 +29,7 @@ new class extends Component {
         'jadwal' => '2. Jadwal Dinas bulanan',
         'kiosk' => '3. Absen di Kiosk',
         'hp' => '4. Absen lewat HP',
+        'fleksibel' => 'Khusus Poli: shift fleksibel',
         'harian' => '5. Rekap Harian',
         'bulanan' => '6. Rekap Bulanan & lembur',
         'pengaturan' => '7. Pengaturan Absensi',
@@ -110,7 +111,7 @@ new class extends Component {
                                     <td><span class="inline-block w-7 py-0.5 text-xs font-bold text-center rounded" style="{{ \App\Support\Jadwal::gaya($shift->shift_kode, $shift->shift_warna) }}">{{ $shift->shift_kode }}</span></td>
                                     <td>{{ $shift->shift_name }}</td>
                                     <td class="font-mono">{{ $shift->jam_masuk }} – {{ $shift->jam_pulang }}</td>
-                                    <td>{{ (int) $shift->toleransi_menit }} menit</td>
+                                    <td>{!! (string) $shift->shift_fleksibel === '1' ? '<i>fleksibel</i>' : (int) $shift->toleransi_menit . ' menit' !!}</td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -123,22 +124,26 @@ new class extends Component {
                             begitu unit punya shift khusus, kuas jadwal, kiosk, dan absen HP unit itu <b>hanya</b> memakai shift khususnya (shift umum tidak tampil).</li>
                         <li><b>Kode jadwal unik per unit</b>: Gizi, Rawat Inap, dan shift umum boleh sama-sama memakai <code>P</code> (Pagi) dengan jam berbeda —
                             unit yang punya shift khusus hanya memakai shift khususnya, jadi tidak tertukar. Dalam satu unit kodenya tetap tidak boleh kembar.</li>
+                        <li><b>Shift fleksibel</b> (mis. Poli — datang &amp; pulang mengikuti praktik dokter): jam masuk–pulangnya hanya <i>jendela absen</i>
+                            (jam buka poli). <b>Tidak dihitung terlambat, pulang cepat, maupun lembur otomatis</b>; jam kerja tercatat apa adanya.
+                            Bila itu satu-satunya shift unitnya, karyawan unit tsb <b>langsung tercatat masuk walau tidak terjadwal</b> — tidak perlu memilih shift.
+                            Langkah lengkapnya: <a href="#fleksibel" class="font-semibold text-brand-green hover:underline">Khusus Poli: shift fleksibel</a>.</li>
                         <li><b>Warna di jadwal</b> dipilih per shift dari palet warna terang (tanpa hitam / warna gelap supaya kode tetap terbaca); pilih <i>Bawaan</i> untuk kembali ke warna standar (P kuning, S hijau, M biru).</li>
                     </ul>
                     <div class="p-3 mt-3 text-sm border rounded-xl border-hairline bg-surface-soft dark:bg-gray-800 dark:border-gray-700">
                         <b>Contoh jam shift beda per unit</b> — perawat standar 07:00–14:00; Gizi masuk lebih awal & pulang lebih cepat (2 shift);
-                        Satpam mulai jam 06:00 seperti Gizi (3 shift); Pendaftaran / Apotek / Poli memakai shift umum P &amp; S:
+                        CSSD / Laundry 2 shift; Poli fleksibel mengikuti dokter:
                         <table class="mt-2 ds-table">
                             <thead><tr><th>Unit</th><th>Kode</th><th>Nama</th><th>Jam</th></tr></thead>
                             <tbody>
-                                <tr><td rowspan="3">Ruang Rawat Inap (perawat)</td><td>P</td><td>Pagi</td><td class="font-mono">07:00–14:00</td></tr>
+                                <tr><td rowspan="3">Rawat Inap, IGD, Satpam, Laborat, Apotek, Pendaftaran &amp; RM</td><td>P</td><td>Pagi</td><td class="font-mono">07:00–14:00</td></tr>
                                 <tr><td>S</td><td>Sore</td><td class="font-mono">14:00–21:00</td></tr>
                                 <tr><td>M</td><td>Malam</td><td class="font-mono">21:00–07:00 (+1)</td></tr>
-                                <tr><td rowspan="2">Gizi</td><td>P</td><td>Pagi</td><td class="font-mono">06:00–13:00</td></tr>
-                                <tr><td>S</td><td>Sore</td><td class="font-mono">13:00–20:00</td></tr>
-                                <tr><td rowspan="3">Satpam</td><td>P</td><td>Pagi</td><td class="font-mono">06:00–14:00</td></tr>
-                                <tr><td>S</td><td>Sore</td><td class="font-mono">14:00–22:00</td></tr>
-                                <tr><td>M</td><td>Malam</td><td class="font-mono">22:00–06:00 (+1)</td></tr>
+                                <tr><td rowspan="2">Gizi</td><td>P</td><td>Pagi</td><td class="font-mono">05:50–12:30</td></tr>
+                                <tr><td>S</td><td>Sore</td><td class="font-mono">12:30–19:30</td></tr>
+                                <tr><td rowspan="2">Laundry &amp; CSSD</td><td>P</td><td>Pagi</td><td class="font-mono">07:00–14:00</td></tr>
+                                <tr><td>S</td><td>Siang</td><td class="font-mono">12:00–19:00</td></tr>
+                                <tr><td>Poli</td><td>F</td><td>Poli Fleksibel</td><td class="font-mono">jendela 07:00–21:00 · fleksibel</td></tr>
                                 <tr><td>(umum — unit tanpa shift khusus)</td><td>P / S</td><td>Pagi / Sore</td><td class="font-mono">07:00–12:00 / 17:00–21:00</td></tr>
                             </tbody>
                         </table>
@@ -223,6 +228,7 @@ new class extends Component {
                             <tr><td>Belum absen, tapi sudah lewat <b>separuh jam shift</b></td><td>Layar bertanya: <i>"Saya baru datang"</i> → MASUK (terlambat), atau <i>"Saya lupa absen masuk, mau pulang"</i> → tercatat <b>PULANG</b> saja, ditandai <i>lupa absen masuk</i> — HRD melengkapi jam masuk lewat Koreksi</td></tr>
                             <tr><td>Sudah masuk, belum pulang</td><td>Tercatat <b>PULANG</b> (jam saat itu)</td></tr>
                             <tr><td>Scan ulang &lt; {{ $pengaturan::jedaMinPulangMenit() }} menit setelah masuk</td><td>Hanya info — dianggap scan dobel, <i>tidak</i> dicatat pulang</td></tr>
+                            <tr><td>Unit shift fleksibel (mis. Poli), terjadwal atau tidak</td><td>Langsung tercatat <b>MASUK</b> ("fleksibel"), tanpa terlambat; pulang kapan saja saat tugas selesai (mis. dokter selesai praktik) — tanpa pulang cepat / lembur otomatis</td></tr>
                             <tr><td>Tidak terjadwal (libur)</td><td>Diminta <b>pilih shift</b> (untuk tukar dinas) dengan catatan "tidak terjadwal" — hanya shift unit karyawan itu yang ditawarkan</td></tr>
                             <tr><td>Terjadwal I / C, atau sudah diisi Izin/Sakit/dll.</td><td>Hanya info — hubungi HRD bila ternyata masuk</td></tr>
                             <tr><td>Masuk & pulang sudah lengkap</td><td>Info "absen hari ini sudah lengkap" (+ saran lapor HRD bila dobel shift)</td></tr>
@@ -289,6 +295,57 @@ new class extends Component {
                 </section>
 
                 {{-- HARIAN --}}
+                <section id="fleksibel" class="p-6 border scroll-mt-24 bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
+                    <h2>Khusus Poli: shift fleksibel</h2>
+                    <p class="mt-2 text-sm">
+                        Perawat / asisten Poli tidak punya jam tetap: datang saat mendampingi dokter praktik dan pulang saat praktik selesai.
+                        Karena itu Poli memakai <b>shift fleksibel</b> — jam shift hanya <i>jendela absen</i> (jam buka poli), bukan jam wajib.
+                    </p>
+
+                    <h3 class="mt-4">a. HRD / Admin — atur sekali di {!! $tautan('absensi.pengaturan', 'Master Shift', ['tab' => 'shift']) !!}</h3>
+                    <ol class="mt-1 text-sm">
+                        <li>Buka / buat shift Poli: ID <code>PL-F</code> · Kode Jadwal <code>F</code> · Nama <i>Poli Fleksibel</i> · Unit <b>Poli</b>.</li>
+                        <li>Jam Masuk – Jam Pulang = <b>jam buka poli</b> paling awal s/d paling akhir (mis. <code>07:00</code> – <code>21:00</code>).
+                            Absen di luar jendela ini tetap bisa, tetapi absen pulang paling lambat {{ $pengaturan::batasPulangJam() }} jam setelah jam tutupnya.</li>
+                        <li>Nyalakan <b>Shift fleksibel</b>. Toleransi terlambat otomatis tidak dipakai.</li>
+                        <li>Pastikan <b>hanya shift ini</b> yang ber-unit Poli — dengan begitu kiosk / HP langsung mencatat masuk tanpa meminta memilih shift.</li>
+                        <li>Di {!! $tautan('master.karyawan', 'Master Karyawan') !!}, pastikan semua karyawan Poli ber-<b>Unit Poli</b>.</li>
+                    </ol>
+
+                    <h3 class="mt-4">b. Kepala Poli — jadwal dinas (boleh tidak diisi)</h3>
+                    <ul class="mt-1 text-sm">
+                        <li>Jadwal Poli <b>tidak wajib</b>. Karyawan Poli tetap bisa absen walau selnya kosong.</li>
+                        <li>Bila ingin ada rencana (mis. siapa mendampingi dokter mana), isi kuas <b>F</b> di {!! $tautan('absensi.jadwal-dinas', 'Jadwal Dinas', ['unit' => 'PL']) !!} unit Poli.
+                            Izin / cuti yang direncanakan tetap diisi <b>I</b> / <b>C</b>.</li>
+                    </ul>
+
+                    <h3 class="mt-4">c. Karyawan Poli — cara absen (kiosk atau HP)</h3>
+                    <ol class="mt-1 text-sm">
+                        <li><b>Masuk</b>: absen saat mulai mendampingi dokter. Layar menulis <i>"Poli Fleksibel (fleksibel - pulang mengikuti selesai tugas)"</i>. Datang jam berapa pun = <b>Hadir</b>, tidak ada terlambat.</li>
+                        <li><b>Pulang</b>: absen setelah praktik dokter selesai — tidak ada catatan pulang cepat.</li>
+                        <li><b>Dua sesi praktik sehari</b> (pagi &amp; sore): satu hari = satu catatan. Absen masuk di sesi pertama, <b>jangan absen pulang di antara sesi</b>, absen pulang setelah sesi terakhir
+                            (sama seperti dobel shift). Bila terlanjur absen pulang, lapor HRD untuk mengoreksi jam pulangnya.</li>
+                        <li>Lupa absen masuk / pulang → lapor HRD, sama seperti unit lain.</li>
+                    </ol>
+
+                    <table class="mt-3 ds-table">
+                        <thead><tr><th>Contoh</th><th>Masuk</th><th>Pulang</th><th>Tercatat</th></tr></thead>
+                        <tbody>
+                            <tr><td>Dampingi dokter praktik pagi</td><td class="font-mono">08:10</td><td class="font-mono">11:30</td><td>Hadir · terlambat 0 · pulang cepat 0</td></tr>
+                            <tr><td>Dampingi dokter praktik sore (tidak terjadwal)</td><td class="font-mono">15:10</td><td class="font-mono">20:45</td><td>Hadir · lembur 0</td></tr>
+                            <tr><td>Praktik pagi + sore</td><td class="font-mono">08:00</td><td class="font-mono">20:00</td><td>Satu catatan Hadir 08:00–20:00</td></tr>
+                            <tr><td>Tidak ada praktik / tidak datang</td><td>—</td><td>—</td><td>Generate: disarankan <b>Libur</b> (tidak terjadwal) atau <b>Alpa</b> (terjadwal F)</td></tr>
+                        </tbody>
+                    </table>
+
+                    <h3 class="mt-4">d. HRD — pemeriksaan</h3>
+                    <ul class="mt-1 text-sm">
+                        <li>{!! $tautan('absensi.rekap-harian', 'Rekap Harian') !!}: pilih unit Poli — jam masuk &amp; pulang tampil apa adanya; Koreksi bila ada yang lupa absen.</li>
+                        <li><b>Lembur Poli tidak dihitung otomatis</b> (jam kerja mengikuti dokter, tidak ada jam pulang baku). Lama kerja tetap terlihat dari jam masuk–pulang.</li>
+                        <li>Generate Libur / Alpa tetap dipakai seperti biasa: hari Poli tanpa jadwal &amp; tanpa absen disarankan Libur.</li>
+                    </ul>
+                </section>
+
                 <section id="harian" class="p-6 border scroll-mt-24 bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
                     <h2>5. Rekap Harian — {!! $tautan('absensi.rekap-harian', 'buka') !!}</h2>
                     <p class="mt-2 text-sm">Semua karyawan aktif pada satu tanggal, termasuk yang <b>belum absen</b>. Kolom <b>Jadwal</b> menampilkan rencana, kolom Shift/Masuk/Pulang menampilkan kenyataan.</p>
@@ -405,7 +462,8 @@ new class extends Component {
                             ['Tukar dinas mendadak hari ini?', 'Ubah sel hari ini di Jadwal Dinas (masih bisa), atau biarkan karyawan memilih shift di kiosk saat tidak terjadwal.'],
                             ['Izin mendadak (tidak ada di jadwal)?', 'Isi di Rekap Harian → Izin + keterangan. Ini menurunkan % kehadiran; izin yang direncanakan sebaiknya dijadwalkan sebagai I.'],
                             ['Jadwal tanggal lalu salah?', 'Tanggal lalu terkunci. Kehadiran tetap bisa dikoreksi di Rekap Harian; bila jadwalnya sendiri harus diubah, hubungi Admin.'],
-                            ['Lembur tidak muncul?', 'Lembur hanya tercatat bila pulang ≥ ' . $pengaturan::minLemburMenit() . ' menit lewat jadwal pulang shift.'],
+                            ['Lembur tidak muncul?', 'Lembur hanya tercatat bila pulang ≥ ' . $pengaturan::minLemburMenit() . ' menit lewat jadwal pulang shift. Shift fleksibel (Poli) memang tidak menghitung lembur otomatis.'],
+                            ['Karyawan Poli tidak punya jadwal tetap?', 'Pakai shift fleksibel unit Poli (Master Shift → centang Shift fleksibel). Karyawan Poli cukup absen masuk saat mulai mendampingi dokter dan absen pulang saat praktik selesai — walau tidak terjadwal. Jadwal Dinas Poli boleh diisi F untuk rencana, boleh juga dikosongkan; hari tanpa absen disarankan Libur saat Generate.'],
                             ['Jam shift Gizi berbeda dengan Perawat?', 'Buat shift terpisah dengan Unit diisi (mis. Gizi Shift 1 06:00–13:00 unit Gizi, Rawat Inap Pagi 07:00–14:00 unit Rawat Inap). Unit yang punya shift khusus hanya memakai shift khususnya, shift umum P / S tidak ikut tampil. Lihat contoh di bagian Persiapan.'],
                             ['Kepala ruang tidak bisa membuka jadwal / jadwalnya kosong?', 'Pastikan akun kepala ruang terhubung ke data karyawan (User Control → Karyawan) dan karyawan itu punya Unit Kerja. Karyawan unitnya juga harus sudah diatur unitnya.'],
                             ['Karyawan sudah keluar?', 'Non-aktifkan di Master Karyawan — tidak muncul lagi di kiosk, jadwal, dan rekap, tetapi riwayatnya aman.'],

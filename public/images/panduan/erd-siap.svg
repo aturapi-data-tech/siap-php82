@@ -445,45 +445,47 @@
 <!-- SIAPMST_SHIFTS -->
 <g id="node5" class="node">
 <title>SIAPMST_SHIFTS</title>
-<polygon fill="#2563eb" stroke="transparent" points="312.5,-1976 312.5,-1993 472.5,-1993 472.5,-1976 312.5,-1976"/>
-<text text-anchor="start" x="351.5" y="-1983" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="10.00" fill="white">siapmst_shifts</text>
-<text text-anchor="start" x="315.5" y="-1966" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#2563eb">PK</text>
-<text text-anchor="start" x="328.5" y="-1966" font-family="Helvetica,sans-Serif" font-size="10.00"> </text>
-<text text-anchor="start" x="332.5" y="-1966" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="10.00">shift_id</text>
-<text text-anchor="start" x="398.5" y="-1965" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#94a3b8">varchar2(10)</text>
-<text text-anchor="start" x="315.5" y="-1948" font-family="Helvetica,sans-Serif" font-size="10.00">shift_name</text>
-<text text-anchor="start" x="398.5" y="-1948" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#94a3b8">varchar2(50) *</text>
-<text text-anchor="start" x="315.5" y="-1931" font-family="Helvetica,sans-Serif" font-size="10.00">jam_masuk</text>
-<text text-anchor="start" x="398.5" y="-1931" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#94a3b8">varchar2(5) *</text>
-<text text-anchor="start" x="315.5" y="-1914" font-family="Helvetica,sans-Serif" font-size="10.00">jam_pulang</text>
-<text text-anchor="start" x="398.5" y="-1914" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#94a3b8">varchar2(5) *</text>
-<text text-anchor="start" x="315.5" y="-1897" font-family="Helvetica,sans-Serif" font-size="10.00">toleransi_menit</text>
-<text text-anchor="start" x="398.5" y="-1897" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#94a3b8">number(10) *</text>
-<text text-anchor="start" x="315.5" y="-1880" font-family="Helvetica,sans-Serif" font-size="10.00">lintas_hari</text>
-<text text-anchor="start" x="398.5" y="-1880" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#94a3b8">varchar2(1) *</text>
-<text text-anchor="start" x="315.5" y="-1863" font-family="Helvetica,sans-Serif" font-size="10.00">active_status</text>
-<text text-anchor="start" x="398.5" y="-1863" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#94a3b8">varchar2(1) *</text>
-<text text-anchor="start" x="315.5" y="-1846" font-family="Helvetica,sans-Serif" font-size="10.00">created_at</text>
-<text text-anchor="start" x="398.5" y="-1846" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#94a3b8">timestamp</text>
-<text text-anchor="start" x="315.5" y="-1829" font-family="Helvetica,sans-Serif" font-size="10.00">updated_at</text>
-<text text-anchor="start" x="398.5" y="-1829" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#94a3b8">timestamp</text>
-<text text-anchor="start" x="315.5" y="-1812" font-family="Helvetica,sans-Serif" font-size="10.00">shift_kode</text>
-<text text-anchor="start" x="398.5" y="-1812" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#94a3b8">varchar2(2)</text>
-<text text-anchor="start" x="315.5" y="-1796" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#2563eb">FK</text>
-<text text-anchor="start" x="328.5" y="-1796" font-family="Helvetica,sans-Serif" font-size="10.00"> </text>
-<text text-anchor="start" x="332.5" y="-1796" font-family="Helvetica,sans-Serif" font-style="italic" font-size="10.00">unit_id</text>
-<text text-anchor="start" x="398.5" y="-1795" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#94a3b8">varchar2(10)</text>
-<text text-anchor="start" x="315.5" y="-1778" font-family="Helvetica,sans-Serif" font-size="10.00">shift_warna</text>
-<text text-anchor="start" x="398.5" y="-1778" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#94a3b8">varchar2(7)</text>
-<polygon fill="none" stroke="#2563eb" points="311.5,-1771.5 311.5,-1994.5 473.5,-1994.5 473.5,-1771.5 311.5,-1771.5"/>
+<polygon fill="#2563eb" stroke="transparent" points="312.5,-1994 312.5,-2011 472.5,-2011 472.5,-1994 312.5,-1994"/>
+<text text-anchor="start" x="351.5" y="-2001" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="10.00" fill="white">siapmst_shifts</text>
+<text text-anchor="start" x="315.5" y="-1984" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#2563eb">PK</text>
+<text text-anchor="start" x="328.5" y="-1984" font-family="Helvetica,sans-Serif" font-size="10.00"> </text>
+<text text-anchor="start" x="332.5" y="-1984" font-family="Helvetica,sans-Serif" font-weight="bold" font-size="10.00">shift_id</text>
+<text text-anchor="start" x="398.5" y="-1983" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#94a3b8">varchar2(10)</text>
+<text text-anchor="start" x="315.5" y="-1966" font-family="Helvetica,sans-Serif" font-size="10.00">shift_name</text>
+<text text-anchor="start" x="398.5" y="-1966" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#94a3b8">varchar2(50) *</text>
+<text text-anchor="start" x="315.5" y="-1949" font-family="Helvetica,sans-Serif" font-size="10.00">jam_masuk</text>
+<text text-anchor="start" x="398.5" y="-1949" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#94a3b8">varchar2(5) *</text>
+<text text-anchor="start" x="315.5" y="-1932" font-family="Helvetica,sans-Serif" font-size="10.00">jam_pulang</text>
+<text text-anchor="start" x="398.5" y="-1932" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#94a3b8">varchar2(5) *</text>
+<text text-anchor="start" x="315.5" y="-1915" font-family="Helvetica,sans-Serif" font-size="10.00">toleransi_menit</text>
+<text text-anchor="start" x="398.5" y="-1915" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#94a3b8">number(10) *</text>
+<text text-anchor="start" x="315.5" y="-1898" font-family="Helvetica,sans-Serif" font-size="10.00">lintas_hari</text>
+<text text-anchor="start" x="398.5" y="-1898" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#94a3b8">varchar2(1) *</text>
+<text text-anchor="start" x="315.5" y="-1881" font-family="Helvetica,sans-Serif" font-size="10.00">active_status</text>
+<text text-anchor="start" x="398.5" y="-1881" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#94a3b8">varchar2(1) *</text>
+<text text-anchor="start" x="315.5" y="-1864" font-family="Helvetica,sans-Serif" font-size="10.00">created_at</text>
+<text text-anchor="start" x="398.5" y="-1864" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#94a3b8">timestamp</text>
+<text text-anchor="start" x="315.5" y="-1847" font-family="Helvetica,sans-Serif" font-size="10.00">updated_at</text>
+<text text-anchor="start" x="398.5" y="-1847" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#94a3b8">timestamp</text>
+<text text-anchor="start" x="315.5" y="-1830" font-family="Helvetica,sans-Serif" font-size="10.00">shift_kode</text>
+<text text-anchor="start" x="398.5" y="-1830" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#94a3b8">varchar2(2)</text>
+<text text-anchor="start" x="315.5" y="-1814" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#2563eb">FK</text>
+<text text-anchor="start" x="328.5" y="-1814" font-family="Helvetica,sans-Serif" font-size="10.00"> </text>
+<text text-anchor="start" x="332.5" y="-1814" font-family="Helvetica,sans-Serif" font-style="italic" font-size="10.00">unit_id</text>
+<text text-anchor="start" x="398.5" y="-1813" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#94a3b8">varchar2(10)</text>
+<text text-anchor="start" x="315.5" y="-1796" font-family="Helvetica,sans-Serif" font-size="10.00">shift_warna</text>
+<text text-anchor="start" x="398.5" y="-1796" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#94a3b8">varchar2(7)</text>
+<text text-anchor="start" x="315.5" y="-1779" font-family="Helvetica,sans-Serif" font-size="10.00">shift_fleksibel</text>
+<text text-anchor="start" x="398.5" y="-1779" font-family="Helvetica,sans-Serif" font-size="10.00" fill="#94a3b8">varchar2(1) *</text>
+<polygon fill="none" stroke="#2563eb" points="311.5,-1772 311.5,-2012 473.5,-2012 473.5,-1772 311.5,-1772"/>
 </g>
 <!-- SIAPMST_UNIT_KERJAS&#45;&gt;SIAPMST_SHIFTS -->
 <g id="edge11" class="edge">
 <title>SIAPMST_UNIT_KERJAS:e&#45;&gt;SIAPMST_SHIFTS:w</title>
-<path fill="none" stroke="#64748b" d="M123.18,-814.12C335.67,-826.28 96.54,-1772.51 303.3,-1796.53"/>
+<path fill="none" stroke="#64748b" d="M123.25,-814.12C339.56,-826.51 92.59,-1791.02 303.47,-1814.56"/>
 <polygon fill="#64748b" stroke="#64748b" points="119.69,-818.02 119.91,-810.02 121.51,-810.07 121.29,-818.07 119.69,-818.02"/>
 <polyline fill="none" stroke="#64748b" points="119,-814 123,-814.11 "/>
-<polygon fill="#64748b" stroke="#64748b" points="303.51,-1796.55 311.3,-1800.59 307.51,-1796.77 311.5,-1797 311.5,-1797 311.5,-1797 307.51,-1796.77 311.7,-1793.41 303.51,-1796.55 303.51,-1796.55"/>
+<polygon fill="#64748b" stroke="#64748b" points="303.51,-1814.56 311.3,-1818.59 307.51,-1814.78 311.5,-1815 311.5,-1815 311.5,-1815 307.51,-1814.78 311.7,-1811.41 303.51,-1814.56 303.51,-1814.56"/>
 </g>
 <!-- SIAPMST_LOKASI_ABSENS -->
 <g id="node3" class="node">
@@ -523,41 +525,41 @@
 <!-- SIAPMST_LOKASI_ABSENS&#45;&gt;SIAPTXN_ABSENSIS -->
 <g id="edge14" class="edge">
 <title>SIAPMST_LOKASI_ABSENS:e&#45;&gt;SIAPTXN_ABSENSIS:w</title>
-<path fill="none" stroke="#64748b" d="M393.76,-887.03C613.87,-890.4 480.84,-1155.95 555,-1368 555.46,-1369.31 806.85,-2080.4 837.05,-2162.33"/>
+<path fill="none" stroke="#64748b" d="M393.76,-887.03C613.87,-890.4 480.84,-1155.95 555,-1368 556.84,-1373.26 803.58,-2082.32 836.48,-2162.62"/>
 <polygon fill="#64748b" stroke="#64748b" points="390.27,-891.01 390.33,-883.01 391.93,-883.02 391.87,-891.02 390.27,-891.01"/>
 <polyline fill="none" stroke="#64748b" points="389.5,-887 393.5,-887.03 "/>
-<polygon fill="#64748b" stroke="#64748b" points="837.13,-2162.53 836.64,-2171.29 838.56,-2166.27 840,-2170 840,-2170 840,-2170 838.56,-2166.27 843.36,-2168.71 837.13,-2162.53 837.13,-2162.53"/>
+<polygon fill="#64748b" stroke="#64748b" points="836.56,-2162.78 836.75,-2171.55 838.28,-2166.39 840,-2170 840,-2170 840,-2170 838.28,-2166.39 843.25,-2168.45 836.56,-2162.78 836.56,-2162.78"/>
 </g>
 <!-- SIAPMST_SHIFTS&#45;&gt;SIAPMST_EMPLOYERS -->
 <g id="edge7" class="edge">
 <title>SIAPMST_SHIFTS:e&#45;&gt;SIAPMST_EMPLOYERS:w</title>
-<path fill="none" stroke="#64748b" d="M400.52,-1967.94C495.4,-1965.07 465.79,-1859.35 490,-1764 518.88,-1650.26 446.38,-729.65 554.87,-686.56"/>
-<polygon fill="#64748b" stroke="#64748b" points="397.36,-1971.99 397.24,-1963.99 398.84,-1963.96 398.96,-1971.96 397.36,-1971.99"/>
-<polyline fill="none" stroke="#64748b" points="396.5,-1968 400.5,-1967.94 "/>
-<polygon fill="#64748b" stroke="#64748b" points="555.14,-686.51 563.68,-688.54 559.07,-685.76 563,-685 563,-685 563,-685 559.07,-685.76 562.32,-681.46 555.14,-686.51 555.14,-686.51"/>
+<path fill="none" stroke="#64748b" d="M400.51,-1985.94C502.6,-1983.01 465.58,-1866.84 490,-1764 517.11,-1649.83 446.29,-729.63 554.87,-686.56"/>
+<polygon fill="#64748b" stroke="#64748b" points="397.36,-1989.99 397.24,-1981.99 398.84,-1981.97 398.96,-1989.97 397.36,-1989.99"/>
+<polyline fill="none" stroke="#64748b" points="396.5,-1986 400.5,-1985.94 "/>
+<polygon fill="#64748b" stroke="#64748b" points="555.14,-686.51 563.68,-688.54 559.07,-685.75 563,-685 563,-685 563,-685 559.07,-685.75 562.32,-681.46 555.14,-686.51 555.14,-686.51"/>
 </g>
 <!-- SIAPMST_SHIFTS&#45;&gt;SIAPTXN_JADWALS -->
 <g id="edge19" class="edge">
 <title>SIAPMST_SHIFTS:e&#45;&gt;SIAPTXN_JADWALS:w</title>
-<path fill="none" stroke="#64748b" d="M400.93,-1967.99C566.21,-1967.53 609.85,-1940.84 767,-1883 810.38,-1867.03 815.42,-1835.93 856.83,-1832.34"/>
-<polygon fill="#64748b" stroke="#64748b" points="397.31,-1972 397.29,-1964 398.89,-1964 398.91,-1972 397.31,-1972"/>
-<polyline fill="none" stroke="#64748b" points="396.5,-1968 400.5,-1967.99 "/>
-<polygon fill="#64748b" stroke="#64748b" points="857.01,-1832.33 865.15,-1835.6 861,-1832.17 865,-1832 865,-1832 865,-1832 861,-1832.17 864.85,-1828.4 857.01,-1832.33 857.01,-1832.33"/>
+<path fill="none" stroke="#64748b" d="M400.95,-1985.99C567.27,-1985.48 611.57,-1956.07 767,-1891 811.24,-1872.48 813.98,-1836.4 856.83,-1832.37"/>
+<polygon fill="#64748b" stroke="#64748b" points="397.31,-1990 397.29,-1982 398.89,-1982 398.91,-1990 397.31,-1990"/>
+<polyline fill="none" stroke="#64748b" points="396.5,-1986 400.5,-1985.99 "/>
+<polygon fill="#64748b" stroke="#64748b" points="857.01,-1832.36 865.16,-1835.6 861,-1832.18 865,-1832 865,-1832 865,-1832 861,-1832.18 864.84,-1828.4 857.01,-1832.36 857.01,-1832.36"/>
 </g>
 <!-- SIAPMST_SHIFTS&#45;&gt;SIAPTXN_ABSENSIS -->
 <g id="edge12" class="edge">
 <title>SIAPMST_SHIFTS:e&#45;&gt;SIAPTXN_ABSENSIS:w</title>
-<path fill="none" stroke="#64748b" d="M400.52,-1968C591.66,-1968.2 642.69,-1982.58 831.77,-1982.99"/>
-<polygon fill="#64748b" stroke="#64748b" points="397.3,-1972 397.3,-1964 398.9,-1964 398.9,-1972 397.3,-1972"/>
-<polyline fill="none" stroke="#64748b" points="396.5,-1968 400.5,-1968 "/>
-<polygon fill="#64748b" stroke="#64748b" points="832,-1982.99 840,-1986.6 836,-1983 840,-1983 840,-1983 840,-1983 836,-1983 840,-1979.4 832,-1982.99 832,-1982.99"/>
+<path fill="none" stroke="#64748b" d="M400.52,-1986C591.55,-1985.96 642.79,-1983.08 831.77,-1983"/>
+<polygon fill="#64748b" stroke="#64748b" points="397.3,-1990 397.3,-1982 398.9,-1982 398.9,-1990 397.3,-1990"/>
+<polyline fill="none" stroke="#64748b" points="396.5,-1986 400.5,-1986 "/>
+<polygon fill="#64748b" stroke="#64748b" points="832,-1983 840,-1986.6 836,-1983 840,-1983 840,-1983 840,-1983 836,-1983 840,-1979.4 832,-1983 832,-1983"/>
 </g>
 <!-- SIAPMST_SHIFTS&#45;&gt;SIAPTXN_ABSENSIS -->
 <g id="edge15" class="edge">
 <title>SIAPMST_SHIFTS:e&#45;&gt;SIAPTXN_ABSENSIS:w</title>
-<path fill="none" stroke="#64748b" d="M400.84,-1968.06C520.86,-1971.36 468.67,-2112.79 555,-2202 661.95,-2312.52 682.73,-2405.67 831.87,-2408.91"/>
-<polygon fill="#64748b" stroke="#64748b" points="397.25,-1972.01 397.35,-1964.01 398.95,-1964.03 398.85,-1972.03 397.25,-1972.01"/>
-<polyline fill="none" stroke="#64748b" points="396.5,-1968 400.5,-1968.05 "/>
+<path fill="none" stroke="#64748b" d="M400.64,-1986.05C515.23,-1989.12 471.07,-2120.5 555,-2204 663.67,-2312.11 683.3,-2405.66 831.9,-2408.91"/>
+<polygon fill="#64748b" stroke="#64748b" points="397.25,-1990.01 397.35,-1982.01 398.95,-1982.03 398.85,-1990.03 397.25,-1990.01"/>
+<polyline fill="none" stroke="#64748b" points="396.5,-1986 400.5,-1986.05 "/>
 <polygon fill="#64748b" stroke="#64748b" points="832,-2408.91 839.96,-2412.6 836,-2408.96 840,-2409 840,-2409 840,-2409 836,-2408.96 840.04,-2405.4 832,-2408.91 832,-2408.91"/>
 </g>
 <!-- SIAPMST_PENGATURAN_ABSENSIS -->

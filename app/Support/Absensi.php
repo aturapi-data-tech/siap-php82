@@ -27,6 +27,10 @@ use Illuminate\Support\Facades\DB;
  * - Lupa absen masuk: absen yang jatuh setelah separuh jam shift dikonfirmasi dulu di kiosk / HP —
  *   karyawan bisa memilih "mau pulang" → dicatat jam pulang saja (jam masuk dilengkapi HRD).
  * - Tanpa absen pulang: sudah masuk, belum pulang, dan jendela absen pulang sudah lewat.
+ * - Shift FLEKSIBEL (shift_fleksibel '1', mis. Poli — datang & pulang mengikuti praktik dokter):
+ *   jam shift hanya jendela absen; tidak ada terlambat, pulang cepat, lembur otomatis, maupun
+ *   konfirmasi lupa absen masuk. Unit yang shift-nya hanya shift fleksibel langsung absen masuk
+ *   walau tidak terjadwal (tanpa memilih shift).
  */
 class Absensi
 {
@@ -200,9 +204,19 @@ class Absensi
         return (string) $shift->lintas_hari === '1' ? $pulang->addDay() : $pulang;
     }
 
-    /** Menit lembur; 0 bila pulang kurang dari minimal lembur setelah jadwal pulang. */
+    /** Shift fleksibel: jam masuk & pulang mengikuti kebutuhan (mis. praktik dokter), bukan jam tetap. */
+    public static function fleksibel(object $shift): bool
+    {
+        return (string) ($shift->shift_fleksibel ?? '0') === '1';
+    }
+
+    /** Menit lembur; 0 bila pulang kurang dari minimal lembur setelah jadwal pulang (shift fleksibel: selalu 0). */
     public static function lemburMenit(object $shift, Carbon $tanggalKerja, Carbon $waktuPulang): int
     {
+        if (self::fleksibel($shift)) {
+            return 0;
+        }
+
         $menit = (int) floor(self::jadwalPulang($shift, $tanggalKerja)->diffInMinutes($waktuPulang, false));
 
         return $menit >= PengaturanAbsensi::minLemburMenit() ? $menit : 0;
@@ -233,6 +247,10 @@ class Absensi
     /** Menit pulang lebih cepat dari jadwal pulang; 0 bila tidak / masih dalam toleransi shift. */
     public static function pulangCepatMenit(object $shift, Carbon $tanggalKerja, Carbon $waktuPulang): int
     {
+        if (self::fleksibel($shift)) {
+            return 0;
+        }
+
         $menit = (int) floor($waktuPulang->diffInMinutes(self::jadwalPulang($shift, $tanggalKerja), false));
 
         return $menit > (int) ($shift->toleransi_menit ?? 0) ? $menit : 0;
@@ -244,6 +262,10 @@ class Absensi
      */
     public static function mungkinLupaMasuk(object $shift, Carbon $sekarang): bool
     {
+        if (self::fleksibel($shift)) {
+            return false;
+        }
+
         $tanggalKerja = self::tanggalKerja($shift, $sekarang);
         $jadwalMasuk = self::jadwalMasuk($shift, $tanggalKerja);
         $separuhShift = intdiv((int) $jadwalMasuk->diffInMinutes(self::jadwalPulang($shift, $tanggalKerja)), 2);
@@ -282,6 +304,10 @@ class Absensi
     /** @return array{0: string, 1: int} [status H|T, menit terlambat] */
     public static function statusMasuk(object $shift, Carbon $tanggalKerja, Carbon $waktuMasuk): array
     {
+        if (self::fleksibel($shift)) {
+            return ['H', 0];
+        }
+
         $menit = (int) floor(self::jadwalMasuk($shift, $tanggalKerja)->diffInMinutes($waktuMasuk, false));
 
         return $menit > (int) $shift->toleransi_menit ? ['T', $menit] : ['H', 0];
@@ -298,7 +324,7 @@ class Absensi
             ->whereIn('ab.abs_date', [self::tanggalSql($waktu), self::tanggalSql($waktu->copy()->subDay())])
             ->orderByDesc('ab.abs_date')
             ->select('ab.*', 'sh.shift_name', 'sh.jam_masuk as shift_jam_masuk', 'sh.jam_pulang as shift_jam_pulang', 'sh.lintas_hari',
-                'sh.toleransi_menit as shift_toleransi_menit')
+                'sh.toleransi_menit as shift_toleransi_menit', 'sh.shift_fleksibel')
             ->get();
 
         return $rows->first(function ($row) use ($waktu) {
@@ -375,13 +401,19 @@ class Absensi
             return ['aksi' => 'info', 'pesan' => 'Hari ini terjadwal ' . Jadwal::KHUSUS[$jadwal->jdw_jenis] . '. Hubungi HRD bila ternyata masuk kerja.'];
         }
 
+        // Unit dengan shift fleksibel saja (mis. Poli mendampingi dokter): boleh masuk tanpa jadwal, tanpa memilih shift.
+        $shiftUnit = self::shiftPilihan($empId, $shifts);
+        if ($shiftUnit->count() === 1 && self::fleksibel($shiftUnit->first())) {
+            return ['aksi' => 'masuk', 'shift' => $shiftUnit->first(), 'mungkinLupaMasuk' => false];
+        }
+
         // Tidak ada jadwal → pilih shift (tukar dinas / tambahan).
         return [
             'aksi'         => 'pilih-shift',
             'catatan'      => Jadwal::adaJadwalBulan($sekarang)
                 ? 'Anda tidak terjadwal masuk hari ini (libur). Pilih shift bila memang bertugas (tukar dinas).'
                 : null,
-            'saranShiftId' => self::sarankanShift(self::shiftPilihan($empId, $shifts), $sekarang)?->shift_id,
+            'saranShiftId' => self::sarankanShift($shiftUnit, $sekarang)?->shift_id,
         ];
     }
 
@@ -423,14 +455,15 @@ class Absensi
     {
         $lembur = $terbuka->shift_jam_pulang
             ? self::lemburMenit(
-                (object) ['jam_pulang' => $terbuka->shift_jam_pulang, 'lintas_hari' => $terbuka->lintas_hari],
+                (object) ['jam_pulang' => $terbuka->shift_jam_pulang, 'lintas_hari' => $terbuka->lintas_hari, 'shift_fleksibel' => $terbuka->shift_fleksibel],
                 Carbon::parse($terbuka->abs_date)->startOfDay(),
                 $sekarang)
             : 0;
 
         $pulangCepat = $terbuka->shift_jam_pulang
             ? self::pulangCepatMenit(
-                (object) ['jam_pulang' => $terbuka->shift_jam_pulang, 'lintas_hari' => $terbuka->lintas_hari, 'toleransi_menit' => $terbuka->shift_toleransi_menit],
+                (object) ['jam_pulang' => $terbuka->shift_jam_pulang, 'lintas_hari' => $terbuka->lintas_hari, 'toleransi_menit' => $terbuka->shift_toleransi_menit,
+                    'shift_fleksibel' => $terbuka->shift_fleksibel],
                 Carbon::parse($terbuka->abs_date)->startOfDay(),
                 $sekarang)
             : 0;
@@ -538,7 +571,11 @@ class Absensi
             return ['tipe' => 'info', 'pesan' => 'Absen masuk sudah tercatat.', 'status' => null];
         }
 
-        $pesan = 'Absen MASUK pukul ' . $sekarang->format('H:i') . ' · ' . $shift->shift_name . ($sesuaiJadwal ? ' (sesuai jadwal)' : '');
+        $pesan = 'Absen MASUK pukul ' . $sekarang->format('H:i') . ' · ' . $shift->shift_name . match (true) {
+            self::fleksibel($shift) => ' (fleksibel - pulang mengikuti selesai tugas)',
+            $sesuaiJadwal           => ' (sesuai jadwal)',
+            default                 => '',
+        };
         if ($status === 'T') {
             $pesan .= ' — terlambat ' . self::labelTerlambat($terlambat);
         }

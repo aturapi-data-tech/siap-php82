@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════════════════════════════════
 -- SIAP — struktur database (Oracle)
--- Dibuat otomatis oleh `php artisan siap:struktur-db` pada 16/10/2026 13:27
+-- Dibuat otomatis oleh `php artisan siap:struktur-db` pada 16/10/2026 17:18
 -- 31 tabel · 22 foreign key.
 --
 -- Cara pakai: login sebagai user skema SIAP yang masih KOSONG, lalu jalankan berkas ini
@@ -333,6 +333,7 @@ CREATE TABLE "SIAPMST_SHIFTS"
 	"SHIFT_KODE" VARCHAR2(2), 
 	"UNIT_ID" VARCHAR2(10), 
 	"SHIFT_WARNA" VARCHAR2(7), 
+	"SHIFT_FLEKSIBEL" VARCHAR2(1) DEFAULT '0' NOT NULL ENABLE, 
 	 CONSTRAINT "PK_SIAPMST_SHIFTS" PRIMARY KEY ("SHIFT_ID") ENABLE
    ) ;
 
@@ -887,5 +888,7 @@ INSERT INTO migrations (migration, batch) VALUES ('2026_10_19_100000_create_gaji
 INSERT INTO migrations (migration, batch) VALUES ('2026_10_19_110000_alter_siapmst_gaji_karyawans_add_hari_kerja_default', 1);
 
 INSERT INTO migrations (migration, batch) VALUES ('2026_10_19_120000_alter_siaptxn_gaji_hdrs_add_wa_dikirim_at', 1);
+
+INSERT INTO migrations (migration, batch) VALUES ('2026_10_20_100000_alter_siapmst_shifts_add_shift_fleksibel', 1);
 
 COMMIT;

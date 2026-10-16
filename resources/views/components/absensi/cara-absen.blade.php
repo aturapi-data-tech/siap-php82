@@ -9,7 +9,7 @@
 
 <details {{ $attributes->merge(['class' => 'group border shadow-sm bg-canvas border-hairline rounded-3xl']) }}>
     <summary class="flex items-center justify-between gap-3 px-5 py-4 font-semibold list-none cursor-pointer select-none text-ink">
-        <span>ℹ️ Cara absen &amp; dobel shift</span>
+        <span>ℹ️ Cara absen, dobel shift &amp; Poli</span>
         <span class="text-sm font-normal transition text-muted group-open:rotate-180">▼</span>
     </summary>
 
@@ -58,6 +58,15 @@
                 <li>Lapor HRD / kepala ruang agar ditandai dobel shift — lembur dihitung dari jam shift kedua.</li>
             </ol>
             <p class="mt-1 text-xs text-amber-800">Terlanjur absen pulang setelah shift pertama? Tidak perlu absen lagi — cukup lapor HRD supaya jam pulangnya dikoreksi.</p>
+        </div>
+
+        <div class="p-3 border rounded-2xl border-sky-300 bg-sky-50">
+            <p class="font-semibold text-sky-900">Poli (shift fleksibel — mendampingi dokter)</p>
+            <ol class="mt-1 ml-5 space-y-0.5 list-decimal text-sky-900">
+                <li><b>Masuk</b>: absen saat mulai mendampingi dokter — walau tidak terjadwal, tanpa pilih shift, tidak dihitung terlambat.</li>
+                <li><b>Pulang</b>: absen setelah dokter selesai praktik — tidak dihitung pulang cepat.</li>
+                <li>Praktik pagi &amp; sore di hari yang sama: <b>jangan absen pulang di antara sesi</b>, cukup absen pulang setelah sesi terakhir.</li>
+            </ol>
         </div>
     </div>
 </details>

@@ -17,6 +17,8 @@ use App\Http\Traits\Concerns\WithRenderVersioningTrait;
  * Kode jadwal unik dalam cakupan: sesama shift umum, atau sesama shift satu unit. Shift unit boleh
  * memakai kode shift umum (mis. "P" Gizi 06:00 vs "P" umum 07:00) — unit yang punya shift khusus
  * hanya memakai shift khususnya, jadi tidak tertukar.
+ * Shift fleksibel (mis. Poli, ikut praktik dokter): jam = jendela absen saja; tanpa terlambat,
+ * pulang cepat, & lembur otomatis (App\Support\Absensi::fleksibel).
  */
 new class extends Component {
     use WithRenderVersioningTrait;
@@ -74,6 +76,7 @@ new class extends Component {
             'toleransi_menit' => (string) (int) $row->toleransi_menit,
             'unit_id'         => (string) ($row->unit_id ?? ''),
             'shift_warna'     => (string) ($row->shift_warna ?? ''),
+            'shift_fleksibel' => (string) ($row->shift_fleksibel ?? '0') === '1' ? '1' : '0',
             'active_status'   => (string) $row->active_status === '1' ? '1' : '0',
         ];
 
@@ -125,6 +128,7 @@ new class extends Component {
             'form.jam_masuk'       => 'required|date_format:H:i',
             'form.jam_pulang'      => 'required|date_format:H:i|different:form.jam_masuk',
             'form.toleransi_menit' => 'required|integer|min:0|max:240',
+            'form.shift_fleksibel' => 'required|in:0,1',
             'form.active_status'   => 'required|in:0,1',
         ];
     }
@@ -158,6 +162,7 @@ new class extends Component {
             'form.toleransi_menit' => 'Toleransi',
             'form.unit_id'         => 'Unit',
             'form.shift_warna'     => 'Warna',
+            'form.shift_fleksibel' => 'Shift Fleksibel',
             'form.active_status'   => 'Status',
         ];
     }
@@ -173,10 +178,12 @@ new class extends Component {
             'shift_kode'      => mb_strtoupper(trim($form['shift_kode'])),
             'jam_masuk'       => $form['jam_masuk'],
             'jam_pulang'      => $form['jam_pulang'],
-            'toleransi_menit' => (int) $form['toleransi_menit'],
             'lintas_hari'     => $form['jam_pulang'] <= $form['jam_masuk'] ? '1' : '0',
             'unit_id'         => $form['unit_id'] !== '' ? $form['unit_id'] : null,
             'shift_warna'     => $form['shift_warna'] !== '' ? mb_strtolower($form['shift_warna']) : null,
+            'shift_fleksibel' => $form['shift_fleksibel'],
+            // Shift fleksibel tidak menilai terlambat → toleransi tidak dipakai.
+            'toleransi_menit' => $form['shift_fleksibel'] === '1' ? 0 : (int) $form['toleransi_menit'],
             'active_status'   => $form['active_status'],
             'updated_at'      => now(),
         ];
@@ -233,6 +240,7 @@ new class extends Component {
             'toleransi_menit' => '10',
             'unit_id'         => '',
             'shift_warna'     => '',
+            'shift_fleksibel' => '0',
             'active_status'   => '1',
         ];
         $this->resetValidation();
@@ -312,7 +320,7 @@ new class extends Component {
                                 </div>
                                 <div>
                                     <x-input-label value="Toleransi Terlambat (menit) *" />
-                                    <x-text-input wire:model.live="form.toleransi_menit" x-ref="inputToleransi"
+                                    <x-text-input wire:model.live="form.toleransi_menit" x-ref="inputToleransi" :disabled="$form['shift_fleksibel'] === '1'"
                                         type="number" min="0" max="240"
                                         :error="$errors->has('form.toleransi_menit')" class="w-full mt-1"
                                         x-on:keydown.enter.prevent="$wire.save()" />
@@ -349,6 +357,17 @@ new class extends Component {
                                     </div>
                                     <x-input-error :messages="$errors->get('form.shift_warna')" class="mt-1" />
                                 </div>
+                            </div>
+
+                            <div>
+                                <x-toggle wire:model.live="form.shift_fleksibel" trueValue="1" falseValue="0">
+                                    Shift fleksibel (jam ikut kebutuhan, mis. Poli mendampingi dokter)
+                                </x-toggle>
+                                <p class="mt-1 text-[11px] text-muted dark:text-gray-400">
+                                    Jam masuk–pulang di atas hanya <b>jendela absen</b> (mis. 07:00–21:00 = jam buka poli). Tidak dihitung terlambat,
+                                    pulang cepat, maupun lembur otomatis; jam kerja tercatat apa adanya. Bila ini satu-satunya shift unitnya,
+                                    karyawan unit tsb bisa langsung absen walau tidak terjadwal.
+                                </p>
                             </div>
 
                             <x-toggle wire:model.live="form.active_status" trueValue="1" falseValue="0">
