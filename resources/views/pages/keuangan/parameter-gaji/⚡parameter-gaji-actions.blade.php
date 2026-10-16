@@ -201,7 +201,7 @@ new class extends Component {
                         <p class="mt-3 text-xs text-muted">Kasbon &amp; angsuran diisi di rincian slip setiap bulan.</p>
                     </x-border-form>
 
-                    <x-border-form title="Pajak & Rekening">
+                    <x-border-form title="Pajak & Rekening" class="lg:col-span-2">
                         <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
                             <div>
                                 <x-input-label value="PPh 21 (%)" />

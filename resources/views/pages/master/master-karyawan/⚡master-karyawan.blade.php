@@ -243,14 +243,9 @@ new class extends Component {
                     <table class="ds-table">
                         <thead class="sticky top-0 z-10">
                             <tr>
-                                <th>ID Karyawan</th>
-                                <th>Nama</th>
-                                <th class="ds-c">L/P</th>
-                                <th class="ds-c" title="Shift default">P/S</th>
-                                <th>No. HP</th>
-                                <th>Tgl Masuk</th>
-                                <th>STR/SIP</th>
-                                <th>Status</th>
+                                <th>Karyawan</th>
+                                <th>Kontak</th>
+                                <th title="Status aktif & STR/SIP">Status</th>
                                 <th class="ds-c">Aksi</th>
                             </tr>
                         </thead>
@@ -258,22 +253,34 @@ new class extends Component {
                             @forelse ($this->rows as $row)
                                 @php $isActive = (string) $row->active_status === '1'; @endphp
                                 <tr wire:key="karyawan-{{ $row->emp_id }}">
-                                    <td class="ds-td-token">{{ $row->emp_id }}</td>
+                                    {{-- Karyawan = nama (+ shift default) / ID · L/P · unit --}}
                                     <td>
-                                        <div class="ds-td-strong">{{ $row->emp_name }}</div>
-                                        @if ($row->unit_name)
-                                            <div class="text-xs text-muted">{{ $row->unit_name }}</div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="ds-td-strong">{{ $row->emp_name }}</span>
+                                            @if ($row->shift_default_kode)
+                                                <span class="inline-block w-7 py-0.5 text-xs font-bold text-center rounded" style="{{ \App\Support\Jadwal::gaya($row->shift_default_kode, $row->shift_default_warna) }}" title="Shift default: {{ $row->shift_default_name }}">{{ $row->shift_default_kode }}</span>
+                                            @endif
+                                        </div>
+                                        <div class="text-xs text-muted">
+                                            <span class="font-mono">{{ $row->emp_id }}</span>{{ $row->emp_sex ? ' · ' . $row->emp_sex : '' }}{{ $row->unit_name ? ' · ' . $row->unit_name : '' }}
+                                        </div>
+                                    </td>
+                                    {{-- Kontak = No. HP / tanggal masuk --}}
+                                    <td>
+                                        <div class="font-mono">{{ $row->emp_phone ?: '—' }}</div>
+                                        @if ($row->emp_join_date)
+                                            <div class="text-xs text-muted">Masuk {{ \App\Support\Format::tanggal($row->emp_join_date) }}</div>
                                         @endif
                                     </td>
-                                    <td class="ds-c">{{ $row->emp_sex }}</td>
-                                    <td class="ds-c">
-                                        @if ($row->shift_default_kode)
-                                            <span class="inline-block w-7 py-0.5 text-xs font-bold rounded" style="{{ \App\Support\Jadwal::gaya($row->shift_default_kode, $row->shift_default_warna) }}" title="{{ $row->shift_default_name }}">{{ $row->shift_default_kode }}</span>
-                                        @endif
-                                    </td>
-                                    <td>{{ $row->emp_phone }}</td>
-                                    <td>{{ \App\Support\Format::tanggal($row->emp_join_date) }}</td>
+                                    {{-- Status = toggle aktif / STR-SIP --}}
                                     <td>
+                                        {{-- wire:key sertakan nilai aktif supaya Alpine re-init saat status berubah --}}
+                                        <x-toggle wire:key="toggle-active-{{ $row->emp_id }}-{{ $isActive ? 1 : 0 }}"
+                                            :current="$isActive ? '1' : '0'" trueValue="1" falseValue="0"
+                                            wireClick="toggleActive('{{ $row->emp_id }}')">
+                                            {{ $isActive ? 'Aktif' : 'Non-aktif' }}
+                                        </x-toggle>
+                                        <div class="mt-1">
                                         @if ($row->str_sip)
                                             {{-- Klik badge = buka STR/SIP karyawan ini --}}
                                             <button type="button" wire:click="openStrSip('{{ $row->emp_id }}')" title="Kelola STR/SIP">
@@ -282,26 +289,38 @@ new class extends Component {
                                         @else
                                             <span class="text-xs text-muted-soft">Bukan nakes</span>
                                         @endif
-                                    </td>
-                                    <td>
-                                        {{-- wire:key sertakan nilai aktif supaya Alpine re-init saat status berubah --}}
-                                        <x-toggle wire:key="toggle-active-{{ $row->emp_id }}-{{ $isActive ? 1 : 0 }}"
-                                            :current="$isActive ? '1' : '0'" trueValue="1" falseValue="0"
-                                            wireClick="toggleActive('{{ $row->emp_id }}')">
-                                            {{ $isActive ? 'Aktif' : 'Non-aktif' }}
-                                        </x-toggle>
+                                        </div>
                                     </td>
                                     <td class="ds-c">
-                                        <div class="flex justify-center gap-2">
+                                        {{-- Urutan tetap: STR/SIP · Gaji · Edit · Hapus. Ukuran sama dengan x-action-edit;
+                                             baris non-nakes memakai slot kosong selebar STR/SIP supaya kolom tombol tetap lurus. --}}
+                                        <div class="flex items-center justify-end gap-2 flex-nowrap whitespace-nowrap">
                                             @if ((string) $row->emp_is_nakes === '1')
-                                                <x-secondary-button type="button" wire:click="openStrSip('{{ $row->emp_id }}')" class="!px-2.5 !py-1 text-xs">
+                                                <x-secondary-button type="button" wire:click="openStrSip('{{ $row->emp_id }}')" class="px-2.5 py-1.5 text-sm" title="Kelola STR / SIP">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                    </svg>
                                                     STR/SIP
                                                 </x-secondary-button>
+                                            @else
+                                                <span aria-hidden="true" style="visibility:hidden">
+                                                    <x-secondary-button type="button" class="px-2.5 py-1.5 text-sm" tabindex="-1">
+                                                        <svg class="w-4 h-4" viewBox="0 0 24 24"></svg>
+                                                        STR/SIP
+                                                    </x-secondary-button>
+                                                </span>
                                             @endif
                                             @if ($this->bolehGaji)
-                                                <x-secondary-button type="button" wire:click="openGaji('{{ $row->emp_id }}')" class="!px-2.5 !py-1 text-xs"
-                                                    title="{{ (int) $row->punya_gaji > 0 ? 'Parameter gaji' : 'Parameter gaji belum diatur — tidak ikut generate slip' }}">
-                                                    {{ (int) $row->punya_gaji > 0 ? 'Gaji' : 'Atur gaji' }}
+                                                @php $punyaGaji = (int) $row->punya_gaji > 0; @endphp
+                                                <x-secondary-button type="button" wire:click="openGaji('{{ $row->emp_id }}')" class="px-2.5 py-1.5 text-sm"
+                                                    title="{{ $punyaGaji ? 'Parameter gaji' : 'Parameter gaji belum diatur — tidak ikut generate slip' }}">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                                                    </svg>
+                                                    Gaji
+                                                    @unless ($punyaGaji)
+                                                        <span class="w-2 h-2 rounded-full bg-amber-500" aria-label="belum diatur"></span>
+                                                    @endunless
                                                 </x-secondary-button>
                                             @endif
                                             <x-action-edit wire:click="openEdit('{{ $row->emp_id }}')" />
@@ -313,7 +332,7 @@ new class extends Component {
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="8" class="px-6 py-10">
+                                    <td colspan="4" class="px-6 py-10">
                                         <div class="flex flex-col items-center justify-center gap-3">
                                             <svg class="w-12 h-12 text-muted-soft" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
                                             <p class="text-base font-medium text-muted dark:text-gray-400">Data karyawan tidak ditemukan.</p>
