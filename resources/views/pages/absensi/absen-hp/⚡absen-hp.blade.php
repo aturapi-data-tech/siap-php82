@@ -68,6 +68,13 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
         return Absensi::shiftAktif();
     }
 
+    /** Shift yang bisa dipilih karyawan ini (tanpa unit + unitnya) — layar pilih shift. */
+    #[Computed]
+    public function shiftPilihan()
+    {
+        return $this->empId ? Absensi::shiftPilihan($this->empId, $this->shifts) : collect();
+    }
+
     /** Ringkasan absen hari ini di layar awal. */
     #[Computed]
     public function statusHariIni(): string
@@ -215,7 +222,7 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
             return;
         }
 
-        $shift = $this->shifts->firstWhere('shift_id', $shiftId);
+        $shift = $this->shiftPilihan->firstWhere('shift_id', $shiftId);
         if (!$shift) {
             return;
         }
@@ -504,7 +511,7 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
                 @endif
                 <p class="mb-3 font-semibold text-center text-ink">Pilih shift Anda:</p>
                 <div class="grid grid-cols-1 gap-3">
-                    @foreach ($this->shifts as $shift)
+                    @foreach ($this->shiftPilihan as $shift)
                         @php $disarankan = $shift->shift_id === $saranShiftId; @endphp
                         <button type="button" wire:click="pilihShift('{{ $shift->shift_id }}')" wire:loading.attr="disabled"
                             class="relative px-5 py-4 text-left border-2 rounded-2xl

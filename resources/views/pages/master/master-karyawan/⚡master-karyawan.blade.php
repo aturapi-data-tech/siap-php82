@@ -72,21 +72,24 @@ new class extends Component {
     #[Computed]
     public function rows()
     {
-        $q = DB::table('siapmst_employers')
+        $query = DB::table('siapmst_employers')
             ->leftJoin('siapmst_shifts as sd', 'sd.shift_id', '=', 'siapmst_employers.emp_shift_default')
-            ->select('emp_id', 'emp_name', 'emp_sex', 'emp_phone', 'emp_join_date', 'emp_is_nakes', 'siapmst_employers.active_status', 'sd.shift_kode as shift_default_kode', 'sd.shift_name as shift_default_name')
+            ->leftJoin('siapmst_unit_kerjas as un', 'un.unit_id', '=', 'siapmst_employers.emp_unit_id')
+            ->select('emp_id', 'emp_name', 'emp_sex', 'emp_phone', 'emp_join_date', 'emp_is_nakes', 'siapmst_employers.active_status',
+                'sd.shift_kode as shift_default_kode', 'sd.shift_name as shift_default_name', 'sd.shift_warna as shift_default_warna', 'un.unit_name')
             ->orderBy('emp_id');
 
         if (trim($this->searchKeyword) !== '') {
-            $kw = mb_strtoupper(trim($this->searchKeyword));
-            $q->where(function ($sub) use ($kw) {
-                $sub->whereRaw('UPPER(emp_id) LIKE ?', ["%{$kw}%"])
-                    ->orWhereRaw('UPPER(emp_name) LIKE ?', ["%{$kw}%"])
-                    ->orWhereRaw('UPPER(emp_phone) LIKE ?', ["%{$kw}%"]);
+            $keyword = mb_strtoupper(trim($this->searchKeyword));
+            $query->where(function ($subQuery) use ($keyword) {
+                $subQuery->whereRaw('UPPER(emp_id) LIKE ?', ["%{$keyword}%"])
+                    ->orWhereRaw('UPPER(emp_name) LIKE ?', ["%{$keyword}%"])
+                    ->orWhereRaw('UPPER(emp_phone) LIKE ?', ["%{$keyword}%"])
+                ->orWhereRaw('UPPER(un.unit_name) LIKE ?', ["%{$keyword}%"]);
             });
         }
 
-        $rows = $q->paginate($this->itemsPerPage);
+        $rows = $query->paginate($this->itemsPerPage);
 
         // Ringkasan STR/SIP yang berlaku untuk karyawan di halaman ini — satu query.
         $lisensi = DB::table('siapmst_emp_licenses')
@@ -199,11 +202,16 @@ new class extends Component {
                                 @php $isActive = (string) $row->active_status === '1'; @endphp
                                 <tr wire:key="karyawan-{{ $row->emp_id }}">
                                     <td class="ds-td-token">{{ $row->emp_id }}</td>
-                                    <td class="ds-td-strong">{{ $row->emp_name }}</td>
+                                    <td>
+                                        <div class="ds-td-strong">{{ $row->emp_name }}</div>
+                                        @if ($row->unit_name)
+                                            <div class="text-xs text-muted">{{ $row->unit_name }}</div>
+                                        @endif
+                                    </td>
                                     <td class="ds-c">{{ $row->emp_sex }}</td>
                                     <td class="ds-c">
                                         @if ($row->shift_default_kode)
-                                            <span class="inline-block w-7 py-0.5 text-xs font-bold rounded {{ \App\Support\Jadwal::WARNA[$row->shift_default_kode] ?? \App\Support\Jadwal::WARNA_LAIN }}" title="{{ $row->shift_default_name }}">{{ $row->shift_default_kode }}</span>
+                                            <span class="inline-block w-7 py-0.5 text-xs font-bold rounded" style="{{ \App\Support\Jadwal::gaya($row->shift_default_kode, $row->shift_default_warna) }}" title="{{ $row->shift_default_name }}">{{ $row->shift_default_kode }}</span>
                                         @endif
                                     </td>
                                     <td>{{ $row->emp_phone }}</td>

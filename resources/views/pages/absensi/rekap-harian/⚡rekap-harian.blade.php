@@ -19,6 +19,7 @@ new class extends Component {
     public string $tanggal       = '';  // dd/mm/yyyy
     public string $searchKeyword = '';
     public string $filterStatus  = '';  // '' | H T I S C A | BELUM | LEMBUR_P
+    public string $filterUnit    = '';  // '' = semua unit
     public int    $itemsPerPage  = 25;
 
     public function mount(): void
@@ -29,11 +30,12 @@ new class extends Component {
     public function updatedTanggal(): void      { $this->resetPage(); }
     public function updatedSearchKeyword(): void { $this->resetPage(); }
     public function updatedFilterStatus(): void  { $this->resetPage(); }
+    public function updatedFilterUnit(): void    { $this->resetPage(); }
     public function updatedItemsPerPage(): void  { $this->resetPage(); }
 
     public function resetFilters(): void
     {
-        $this->reset(['searchKeyword', 'filterStatus']);
+        $this->reset(['searchKeyword', 'filterStatus', 'filterUnit']);
         $this->tanggal = now()->format('d/m/Y');
         $this->itemsPerPage = 25;
         $this->resetPage();
@@ -77,7 +79,8 @@ new class extends Component {
                 $join->on('ab.emp_id', '=', 'em.emp_id')->where('ab.abs_date', '=', $tanggalSql);
             })
             ->leftJoin('siapmst_shifts as sh', 'sh.shift_id', '=', 'ab.shift_id')
-            ->where('em.active_status', '1');
+            ->where('em.active_status', '1')
+            ->when($this->filterUnit !== '', fn($subQuery) => $subQuery->where('em.emp_unit_id', $this->filterUnit));
 
         if (trim($this->searchKeyword) !== '') {
             $keyword = mb_strtoupper(trim($this->searchKeyword));
@@ -99,7 +102,7 @@ new class extends Component {
             })
             ->leftJoin('siapmst_shifts as sj', 'sj.shift_id', '=', 'jd.shift_id')
             ->leftJoin('siapmst_shifts as sd', 'sd.shift_id', '=', 'ab.dobel_shift_id')
-            ->select('sd.shift_name as dobel_shift_name', 'jd.jdw_jenis', 'sj.shift_kode as jadwal_kode', 'sj.shift_name as jadwal_shift','em.emp_id', 'em.emp_name', 'ab.abs_id', 'ab.abs_status', 'ab.shift_id', 'sh.shift_name',
+            ->select('sd.shift_name as dobel_shift_name', 'jd.jdw_jenis', 'sj.shift_kode as jadwal_kode', 'sj.shift_warna as jadwal_warna', 'sj.shift_name as jadwal_shift','em.emp_id', 'em.emp_name', 'ab.abs_id', 'ab.abs_status', 'ab.shift_id', 'sh.shift_name',
                 'ab.jam_masuk', 'ab.jam_pulang', 'ab.terlambat_menit', 'ab.lembur_menit', 'ab.lembur_status', 'ab.lembur_dinilai_at', 'ab.keterangan', 'ab.sumber',
                 'ab.masuk_foto', 'ab.masuk_jarak_meter', 'ab.pulang_foto', 'ab.pulang_jarak_meter',
                 DB::raw('(SELECT us.name FROM users us WHERE us.id = ab.lembur_oleh) AS lembur_penilai'))
@@ -161,6 +164,14 @@ new class extends Component {
                             <x-input-label for="searchKeyword" value="Cari Karyawan" class="sr-only" />
                             <x-text-input id="searchKeyword" type="text" wire:model.live.debounce.300ms="searchKeyword"
                                 placeholder="Cari ID / nama..." class="block w-full" />
+                        </div>
+                        <div class="w-44">
+                            <x-select-input wire:model.live="filterUnit">
+                                <option value="">Semua unit</option>
+                                @foreach (\App\Support\UnitKerja::aktif() as $unit)
+                                    <option value="{{ $unit->unit_id }}">{{ $unit->unit_name }}</option>
+                                @endforeach
+                            </x-select-input>
                         </div>
                         <div class="w-40">
                             <x-select-input wire:model.live="filterStatus">
@@ -238,7 +249,7 @@ new class extends Component {
                                     <td class="ds-c">
                                         @php $kodeJadwal = $row->jdw_jenis === 'K' ? $row->jadwal_kode : $row->jdw_jenis; @endphp
                                         @if ($kodeJadwal)
-                                            <span class="inline-block w-7 py-0.5 text-xs font-bold rounded {{ \App\Support\Jadwal::WARNA[$kodeJadwal] ?? \App\Support\Jadwal::WARNA_LAIN }}"
+                                            <span class="inline-block w-7 py-0.5 text-xs font-bold rounded" style="{{ \App\Support\Jadwal::gaya($kodeJadwal, $row->jdw_jenis === 'K' ? $row->jadwal_warna : null) }}"
                                                 title="{{ $row->jadwal_shift ?? (\App\Support\Jadwal::KHUSUS[$kodeJadwal] ?? '') }}">{{ $kodeJadwal }}</span>
                                         @else
                                             <span class="text-[11px] text-muted-soft">libur</span>

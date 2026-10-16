@@ -60,14 +60,18 @@ new class extends Component {
     #[Computed]
     public function rows()
     {
-        $query = DB::table('siapmst_shifts')
-            ->select('shift_id', 'shift_name', 'shift_kode', 'jam_masuk', 'jam_pulang', 'toleransi_menit', 'lintas_hari', 'active_status')
-            ->orderBy('jam_masuk');
+        $query = DB::table('siapmst_shifts as sh')
+            ->leftJoin('siapmst_unit_kerjas as un', 'un.unit_id', '=', 'sh.unit_id')
+            ->select('sh.shift_id', 'sh.shift_name', 'sh.shift_kode', 'sh.shift_warna', 'sh.jam_masuk', 'sh.jam_pulang', 'sh.toleransi_menit',
+                'sh.lintas_hari', 'sh.active_status', 'un.unit_name')
+            ->orderByRaw('un.unit_name NULLS FIRST')
+            ->orderBy('sh.jam_masuk');
 
         if (trim($this->searchKeyword) !== '') {
             $keyword = mb_strtoupper(trim($this->searchKeyword));
-            $query->where(fn($subQuery) => $subQuery->whereRaw('UPPER(shift_id) LIKE ?', ["%{$keyword}%"])
-                ->orWhereRaw('UPPER(shift_name) LIKE ?', ["%{$keyword}%"]));
+            $query->where(fn($subQuery) => $subQuery->whereRaw('UPPER(sh.shift_id) LIKE ?', ["%{$keyword}%"])
+                ->orWhereRaw('UPPER(sh.shift_name) LIKE ?', ["%{$keyword}%"])
+                ->orWhereRaw('UPPER(un.unit_name) LIKE ?', ["%{$keyword}%"]));
         }
 
         return $query->paginate($this->itemsPerPage);
@@ -120,6 +124,7 @@ new class extends Component {
                                 <th>ID</th>
                                 <th class="ds-c">Kode Jadwal</th>
                                 <th>Nama Shift</th>
+                                <th>Unit</th>
                                 <th>Jam Kerja</th>
                                 <th class="ds-c">Toleransi</th>
                                 <th>Status</th>
@@ -133,10 +138,17 @@ new class extends Component {
                                     <td class="ds-td-token">{{ $row->shift_id }}</td>
                                     <td class="ds-c">
                                         @if ($row->shift_kode)
-                                            <span class="inline-block w-7 py-0.5 text-xs font-bold rounded {{ \App\Support\Jadwal::WARNA[$row->shift_kode] ?? \App\Support\Jadwal::WARNA_LAIN }}">{{ $row->shift_kode }}</span>
+                                            <span class="inline-block w-7 py-0.5 text-xs font-bold rounded" style="{{ \App\Support\Jadwal::gaya($row->shift_kode, $row->shift_warna) }}">{{ $row->shift_kode }}</span>
                                         @endif
                                     </td>
                                     <td class="ds-td-strong">{{ $row->shift_name }}</td>
+                                    <td>
+                                        @if ($row->unit_name)
+                                            {{ $row->unit_name }}
+                                        @else
+                                            <span class="text-xs text-muted">semua unit</span>
+                                        @endif
+                                    </td>
                                     <td class="font-mono">
                                         {{ $row->jam_masuk }} – {{ $row->jam_pulang }}
                                         @if ((string) $row->lintas_hari === '1')
@@ -161,7 +173,7 @@ new class extends Component {
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="7" class="px-6 py-10 text-center text-muted dark:text-gray-400">Data shift tidak ditemukan.</td>
+                                    <td colspan="8" class="px-6 py-10 text-center text-muted dark:text-gray-400">Data shift tidak ditemukan.</td>
                                 </tr>
                             @endforelse
                         </tbody>

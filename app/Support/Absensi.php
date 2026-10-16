@@ -152,6 +152,17 @@ class Absensi
         return $tanggal;
     }
 
+    /**
+     * Shift yang boleh DIPILIH karyawan saat tidak terjadwal (kiosk / HP): shift tanpa unit +
+     * shift unit karyawan tsb. Shift dari jadwal tetap dipakai apa adanya (diatur HRD / kepala ruang).
+     *
+     * @param  Collection<int, object>  $shifts  shift aktif
+     */
+    public static function shiftPilihan(string $empId, Collection $shifts): Collection
+    {
+        return UnitKerja::saringShift($shifts, UnitKerja::unitKaryawan($empId));
+    }
+
     /** Shift yang jam masuknya paling dekat dengan $waktu (jarak melingkar 24 jam). */
     public static function sarankanShift(Collection $shifts, Carbon $waktu): ?object
     {
@@ -316,7 +327,7 @@ class Absensi
             'catatan'      => Jadwal::adaJadwalBulan($sekarang)
                 ? 'Anda tidak terjadwal masuk hari ini (libur). Pilih shift bila memang bertugas (tukar dinas).'
                 : null,
-            'saranShiftId' => self::sarankanShift($shifts, $sekarang)?->shift_id,
+            'saranShiftId' => self::sarankanShift(self::shiftPilihan($empId, $shifts), $sekarang)?->shift_id,
         ];
     }
 

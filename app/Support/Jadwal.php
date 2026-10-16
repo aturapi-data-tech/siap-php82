@@ -16,22 +16,36 @@ class Jadwal
     /** Kode khusus (bukan shift). */
     public const KHUSUS = ['I' => 'Izin', 'C' => 'Cuti'];
 
-    /** Warna sel per kode — disamakan dgn contoh lapangan: P #FFFF00, S #00FF00, I abu (#999999). */
-    public const WARNA = [
-        'P' => 'bg-[#ffff00] text-gray-900',
-        'S' => 'bg-[#00ff00] text-gray-900',
-        'M' => 'bg-blue-600 text-white',
-        'N' => 'bg-teal-300 text-gray-900',
-        'I' => 'bg-[#999999] text-white',
-        'C' => 'bg-purple-400 text-white',
+    /**
+     * Warna latar bawaan per kode — disamakan dgn contoh lapangan (P kuning, S hijau, I abu).
+     * Shift yang punya shift_warna memakai warnanya sendiri (diatur di Master Shift).
+     */
+    public const WARNA_BAWAAN = [
+        'P' => '#ffff00', 'S' => '#00ff00', 'M' => '#2563eb', 'N' => '#5eead4',
+        'I' => '#999999', 'C' => '#c084fc',
     ];
-    public const WARNA_LAIN = 'bg-orange-300 text-gray-900';
+    public const WARNA_LAIN = '#fdba74';
 
-    /** Warna cetak PDF (hex) — padanan WARNA. */
-    public const WARNA_PDF = [
-        'P' => ['#ffff00', '#111'], 'S' => ['#00ff00', '#111'], 'M' => ['#2563eb', '#fff'],
-        'N' => ['#5eead4', '#111'], 'I' => ['#999999', '#fff'], 'C' => ['#c084fc', '#fff'],
-    ];
+    /**
+     * [latar, teks] untuk satu kode jadwal — dipakai layar & cetak PDF.
+     * Teks hitam / putih dipilih dari kecerahan latar supaya selalu terbaca.
+     */
+    public static function warna(string $kode, ?string $warnaShift = null): array
+    {
+        $latar = $warnaShift ?: (self::WARNA_BAWAAN[$kode] ?? self::WARNA_LAIN);
+        [$merah, $hijau, $biru] = sscanf($latar, '#%02x%02x%02x');
+        $kecerahan = ($merah * 299 + $hijau * 587 + $biru * 114) / 1000;
+
+        return [$latar, $kecerahan > 150 ? '#111111' : '#ffffff'];
+    }
+
+    /** Atribut style sel / badge kode jadwal: "background-color:…;color:…". */
+    public static function gaya(string $kode, ?string $warnaShift = null): string
+    {
+        [$latar, $teks] = self::warna($kode, $warnaShift);
+
+        return "background-color:{$latar};color:{$teks}";
+    }
 
     /**
      * Jadwal tanggal yang sudah lewat (sebelum hari ini) TERKUNCI — menjaga keaslian data:
@@ -43,11 +57,17 @@ class Jadwal
         return $tanggal->copy()->startOfDay()->lt(now()->startOfDay());
     }
 
-    /** Shift aktif berkode: kode => objek shift. */
-    public static function shiftBerkode(): Collection
+    /**
+     * Shift aktif berkode yang berlaku untuk satu unit: kode => objek shift.
+     * Shift tanpa unit berlaku untuk semua unit; $unitId null = hanya shift tanpa unit.
+     * Kode jadwal unik dalam cakupan satu unit (dijaga validasi Master Shift).
+     */
+    public static function shiftBerkode(?string $unitId): Collection
     {
-        return DB::table('siapmst_shifts')->where('active_status', '1')->whereNotNull('shift_kode')
-            ->orderBy('jam_masuk')->get()->keyBy('shift_kode');
+        $shifts = DB::table('siapmst_shifts')->where('active_status', '1')->whereNotNull('shift_kode')
+            ->orderBy('jam_masuk')->get();
+
+        return UnitKerja::saringShift($shifts, $unitId)->keyBy('shift_kode');
     }
 
     /** Kode tampilan satu baris jadwal (P / S / I / C …). */
@@ -71,14 +91,14 @@ class Jadwal
             ->whereIn('jd.emp_id', $empIds)
             ->where('jd.jdw_tanggal', '>=', Absensi::tanggalSql($awalBulan))
             ->where('jd.jdw_tanggal', '<=', Absensi::tanggalSql($awalBulan->copy()->endOfMonth()))
-            ->get(['jd.*', 'sh.shift_kode', 'sh.shift_name']);
+            ->get(['jd.*', 'sh.shift_kode', 'sh.shift_name', 'sh.shift_warna']);
 
-        $hasil = [];
-        foreach ($rows as $r) {
-            $hasil[$r->emp_id][Carbon::parse($r->jdw_tanggal)->day] = $r;
+        $jadwalPerKaryawan = [];
+        foreach ($rows as $row) {
+            $jadwalPerKaryawan[$row->emp_id][Carbon::parse($row->jdw_tanggal)->day] = $row;
         }
 
-        return $hasil;
+        return $jadwalPerKaryawan;
     }
 
     /** Jadwal satu karyawan pada satu tanggal (null = tidak dijadwalkan / libur). */
@@ -88,7 +108,7 @@ class Jadwal
             ->leftJoin('siapmst_shifts as sh', 'sh.shift_id', '=', 'jd.shift_id')
             ->where('jd.emp_id', $empId)
             ->where('jd.jdw_tanggal', Absensi::tanggalSql($tanggal))
-            ->first(['jd.*', 'sh.shift_kode', 'sh.shift_name', 'sh.jam_masuk', 'sh.jam_pulang', 'sh.toleransi_menit', 'sh.lintas_hari']);
+            ->first(['jd.*', 'sh.shift_kode', 'sh.shift_name', 'sh.shift_warna', 'sh.jam_masuk', 'sh.jam_pulang', 'sh.toleransi_menit', 'sh.lintas_hari']);
     }
 
     /** Apakah bulan ini sudah punya jadwal (minimal satu baris) — penentu dipakai/tidaknya jadwal. */
@@ -102,32 +122,33 @@ class Jadwal
 
     /**
      * Isi / hapus satu sel. $kode: kode shift (P/S/…) · I · C · '' (hapus = libur).
-     * @return bool false bila kode tidak dikenal.
+     * $shifts = shift berkode untuk UNIT karyawan tsb (bawaan: dicari dari unitnya).
+     * @return bool false bila kode tidak dikenal / bukan shift unit karyawan.
      */
     public static function isi(string $empId, Carbon $tanggal, string $kode, ?int $userId, ?Collection $shifts = null): bool
     {
-        $shifts ??= self::shiftBerkode();
-        $tgl = Absensi::tanggalSql($tanggal);
+        $shifts ??= self::shiftBerkode(UnitKerja::unitKaryawan($empId));
+        $tanggalSql = Absensi::tanggalSql($tanggal);
 
         if ($kode === '') {
-            DB::table('siaptxn_jadwals')->where('emp_id', $empId)->where('jdw_tanggal', $tgl)->delete();
+            DB::table('siaptxn_jadwals')->where('emp_id', $empId)->where('jdw_tanggal', $tanggalSql)->delete();
             return true;
         }
 
         if (isset(self::KHUSUS[$kode])) {
-            $data = ['jdw_jenis' => $kode, 'shift_id' => null];
+            $payload = ['jdw_jenis' => $kode, 'shift_id' => null];
         } elseif ($shift = $shifts->get($kode)) {
-            $data = ['jdw_jenis' => 'K', 'shift_id' => $shift->shift_id];
+            $payload = ['jdw_jenis' => 'K', 'shift_id' => $shift->shift_id];
         } else {
             return false;
         }
 
-        $data += ['updated_by' => $userId, 'updated_at' => now()];
-        $ada = DB::table('siaptxn_jadwals')->where('emp_id', $empId)->where('jdw_tanggal', $tgl)->exists();
+        $payload += ['updated_by' => $userId, 'updated_at' => now()];
+        $sudahAda = DB::table('siaptxn_jadwals')->where('emp_id', $empId)->where('jdw_tanggal', $tanggalSql)->exists();
 
-        $ada
-            ? DB::table('siaptxn_jadwals')->where('emp_id', $empId)->where('jdw_tanggal', $tgl)->update($data)
-            : DB::table('siaptxn_jadwals')->insert([...$data, 'emp_id' => $empId, 'jdw_tanggal' => $tgl, 'created_at' => now()]);
+        $sudahAda
+            ? DB::table('siaptxn_jadwals')->where('emp_id', $empId)->where('jdw_tanggal', $tanggalSql)->update($payload)
+            : DB::table('siaptxn_jadwals')->insert([...$payload, 'emp_id' => $empId, 'jdw_tanggal' => $tanggalSql, 'created_at' => now()]);
 
         return true;
     }

@@ -3,6 +3,8 @@
 use Livewire\Component;
 use Livewire\Attributes\On;
 use Livewire\Attributes\Computed;
+use App\Support\Jadwal;
+use App\Support\UnitKerja;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Database\QueryException;
 use Carbon\Carbon;
@@ -26,6 +28,28 @@ new class extends Component {
     {
         $this->registerAreas(['modal']);
         $this->resetForm();
+    }
+
+    #[Computed]
+    public function unitList()
+    {
+        return UnitKerja::aktif();
+    }
+
+    /** Shift default yang boleh dipilih = shift tanpa unit + shift unit karyawan ini. */
+    #[Computed]
+    public function shiftDefaultList()
+    {
+        return Jadwal::shiftBerkode($this->form['emp_unit_id'] !== '' ? $this->form['emp_unit_id'] : null);
+    }
+
+    /** Ganti unit → shift default yang bukan milik unit baru dikosongkan. */
+    public function updatedForm($nilai, $kunci): void
+    {
+        if ($kunci === 'emp_unit_id' && $this->form['emp_shift_default'] !== ''
+            && !$this->shiftDefaultList->contains('shift_id', $this->form['emp_shift_default'])) {
+            $this->form['emp_shift_default'] = '';
+        }
     }
 
     #[Computed]
@@ -72,6 +96,7 @@ new class extends Component {
             'emp_is_nakes'    => (string) $row->emp_is_nakes === '1' ? '1' : '0',
             'emp_shift_default' => (string) ($row->emp_shift_default ?? ''),
             'emp_lokasi_id'   => (string) ($row->emp_lokasi_id ?? ''),
+            'emp_unit_id'     => (string) ($row->emp_unit_id ?? ''),
             // Hanya '1' yang aktif; null/'0' → non-aktif (konsisten dgn toggle di tabel).
             'active_status'   => (string) $row->active_status === '1' ? '1' : '0',
         ];
@@ -125,7 +150,12 @@ new class extends Component {
             'form.emp_phone'       => 'nullable|string|max:20',
             'form.emp_join_date'   => 'nullable|date_format:d/m/Y',
             'form.emp_is_nakes'    => 'required|in:0,1',
-            'form.emp_shift_default' => 'nullable|exists:siapmst_shifts,shift_id',
+            'form.emp_unit_id'     => 'nullable|exists:siapmst_unit_kerjas,unit_id',
+            'form.emp_shift_default' => ['nullable', 'exists:siapmst_shifts,shift_id', function ($attribute, $value, $fail) {
+                if ($value && !$this->shiftDefaultList->contains('shift_id', $value)) {
+                    $fail('Shift Default bukan shift unit karyawan ini.');
+                }
+            }],
             'form.emp_lokasi_id'   => 'nullable|exists:siapmst_lokasi_absens,lokasi_id',
             'form.active_status'   => 'required|in:0,1',
         ];
@@ -159,6 +189,7 @@ new class extends Component {
             'form.emp_is_nakes'    => 'Tenaga Kesehatan',
             'form.emp_shift_default' => 'Shift Default (P/S)',
             'form.emp_lokasi_id'   => 'Lokasi Absen HP',
+            'form.emp_unit_id'     => 'Unit Kerja',
             'form.active_status'   => 'Status Aktif',
         ];
     }
@@ -181,6 +212,7 @@ new class extends Component {
             'emp_is_nakes'    => $form['emp_is_nakes'],
             'emp_shift_default' => $form['emp_shift_default'] !== '' ? $form['emp_shift_default'] : null,
             'emp_lokasi_id'   => $form['emp_lokasi_id'] !== '' ? $form['emp_lokasi_id'] : null,
+            'emp_unit_id'     => $form['emp_unit_id'] !== '' ? $form['emp_unit_id'] : null,
             'active_status'   => $form['active_status'],
             'updated_at'      => now(),
         ];
@@ -223,6 +255,7 @@ new class extends Component {
             'emp_is_nakes'    => '0',
             'emp_shift_default' => '',
             'emp_lokasi_id'   => '',
+            'emp_unit_id'     => '',
             'active_status'   => '1',
         ];
         $this->resetValidation();
@@ -391,10 +424,22 @@ new class extends Component {
                             </div>
 
                             <div>
+                                <x-input-label value="Unit Kerja" />
+                                <x-select-input wire:model.live="form.emp_unit_id" :error="$errors->has('form.emp_unit_id')" class="mt-1">
+                                    <option value="">— belum diatur —</option>
+                                    @foreach ($this->unitList as $unit)
+                                        <option value="{{ $unit->unit_id }}">{{ $unit->unit_name }}</option>
+                                    @endforeach
+                                </x-select-input>
+                                <p class="mt-1 text-[11px] text-muted dark:text-gray-400">Menentukan shift yang bisa dipakai & jadwal yang diatur kepala ruang unit ini.</p>
+                                <x-input-error :messages="$errors->get('form.emp_unit_id')" class="mt-1" />
+                            </div>
+
+                            <div>
                                 <x-input-label value="Shift Default (P/S)" />
                                 <x-select-input wire:model.live="form.emp_shift_default" :error="$errors->has('form.emp_shift_default')" class="mt-1">
                                     <option value="">— tidak ada —</option>
-                                    @foreach (\App\Support\Jadwal::shiftBerkode() as $kode => $shift)
+                                    @foreach ($this->shiftDefaultList as $kode => $shift)
                                         <option value="{{ $shift->shift_id }}">{{ $kode }} — {{ $shift->shift_name }} ({{ $shift->jam_masuk }}–{{ $shift->jam_pulang }})</option>
                                     @endforeach
                                 </x-select-input>

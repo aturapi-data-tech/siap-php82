@@ -34,14 +34,14 @@ new class extends Component {
     #[On('absensi.rekap-bulanan.openDetail')]
     public function openDetail(string $empId, string $bulan): void
     {
-        $emp = DB::table('siapmst_employers')->where('emp_id', $empId)->first(['emp_id', 'emp_name']);
-        if (!$emp) {
+        $dataKaryawan = DB::table('siapmst_employers')->where('emp_id', $empId)->first(['emp_id', 'emp_name']);
+        if (!$dataKaryawan) {
             $this->dispatch('toast', type: 'error', message: 'Data karyawan tidak ditemukan.');
             return;
         }
 
-        $this->empId   = (string) $emp->emp_id;
-        $this->empName = (string) $emp->emp_name;
+        $this->empId   = (string) $dataKaryawan->emp_id;
+        $this->empName = (string) $dataKaryawan->emp_name;
         $this->bulan   = $bulan;
         unset($this->hari);
 
@@ -75,16 +75,16 @@ new class extends Component {
             ->select('ab.*', 'sh.shift_name', 'sh.jam_masuk as shift_jam_masuk', 'sh.jam_pulang as shift_jam_pulang',
                 DB::raw('(SELECT us.name FROM users us WHERE us.id = ab.lembur_oleh) AS lembur_penilai'))
             ->get()
-            ->keyBy(fn($r) => substr($r->abs_date, 0, 10));
+            ->keyBy(fn($row) => substr($row->abs_date, 0, 10));
 
         $jadwal = Jadwal::bulan([$this->empId], $awal)[$this->empId] ?? [];
 
-        $hasil = [];
-        for ($tgl = $awal->copy(); $tgl->lte($awal->copy()->endOfMonth()); $tgl->addDay()) {
-            $hasil[] = ['tanggal' => $tgl->copy(), 'abs' => $rows[$tgl->format('Y-m-d')] ?? null, 'jadwal' => $jadwal[$tgl->day] ?? null];
+        $daftarHari = [];
+        for ($tanggal = $awal->copy(); $tanggal->lte($awal->copy()->endOfMonth()); $tanggal->addDay()) {
+            $daftarHari[] = ['tanggal' => $tanggal->copy(), 'abs' => $rows[$tanggal->format('Y-m-d')] ?? null, 'jadwal' => $jadwal[$tanggal->day] ?? null];
         }
 
-        return $hasil;
+        return $daftarHari;
     }
 
     /** Ringkasan bulan ini untuk header modal. */
@@ -93,23 +93,23 @@ new class extends Component {
     {
         $abs = collect($this->hari)->pluck('abs')->filter();
 
-        $hasil = [];
+        $ringkasan = [];
         foreach (array_keys(Absensi::STATUS) as $kode) {
-            $hasil[$kode] = $abs->where('abs_status', $kode)->count();
+            $ringkasan[$kode] = $abs->where('abs_status', $kode)->count();
         }
-        $hasil['lembur_y'] = (int) $abs->where('lembur_status', 'Y')->sum('lembur_menit');
-        $hasil['lembur_p'] = (int) $abs->where('lembur_status', 'P')->sum('lembur_menit');
-        $hasil['jml_p']    = $abs->where('lembur_status', 'P')->count();
-        $hasil['terlambat'] = (int) $abs->sum('terlambat_menit');
+        $ringkasan['lembur_y'] = (int) $abs->where('lembur_status', 'Y')->sum('lembur_menit');
+        $ringkasan['lembur_p'] = (int) $abs->where('lembur_status', 'P')->sum('lembur_menit');
+        $ringkasan['jml_p']    = $abs->where('lembur_status', 'P')->count();
+        $ringkasan['terlambat'] = (int) $abs->sum('terlambat_menit');
 
         // Kehadiran vs jadwal — s/d kemarin (bulan berjalan) / akhir bulan (bulan lalu).
         $batas = $this->awalBulan()->isSameMonth(now()) ? now()->subDay()->startOfDay() : $this->awalBulan()->endOfMonth()->startOfDay();
-        $terjadwal = collect($this->hari)->filter(fn($h) => $h['jadwal'] && $h['jadwal']->jdw_jenis === 'K' && $h['tanggal']->lte($batas));
-        $hasil['terjadwal'] = $terjadwal->count();
-        $hasil['hadir_terjadwal'] = $terjadwal->filter(fn($h) => $h['abs'] && in_array($h['abs']->abs_status, ['H', 'T'], true))->count();
-        $hasil['persen'] = $hasil['terjadwal'] > 0 ? (int) round($hasil['hadir_terjadwal'] / $hasil['terjadwal'] * 100) : null;
+        $terjadwal = collect($this->hari)->filter(fn($hari) => $hari['jadwal'] && $hari['jadwal']->jdw_jenis === 'K' && $hari['tanggal']->lte($batas));
+        $ringkasan['terjadwal'] = $terjadwal->count();
+        $ringkasan['hadir_terjadwal'] = $terjadwal->filter(fn($hari) => $hari['abs'] && in_array($hari['abs']->abs_status, ['H', 'T'], true))->count();
+        $ringkasan['persen'] = $ringkasan['terjadwal'] > 0 ? (int) round($ringkasan['hadir_terjadwal'] / $ringkasan['terjadwal'] * 100) : null;
 
-        return $hasil;
+        return $ringkasan;
     }
 
     // ─── Penilaian lembur ─────────────────────────────────────────────────────
@@ -185,19 +185,19 @@ new class extends Component {
 
                 {{-- Ringkasan --}}
                 @if ($empId !== '')
-                    @php $rk = $this->ringkasan; @endphp
+                    @php $ringkasan = $this->ringkasan; @endphp
                     <div class="flex flex-wrap items-center gap-2 mt-4">
                         @foreach (\App\Support\Absensi::STATUS as $kode => $nama)
-                            <x-badge :variant="\App\Support\Absensi::BADGE[$kode]">{{ $nama }}: {{ $rk[$kode] }}</x-badge>
+                            <x-badge :variant="\App\Support\Absensi::BADGE[$kode]">{{ $nama }}: {{ $ringkasan[$kode] }}</x-badge>
                         @endforeach
                         <span class="mx-1 text-hairline">|</span>
-                        <span class="text-sm">Terjadwal <b class="font-mono">{{ $rk['terjadwal'] }}</b> hari ·
-                            Kehadiran <b class="font-mono {{ $rk['persen'] === null ? '' : ($rk['persen'] >= 95 ? 'text-emerald-700' : ($rk['persen'] >= 85 ? 'text-amber-700' : 'text-red-700')) }}">{{ $rk['persen'] === null ? '—' : $rk['persen'] . '%' }}</b>
-                            <span class="text-xs text-muted">({{ $rk['hadir_terjadwal'] }}/{{ $rk['terjadwal'] }})</span></span>
-                        <span class="text-sm">Terlambat <b class="font-mono">{{ \App\Support\Absensi::labelMenit($rk['terlambat']) ?: '0' }}</b></span>
-                        <span class="text-sm text-indigo-700">Lembur dihitung <b class="font-mono">{{ \App\Support\Absensi::labelMenit($rk['lembur_y']) ?: '0' }}</b></span>
-                        @if ($rk['jml_p'] > 0)
-                            <span class="text-sm text-amber-700">⏳ {{ $rk['jml_p'] }} lembur menunggu ({{ \App\Support\Absensi::labelMenit($rk['lembur_p']) }})</span>
+                        <span class="text-sm">Terjadwal <b class="font-mono">{{ $ringkasan['terjadwal'] }}</b> hari ·
+                            Kehadiran <b class="font-mono {{ $ringkasan['persen'] === null ? '' : ($ringkasan['persen'] >= 95 ? 'text-emerald-700' : ($ringkasan['persen'] >= 85 ? 'text-amber-700' : 'text-red-700')) }}">{{ $ringkasan['persen'] === null ? '—' : $ringkasan['persen'] . '%' }}</b>
+                            <span class="text-xs text-muted">({{ $ringkasan['hadir_terjadwal'] }}/{{ $ringkasan['terjadwal'] }})</span></span>
+                        <span class="text-sm">Terlambat <b class="font-mono">{{ \App\Support\Absensi::labelMenit($ringkasan['terlambat']) ?: '0' }}</b></span>
+                        <span class="text-sm text-indigo-700">Lembur dihitung <b class="font-mono">{{ \App\Support\Absensi::labelMenit($ringkasan['lembur_y']) ?: '0' }}</b></span>
+                        @if ($ringkasan['jml_p'] > 0)
+                            <span class="text-sm text-amber-700">⏳ {{ $ringkasan['jml_p'] }} lembur menunggu ({{ \App\Support\Absensi::labelMenit($ringkasan['lembur_p']) }})</span>
                             <x-primary-button type="button" wire:click="hitungSemuaMenunggu" wire:loading.attr="disabled" class="!px-3 !py-1.5 text-xs">
                                 ✓ Hitung semua yang menunggu
                             </x-primary-button>
@@ -223,84 +223,84 @@ new class extends Component {
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach ($this->hari as $h)
+                            @foreach ($this->hari as $hari)
                                 @php
-                                    $tgl = $h['tanggal'];
-                                    $ab = $h['abs'];
-                                    $libur = $tgl->isSunday();
+                                    $tanggal = $hari['tanggal'];
+                                    $absensi = $hari['abs'];
+                                    $libur = $tanggal->isSunday();
                                 @endphp
-                                <tr wire:key="hari-{{ $tgl->format('Ymd') }}" class="{{ $ab ? '' : 'opacity-50' }} {{ $ab && $ab->lembur_status === 'P' ? 'bg-amber-50/60' : '' }}">
+                                <tr wire:key="hari-{{ $tanggal->format('Ymd') }}" class="{{ $absensi ? '' : 'opacity-50' }} {{ $absensi && $absensi->lembur_status === 'P' ? 'bg-amber-50/60' : '' }}">
                                     <td class="whitespace-nowrap">
-                                        <span class="font-mono">{{ \App\Support\Format::tanggal($tgl) }}</span>
-                                        <span class="text-xs {{ $libur ? 'text-red-600' : 'text-muted' }}">{{ \App\Support\Format::hari($tgl) }}</span>
+                                        <span class="font-mono">{{ \App\Support\Format::tanggal($tanggal) }}</span>
+                                        <span class="text-xs {{ $libur ? 'text-red-600' : 'text-muted' }}">{{ \App\Support\Format::hari($tanggal) }}</span>
                                     </td>
-                                    @php $jd = $h['jadwal']; $kj = $jd ? \App\Support\Jadwal::kode($jd) : ''; @endphp
+                                    @php $jadwalHari = $hari['jadwal']; $kodeJadwal = $jadwalHari ? \App\Support\Jadwal::kode($jadwalHari) : ''; @endphp
                                     <td class="ds-c">
-                                        @if ($kj)
-                                            <span class="inline-block w-7 py-0.5 text-xs font-bold rounded {{ \App\Support\Jadwal::WARNA[$kj] ?? \App\Support\Jadwal::WARNA_LAIN }}">{{ $kj }}</span>
+                                        @if ($kodeJadwal)
+                                            <span class="inline-block w-7 py-0.5 text-xs font-bold rounded" style="{{ \App\Support\Jadwal::gaya($kodeJadwal, $jadwalHari->shift_warna ?? null) }}">{{ $kodeJadwal }}</span>
                                         @else
                                             <span class="text-[10px] text-muted-soft">libur</span>
                                         @endif
                                     </td>
-                                    @if (!$ab)
-                                        <td colspan="6" class="text-xs italic {{ $jd && $jd->jdw_jenis === 'K' && $tgl->lt(now()->startOfDay()) ? 'text-red-600 font-semibold not-italic' : 'text-muted-soft' }}">
-                                            {{ $jd && $jd->jdw_jenis === 'K' && $tgl->lt(now()->startOfDay()) ? 'terjadwal tapi tanpa catatan — isi/Generate di Rekap Harian' : 'tanpa catatan' }}
+                                    @if (!$absensi)
+                                        <td colspan="6" class="text-xs italic {{ $jadwalHari && $jadwalHari->jdw_jenis === 'K' && $tanggal->lt(now()->startOfDay()) ? 'text-red-600 font-semibold not-italic' : 'text-muted-soft' }}">
+                                            {{ $jadwalHari && $jadwalHari->jdw_jenis === 'K' && $tanggal->lt(now()->startOfDay()) ? 'terjadwal tapi tanpa catatan — isi/Generate di Rekap Harian' : 'tanpa catatan' }}
                                         </td>
                                     @else
-                                        <td>{{ $ab->shift_name ?? '—' }}</td>
+                                        <td>{{ $absensi->shift_name ?? '—' }}</td>
                                         <td class="font-mono">
-                                            {{ $ab->jam_masuk ? \Carbon\Carbon::parse($ab->jam_masuk)->format('H:i') : '—' }}
-                                            @if ((int) $ab->terlambat_menit > 0)
-                                                <div class="text-[11px] text-amber-700">+{{ \App\Support\Absensi::labelMenit((int) $ab->terlambat_menit) }}</div>
+                                            {{ $absensi->jam_masuk ? \Carbon\Carbon::parse($absensi->jam_masuk)->format('H:i') : '—' }}
+                                            @if ((int) $absensi->terlambat_menit > 0)
+                                                <div class="text-[11px] text-amber-700">+{{ \App\Support\Absensi::labelMenit((int) $absensi->terlambat_menit) }}</div>
                                             @endif
                                         </td>
                                         <td class="font-mono">
-                                            @if ($ab->jam_pulang)
-                                                {{ \Carbon\Carbon::parse($ab->jam_pulang)->format('H:i') }}
-                                                @unless (\Carbon\Carbon::parse($ab->jam_pulang)->isSameDay(\Carbon\Carbon::parse($ab->jam_masuk)))
+                                            @if ($absensi->jam_pulang)
+                                                {{ \Carbon\Carbon::parse($absensi->jam_pulang)->format('H:i') }}
+                                                @unless (\Carbon\Carbon::parse($absensi->jam_pulang)->isSameDay(\Carbon\Carbon::parse($absensi->jam_masuk)))
                                                     <span class="text-[10px] text-muted-soft">(+1)</span>
                                                 @endunless
-                                                @if ($ab->shift_jam_pulang)
-                                                    <div class="text-[10px] text-muted-soft">jadwal {{ $ab->shift_jam_pulang }}</div>
+                                                @if ($absensi->shift_jam_pulang)
+                                                    <div class="text-[10px] text-muted-soft">jadwal {{ $absensi->shift_jam_pulang }}</div>
                                                 @endif
-                                            @elseif ($ab->jam_masuk)
+                                            @elseif ($absensi->jam_masuk)
                                                 <span class="text-xs text-muted-soft">belum pulang</span>
                                             @else
                                                 —
                                             @endif
                                         </td>
                                         <td>
-                                            <x-badge :variant="\App\Support\Absensi::BADGE[$ab->abs_status] ?? 'gray'">{{ \App\Support\Absensi::STATUS[$ab->abs_status] ?? $ab->abs_status }}</x-badge>
+                                            <x-badge :variant="\App\Support\Absensi::BADGE[$absensi->abs_status] ?? 'gray'">{{ \App\Support\Absensi::STATUS[$absensi->abs_status] ?? $absensi->abs_status }}</x-badge>
                                         </td>
                                         <td>
-                                            @if ((int) $ab->lembur_menit > 0)
-                                                @php $st = $ab->lembur_status ?: 'P'; @endphp
+                                            @if ((int) $absensi->lembur_menit > 0)
+                                                @php $statusLembur = $absensi->lembur_status ?: 'P'; @endphp
                                                 <div class="flex flex-wrap items-center gap-1.5">
-                                                    <span class="font-mono text-sm font-semibold {{ $st === 'N' ? 'line-through text-muted-soft' : 'text-indigo-700' }}">
-                                                        {{ \App\Support\Absensi::labelMenit((int) $ab->lembur_menit) }}
+                                                    <span class="font-mono text-sm font-semibold {{ $statusLembur === 'N' ? 'line-through text-muted-soft' : 'text-indigo-700' }}">
+                                                        {{ \App\Support\Absensi::labelMenit((int) $absensi->lembur_menit) }}
                                                     </span>
-                                                    @if ($st === 'P')
+                                                    @if ($statusLembur === 'P')
                                                         {{-- Belum dinilai → pilih; setelah dipilih label "Menunggu" hilang --}}
-                                                        <button type="button" wire:click="nilaiLembur({{ $ab->abs_id }}, 'Y')"
+                                                        <button type="button" wire:click="nilaiLembur({{ $absensi->abs_id }}, 'Y')"
                                                             class="px-2 py-0.5 text-[11px] font-semibold rounded bg-emerald-600 text-white hover:bg-emerald-700">✓ Hitung</button>
-                                                        <button type="button" wire:click="nilaiLembur({{ $ab->abs_id }}, 'N')"
+                                                        <button type="button" wire:click="nilaiLembur({{ $absensi->abs_id }}, 'N')"
                                                             class="px-2 py-0.5 text-[11px] font-semibold rounded border border-gray-300 text-gray-700 hover:bg-gray-100">✗ Tidak</button>
                                                     @else
-                                                        <x-badge :variant="\App\Support\Absensi::LEMBUR_BADGE[$st]">{{ \App\Support\Absensi::LEMBUR_STATUS[$st] }}</x-badge>
-                                                        <button type="button" wire:click="nilaiLembur({{ $ab->abs_id }}, 'P')"
+                                                        <x-badge :variant="\App\Support\Absensi::LEMBUR_BADGE[$statusLembur]">{{ \App\Support\Absensi::LEMBUR_STATUS[$statusLembur] }}</x-badge>
+                                                        <button type="button" wire:click="nilaiLembur({{ $absensi->abs_id }}, 'P')"
                                                             class="text-[11px] text-muted-soft hover:underline" title="Batalkan penilaian">ubah</button>
                                                     @endif
                                                 </div>
-                                                @if ($st !== 'P' && $ab->lembur_penilai)
+                                                @if ($statusLembur !== 'P' && $absensi->lembur_penilai)
                                                     <div class="mt-0.5 text-[10px] text-muted-soft">
-                                                        oleh {{ $ab->lembur_penilai }}{{ $ab->lembur_dinilai_at ? ', ' . \App\Support\Format::waktu($ab->lembur_dinilai_at) : '' }}
+                                                        oleh {{ $absensi->lembur_penilai }}{{ $absensi->lembur_dinilai_at ? ', ' . \App\Support\Format::waktu($absensi->lembur_dinilai_at) : '' }}
                                                     </div>
                                                 @endif
                                             @else
                                                 <span class="text-muted-soft">—</span>
                                             @endif
                                         </td>
-                                        <td class="text-sm text-muted">{{ $ab->keterangan }}</td>
+                                        <td class="text-sm text-muted">{{ $absensi->keterangan }}</td>
                                     @endif
                                 </tr>
                             @endforeach

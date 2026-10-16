@@ -41,37 +41,38 @@ new class extends Component {
     #[On('absensi.rekap-harian.openGenerate')]
     public function openGenerate(string $tanggal): void
     {
-        $tgl = $this->tanggalCarbon($tanggal);
-        if (!$tgl) {
+        $tanggalKerja = $this->tanggalCarbon($tanggal);
+        if (!$tanggalKerja) {
             return;
         }
-        if (!$tgl->lt(now()->startOfDay())) {
+        if (!$tanggalKerja->lt(now()->startOfDay())) {
             $this->dispatch('toast', type: 'error', message: 'Generate hanya untuk tanggal yang sudah lewat (sebelum hari ini).');
             return;
         }
 
-        $this->tanggal = $tgl->format(Format::TANGGAL);
+        $this->tanggal = $tanggalKerja->format(Format::TANGGAL);
         $this->keteranganAlpa = 'Tidak absen (generate)';
         $this->keteranganLibur = 'Libur / off';
         $this->resetValidation();
 
-        $belum = $this->belumAbsen($tgl);
+        $belum = $this->belumAbsen($tanggalKerja);
         $empIds = array_column($belum, 'emp_id');
-        $this->pakaiJadwal = Jadwal::adaJadwalBulan($tgl);
-        $jadwal = $this->pakaiJadwal ? Jadwal::bulan($empIds, $tgl->copy()->startOfMonth()) : [];
-        $liburRutin = $this->pakaiJadwal ? [] : Absensi::liburRutin($empIds, $tgl);
+        $this->pakaiJadwal = Jadwal::adaJadwalBulan($tanggalKerja);
+        $jadwal = $this->pakaiJadwal ? Jadwal::bulan($empIds, $tanggalKerja->copy()->startOfMonth()) : [];
+        $liburRutin = $this->pakaiJadwal ? [] : Absensi::liburRutin($empIds, $tanggalKerja);
 
-        $this->kandidat = array_map(function ($k) use ($jadwal, $liburRutin, $tgl) {
-            $j = $jadwal[$k['emp_id']][$tgl->day] ?? null;
+        $this->kandidat = array_map(function ($karyawan) use ($jadwal, $liburRutin, $tanggalKerja) {
+            $jadwalHari = $jadwal[$karyawan['emp_id']][$tanggalKerja->day] ?? null;
 
-            return [...$k, 'libur_rutin' => in_array($k['emp_id'], $liburRutin, true), 'jadwal' => $j ? Jadwal::kode($j) : '', 'jenis' => $j->jdw_jenis ?? ''];
+            return [...$karyawan, 'libur_rutin' => in_array($karyawan['emp_id'], $liburRutin, true), 'jadwal' => $jadwalHari ? Jadwal::kode($jadwalHari) : '',
+                'jadwal_warna' => $jadwalHari->shift_warna ?? null, 'jenis' => $jadwalHari->jdw_jenis ?? ''];
         }, $belum);
 
         $this->pilihan = [];
-        foreach ($this->kandidat as $k) {
-            $this->pilihan[$k['emp_id']] = $this->pakaiJadwal
-                ? match ($k['jenis']) { 'K' => 'A', 'I' => 'I', 'C' => 'C', default => 'L' }
-                : ($k['libur_rutin'] ? 'L' : 'A');
+        foreach ($this->kandidat as $karyawan) {
+            $this->pilihan[$karyawan['emp_id']] = $this->pakaiJadwal
+                ? match ($karyawan['jenis']) { 'K' => 'A', 'I' => 'I', 'C' => 'C', default => 'L' }
+                : ($karyawan['libur_rutin'] ? 'L' : 'A');
         }
 
         if ($this->kandidat === []) {
@@ -96,7 +97,7 @@ new class extends Component {
 
     public function jumlah(string $status): int
     {
-        return count(array_filter($this->pilihan, fn($s) => $s === $status));
+        return count(array_filter($this->pilihan, fn($pilihanStatus) => $pilihanStatus === $status));
     }
 
     public function simpan(): void
@@ -108,17 +109,17 @@ new class extends Component {
              'max' => 'Keterangan maksimal 200 karakter.'],
         );
 
-        $tgl = $this->tanggalCarbon($this->tanggal);
-        if (!$tgl || !$tgl->lt(now()->startOfDay())) {
+        $tanggalKerja = $this->tanggalCarbon($this->tanggal);
+        if (!$tanggalKerja || !$tanggalKerja->lt(now()->startOfDay())) {
             return;
         }
 
         // Hanya yang masih belum absen saat ini (bisa saja baru diisi orang lain).
-        $masihBelum = array_column($this->belumAbsen($tgl), 'emp_id');
+        $masihBelum = array_column($this->belumAbsen($tanggalKerja), 'emp_id');
 
-        $hasil = ['L' => 0, 'A' => 0, 'I' => 0, 'C' => 0];
+        $jumlahPerStatus = ['L' => 0, 'A' => 0, 'I' => 0, 'C' => 0];
         foreach ($this->pilihan as $empId => $status) {
-            if (!in_array($empId, $masihBelum, true) || !isset($hasil[$status])) {
+            if (!in_array($empId, $masihBelum, true) || !isset($jumlahPerStatus[$status])) {
                 continue;
             }
             $keterangan = trim(match ($status) {
@@ -130,7 +131,7 @@ new class extends Component {
             try {
                 DB::table('siaptxn_absensis')->insert([
                     'emp_id'          => $empId,
-                    'abs_date'        => Absensi::tanggalSql($tgl),
+                    'abs_date'        => Absensi::tanggalSql($tanggalKerja),
                     'abs_status'      => $status,
                     'terlambat_menit' => 0,
                     'lembur_menit'    => 0,
@@ -140,14 +141,14 @@ new class extends Component {
                     'created_at'      => now(),
                     'updated_at'      => now(),
                 ]);
-                $hasil[$status]++;
+                $jumlahPerStatus[$status]++;
             } catch (UniqueConstraintViolationException) {
                 // sudah diisi bersamaan — lewati
             }
         }
 
         $this->dispatch('toast', type: 'success',
-            message: "Tersimpan {$this->tanggal}: {$hasil['L']} Libur, {$hasil['A']} Alpa" . ($hasil['I'] + $hasil['C'] ? ", {$hasil['I']} Izin, {$hasil['C']} Cuti" : '') . '.');
+            message: "Tersimpan {$this->tanggal}: {$jumlahPerStatus['L']} Libur, {$jumlahPerStatus['A']} Alpa" . ($jumlahPerStatus['I'] + $jumlahPerStatus['C'] ? ", {$jumlahPerStatus['I']} Izin, {$jumlahPerStatus['C']} Cuti" : '') . '.');
         $this->closeModal();
         $this->dispatch('absensi.rekap-harian.saved');
     }
@@ -161,19 +162,19 @@ new class extends Component {
     }
 
     /** Karyawan aktif tanpa baris absensi pada tanggal kerja. */
-    private function belumAbsen(Carbon $tgl): array
+    private function belumAbsen(Carbon $tanggalKerja): array
     {
-        $tglSql = Absensi::tanggalSql($tgl);
+        $tanggalSql = Absensi::tanggalSql($tanggalKerja);
 
         return DB::table('siapmst_employers as em')
             ->where('em.active_status', '1')
-            ->whereNotExists(fn($sub) => $sub->select(DB::raw(1))
+            ->whereNotExists(fn($subQuery) => $subQuery->select(DB::raw(1))
                 ->from('siaptxn_absensis as ab')
                 ->whereColumn('ab.emp_id', 'em.emp_id')
-                ->where('ab.abs_date', '=', $tglSql))
+                ->where('ab.abs_date', '=', $tanggalSql))
             ->orderBy('em.emp_name')
             ->get(['em.emp_id', 'em.emp_name'])
-            ->map(fn($r) => ['emp_id' => (string) $r->emp_id, 'emp_name' => (string) $r->emp_name])
+            ->map(fn($row) => ['emp_id' => (string) $row->emp_id, 'emp_name' => (string) $row->emp_name])
             ->all();
     }
 
@@ -239,38 +240,38 @@ new class extends Component {
                             </div>
 
                             <div class="divide-y divide-hairline dark:divide-gray-800 max-h-[55vh] overflow-y-auto">
-                                @foreach ($kandidat as $k)
-                                    @php $p = $pilihan[$k['emp_id']] ?? 'A'; @endphp
-                                    <div wire:key="gen-{{ $k['emp_id'] }}" class="flex items-center justify-between gap-3 px-2 py-2">
+                                @foreach ($kandidat as $karyawan)
+                                    @php $pilihanKaryawan = $pilihan[$karyawan['emp_id']] ?? 'A'; @endphp
+                                    <div wire:key="gen-{{ $karyawan['emp_id'] }}" class="flex items-center justify-between gap-3 px-2 py-2">
                                         <div class="min-w-0">
-                                            <div class="text-sm font-semibold truncate text-ink dark:text-gray-100">{{ $k['emp_name'] }}</div>
+                                            <div class="text-sm font-semibold truncate text-ink dark:text-gray-100">{{ $karyawan['emp_name'] }}</div>
                                             <div class="font-mono text-xs text-muted">
-                                                {{ $k['emp_id'] }}
+                                                {{ $karyawan['emp_id'] }}
                                                 @if ($pakaiJadwal)
                                                     <span class="ml-1 font-sans text-[11px] text-muted-soft">· jadwal:</span>
-                                                    @if ($k['jadwal'] !== '')
-                                                        <span class="px-1.5 font-sans text-[11px] font-bold rounded {{ \App\Support\Jadwal::WARNA[$k['jadwal']] ?? \App\Support\Jadwal::WARNA_LAIN }}">{{ $k['jadwal'] }}</span>
+                                                    @if ($karyawan['jadwal'] !== '')
+                                                        <span class="px-1.5 font-sans text-[11px] font-bold rounded" style="{{ \App\Support\Jadwal::gaya($karyawan['jadwal'], $karyawan['jadwal_warna']) }}">{{ $karyawan['jadwal'] }}</span>
                                                     @else
                                                         <span class="font-sans text-[11px] text-muted-soft">libur</span>
                                                     @endif
-                                                @elseif ($k['libur_rutin'])
+                                                @elseif ($karyawan['libur_rutin'])
                                                     <span class="ml-1 font-sans text-[11px] text-muted-soft">· biasanya libur di hari ini</span>
                                                 @endif
                                             </div>
                                         </div>
                                         <div class="inline-flex overflow-hidden border rounded-lg shrink-0 border-hairline dark:border-gray-700">
-                                            <button type="button" wire:click="$set('pilihan.{{ $k['emp_id'] }}', 'L')"
-                                                class="px-3 py-1.5 text-xs font-semibold transition {{ $p === 'L' ? 'bg-gray-700 text-white' : 'bg-canvas text-muted hover:bg-surface-soft' }}">
+                                            <button type="button" wire:click="$set('pilihan.{{ $karyawan['emp_id'] }}', 'L')"
+                                                class="px-3 py-1.5 text-xs font-semibold transition {{ $pilihanKaryawan === 'L' ? 'bg-gray-700 text-white' : 'bg-canvas text-muted hover:bg-surface-soft' }}">
                                                 Libur
                                             </button>
-                                            <button type="button" wire:click="$set('pilihan.{{ $k['emp_id'] }}', 'A')"
-                                                class="px-3 py-1.5 text-xs font-semibold transition border-l border-hairline {{ $p === 'A' ? 'bg-red-600 text-white' : 'bg-canvas text-muted hover:bg-surface-soft' }}">
+                                            <button type="button" wire:click="$set('pilihan.{{ $karyawan['emp_id'] }}', 'A')"
+                                                class="px-3 py-1.5 text-xs font-semibold transition border-l border-hairline {{ $pilihanKaryawan === 'A' ? 'bg-red-600 text-white' : 'bg-canvas text-muted hover:bg-surface-soft' }}">
                                                 Alpa
                                             </button>
-                                            @foreach (['I' => 'Izin', 'C' => 'Cuti'] as $kd => $nm)
-                                                <button type="button" wire:click="$set('pilihan.{{ $k['emp_id'] }}', '{{ $kd }}')"
-                                                    class="px-2.5 py-1.5 text-xs font-semibold transition border-l border-hairline {{ $p === $kd ? 'bg-sky-600 text-white' : 'bg-canvas text-muted hover:bg-surface-soft' }}">
-                                                    {{ $nm }}
+                                            @foreach (['I' => 'Izin', 'C' => 'Cuti'] as $kodeStatus => $namaStatus)
+                                                <button type="button" wire:click="$set('pilihan.{{ $karyawan['emp_id'] }}', '{{ $kodeStatus }}')"
+                                                    class="px-2.5 py-1.5 text-xs font-semibold transition border-l border-hairline {{ $pilihanKaryawan === $kodeStatus ? 'bg-sky-600 text-white' : 'bg-canvas text-muted hover:bg-surface-soft' }}">
+                                                    {{ $namaStatus }}
                                                 </button>
                                             @endforeach
                                         </div>

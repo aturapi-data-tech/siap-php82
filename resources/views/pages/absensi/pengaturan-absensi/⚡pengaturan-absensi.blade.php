@@ -6,20 +6,23 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\On;
 use Illuminate\Support\Facades\DB;
 use App\Support\PengaturanAbsensi;
+use App\Support\UnitKerja;
 
 /**
  * PENGATURAN ABSENSI — satu dasbor untuk semua setup absensi HRD:
- *   Aturan            → angka aturan (siapmst_pengaturan_absensis, via PengaturanAbsensi)
- *   Shift             → master-shift (ditanam, :embedded)
- *   Lokasi Absen HP   → master-lokasi-absen (ditanam, :embedded)
- *   Lokasi Karyawan   → atur emp_lokasi_id banyak karyawan sekaligus
+ *   Aturan                  → angka aturan (siapmst_pengaturan_absensis, via PengaturanAbsensi)
+ *   Unit Kerja              → master-unit-kerja (ditanam, :embedded)
+ *   Shift                   → master-shift (ditanam, :embedded)
+ *   Lokasi Absen HP         → master-lokasi-absen (ditanam, :embedded)
+ *   Unit & Lokasi Karyawan  → atur emp_unit_id & emp_lokasi_id banyak karyawan sekaligus
  */
 new class extends Component {
     public const TABS = [
         'aturan'          => 'Aturan Absen',
+        'unit'            => 'Unit Kerja',
         'shift'           => 'Shift & Toleransi',
         'lokasi'          => 'Titik Lokasi HP',
-        'lokasi-karyawan' => 'Lokasi Karyawan',
+        'lokasi-karyawan' => 'Unit & Lokasi Karyawan',
     ];
 
     #[Url]
@@ -27,9 +30,10 @@ new class extends Component {
 
     public array $form = [];
 
-    // Tab Lokasi Karyawan
+    // Tab Unit & Lokasi Karyawan
     public string $searchKeyword = '';
     public bool $hanyaBelumDiatur = false;
+    public string $unitMassal = '';
     public string $lokasiMassal = '';
 
     public function mount(): void
@@ -57,15 +61,17 @@ new class extends Component {
             'lokasiAktif'      => DB::table('siapmst_lokasi_absens')->where('active_status', '1')->count(),
             'karyawanAktif'    => DB::table('siapmst_employers')->where('active_status', '1')->count(),
             'tanpaLokasi'      => DB::table('siapmst_employers')->where('active_status', '1')->whereNull('emp_lokasi_id')->count(),
+            'tanpaUnit'        => DB::table('siapmst_employers')->where('active_status', '1')->whereNull('emp_unit_id')->count(),
             'absenHpAktif'     => PengaturanAbsensi::absenHpAktif(),
         ];
     }
 
     #[On('master.shift.saved')]
     #[On('master.lokasi-absen.saved')]
+    #[On('master.unit-kerja.saved')]
     public function segarkanRingkasan(): void
     {
-        unset($this->ringkasan, $this->lokasiList);
+        unset($this->ringkasan, $this->lokasiList, $this->unitList);
     }
 
     // ─── Tab Aturan ───────────────────────────────────────────────────────────
@@ -162,6 +168,12 @@ new class extends Component {
     }
 
     #[Computed]
+    public function unitList()
+    {
+        return UnitKerja::aktif();
+    }
+
+    #[Computed]
     public function karyawanList()
     {
         $query = DB::table('siapmst_employers')
@@ -174,10 +186,40 @@ new class extends Component {
                 ->orWhereRaw('UPPER(emp_name) LIKE ?', ["%{$keyword}%"]));
         }
         if ($this->hanyaBelumDiatur) {
-            $query->whereNull('emp_lokasi_id');
+            $query->where(fn($subQuery) => $subQuery->whereNull('emp_unit_id')->orWhereNull('emp_lokasi_id'));
         }
 
-        return $query->get(['emp_id', 'emp_name', 'emp_lokasi_id']);
+        return $query->get(['emp_id', 'emp_name', 'emp_unit_id', 'emp_lokasi_id']);
+    }
+
+    public function aturUnitKaryawan(string $empId, string $unitId): void
+    {
+        if ($unitId !== '' && !$this->unitList->contains('unit_id', $unitId)) {
+            return;
+        }
+
+        $this->simpanUnit([$empId], $unitId !== '' ? $unitId : null);
+        unset($this->ringkasan, $this->karyawanList);
+
+        $this->dispatch('toast', type: 'success', message: 'Unit kerja ' . $empId . ' disimpan.');
+    }
+
+    /**
+     * Simpan unit; shift default yang bukan milik unit baru (shift khusus unit lain) dikosongkan
+     * agar tombol "Isi Sen–Sab" di Jadwal Dinas tidak memakai shift unit lain.
+     *
+     * @param  array<int, string>  $empIds
+     */
+    private function simpanUnit(array $empIds, ?string $unitId): void
+    {
+        DB::table('siapmst_employers')->whereIn('emp_id', $empIds)->update(['emp_unit_id' => $unitId, 'updated_at' => now()]);
+
+        DB::table('siapmst_employers')
+            ->whereIn('emp_id', $empIds)
+            ->whereIn('emp_shift_default', fn($subQuery) => $subQuery->select('shift_id')->from('siapmst_shifts')
+                ->whereNotNull('unit_id')
+                ->when($unitId !== null, fn($kondisi) => $kondisi->where('unit_id', '!=', $unitId)))
+            ->update(['emp_shift_default' => null]);
     }
 
     public function aturLokasiKaryawan(string $empId, string $lokasiId): void
@@ -195,25 +237,34 @@ new class extends Component {
         $this->dispatch('toast', type: 'success', message: 'Lokasi kerja ' . $empId . ' disimpan.');
     }
 
-    /** Terapkan satu lokasi ke semua karyawan yang sedang tampil (hasil cari / filter). */
+    /**
+     * Terapkan unit dan/atau lokasi ke semua karyawan yang sedang tampil (hasil cari / filter).
+     * '' = tidak diubah, '-' = dikosongkan.
+     */
     public function terapkanMassal(): void
     {
-        if ($this->lokasiMassal !== '' && $this->lokasiMassal !== '-' && !$this->lokasiList->contains('lokasi_id', $this->lokasiMassal)) {
+        if (($this->unitMassal !== '' && $this->unitMassal !== '-' && !$this->unitList->contains('unit_id', $this->unitMassal))
+            || ($this->lokasiMassal !== '' && $this->lokasiMassal !== '-' && !$this->lokasiList->contains('lokasi_id', $this->lokasiMassal))) {
             return;
         }
         $empIds = $this->karyawanList->pluck('emp_id')->all();
-        if ($this->lokasiMassal === '' || $empIds === []) {
+        if (($this->unitMassal === '' && $this->lokasiMassal === '') || $empIds === []) {
             return;
         }
 
-        DB::table('siapmst_employers')->whereIn('emp_id', $empIds)->update([
-            'emp_lokasi_id' => $this->lokasiMassal === '-' ? null : $this->lokasiMassal,
-            'updated_at'    => now(),
-        ]);
-        $this->lokasiMassal = '';
+        if ($this->unitMassal !== '') {
+            $this->simpanUnit($empIds, $this->unitMassal === '-' ? null : $this->unitMassal);
+        }
+        if ($this->lokasiMassal !== '') {
+            DB::table('siapmst_employers')->whereIn('emp_id', $empIds)->update([
+                'emp_lokasi_id' => $this->lokasiMassal === '-' ? null : $this->lokasiMassal,
+                'updated_at'    => now(),
+            ]);
+        }
+        $this->reset(['unitMassal', 'lokasiMassal']);
         unset($this->ringkasan, $this->karyawanList);
 
-        $this->dispatch('toast', type: 'success', message: 'Lokasi kerja ' . count($empIds) . ' karyawan diperbarui.');
+        $this->dispatch('toast', type: 'success', message: count($empIds) . ' karyawan diperbarui.');
     }
 };
 ?>
@@ -221,7 +272,7 @@ new class extends Component {
 <div>
     <x-page-title
         title="Pengaturan Absensi"
-        subtitle="Semua setup absensi di satu tempat — aturan, shift, titik lokasi HP & lokasi kerja karyawan" />
+        subtitle="Semua setup absensi di satu tempat — aturan, unit kerja, shift, titik lokasi HP, unit & lokasi karyawan" />
 
     <div class="w-full min-h-[calc(100vh-5rem)] bg-surface-soft dark:bg-gray-900">
         <div class="px-6 py-4 mx-auto max-w-7xl">
@@ -251,9 +302,11 @@ new class extends Component {
                 </button>
                 <button type="button" wire:click="pilihTab('lokasi-karyawan')"
                     class="p-4 text-left border rounded-2xl bg-canvas border-hairline hover:border-brand-green dark:bg-gray-900 dark:border-gray-700">
-                    <p class="text-xs font-semibold tracking-wide uppercase text-muted">Karyawan tanpa lokasi</p>
-                    <p class="mt-1 text-2xl font-bold text-ink">{{ $ringkasan['tanpaLokasi'] }} <span class="text-sm font-normal text-muted">/ {{ $ringkasan['karyawanAktif'] }}</span></p>
-                    <p class="text-xs text-muted">boleh absen di titik aktif mana pun</p>
+                    <p class="text-xs font-semibold tracking-wide uppercase text-muted">Karyawan belum diatur</p>
+                    <p class="mt-1 text-2xl font-bold {{ $ringkasan['tanpaUnit'] > 0 ? 'text-amber-700' : 'text-ink' }}">
+                        {{ $ringkasan['tanpaUnit'] }} <span class="text-sm font-normal text-muted">tanpa unit / {{ $ringkasan['karyawanAktif'] }}</span>
+                    </p>
+                    <p class="text-xs text-muted">{{ $ringkasan['tanpaLokasi'] }} tanpa lokasi HP (boleh di titik mana pun)</p>
                 </button>
             </div>
 
@@ -372,6 +425,11 @@ new class extends Component {
             </div>
         @endif
 
+        {{-- TAB: UNIT KERJA --}}
+        @if ($tab === 'unit')
+            <livewire:pages::master.master-unit-kerja.master-unit-kerja :embedded="true" wire:key="tab-unit" />
+        @endif
+
         {{-- TAB: SHIFT --}}
         @if ($tab === 'shift')
             <livewire:pages::master.master-shift.master-shift :embedded="true" wire:key="tab-shift" />
@@ -382,19 +440,29 @@ new class extends Component {
             <livewire:pages::master.master-lokasi-absen.master-lokasi-absen :embedded="true" wire:key="tab-lokasi" />
         @endif
 
-        {{-- TAB: LOKASI KARYAWAN --}}
+        {{-- TAB: UNIT & LOKASI KARYAWAN --}}
         @if ($tab === 'lokasi-karyawan')
             <div wire:key="tab-lokasi-karyawan" class="px-6 pb-8 mx-auto max-w-7xl">
                 <div class="flex flex-col gap-3 py-3 lg:flex-row lg:items-end lg:justify-between">
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
                         <x-text-input type="text" wire:model.live.debounce.300ms="searchKeyword"
                             placeholder="Cari ID / nama karyawan..." class="w-full sm:w-72" />
-                        <x-toggle wire:model.live="hanyaBelumDiatur" :trueValue="true" :falseValue="false">Hanya yang belum diatur</x-toggle>
+                        <x-toggle wire:model.live="hanyaBelumDiatur" :trueValue="true" :falseValue="false">Hanya yang unit / lokasinya belum diatur</x-toggle>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <div class="w-56">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-xs font-semibold text-muted">Atur sekaligus:</span>
+                        <div class="w-48">
+                        <x-select-input wire:model="unitMassal">
+                            <option value="">— unit tetap —</option>
+                            @foreach ($this->unitList as $unit)
+                                <option value="{{ $unit->unit_id }}">{{ $unit->unit_name }}</option>
+                            @endforeach
+                            <option value="-">Kosongkan unit</option>
+                        </x-select-input>
+                        </div>
+                        <div class="w-48">
                         <x-select-input wire:model="lokasiMassal">
-                            <option value="">— atur sekaligus ke… —</option>
+                            <option value="">— lokasi tetap —</option>
                             @foreach ($this->lokasiList as $lokasi)
                                 <option value="{{ $lokasi->lokasi_id }}">{{ $lokasi->lokasi_name }}</option>
                             @endforeach
@@ -408,6 +476,12 @@ new class extends Component {
                     </div>
                 </div>
 
+                @if ($this->unitList->isEmpty())
+                    <p class="p-3 mb-3 text-sm border rounded-xl border-amber-300 bg-amber-50 text-amber-900">
+                        Belum ada unit kerja. Tambahkan dulu di tab
+                        <button type="button" wire:click="pilihTab('unit')" class="font-semibold underline">Unit Kerja</button>.
+                    </p>
+                @endif
                 @if ($this->lokasiList->isEmpty())
                     <p class="p-3 mb-3 text-sm border rounded-xl border-amber-300 bg-amber-50 text-amber-900">
                         Belum ada titik lokasi. Tambahkan dulu di tab
@@ -421,14 +495,26 @@ new class extends Component {
                             <tr>
                                 <th>ID</th>
                                 <th>Nama</th>
+                                <th>Unit Kerja</th>
                                 <th>Lokasi Absen HP</th>
                             </tr>
                         </thead>
                         <tbody>
                             @forelse ($this->karyawanList as $row)
-                                <tr wire:key="lokasi-karyawan-{{ $row->emp_id }}-{{ $row->emp_lokasi_id }}">
+                                <tr wire:key="lokasi-karyawan-{{ $row->emp_id }}-{{ $row->emp_unit_id }}-{{ $row->emp_lokasi_id }}">
                                     <td class="ds-td-token">{{ $row->emp_id }}</td>
                                     <td class="ds-td-strong">{{ $row->emp_name }}</td>
+                                    <td>
+                                        <div class="w-56">
+                                        <x-select-input
+                                            x-on:change="$wire.aturUnitKaryawan('{{ $row->emp_id }}', $event.target.value)">
+                                            <option value="" @selected(!$row->emp_unit_id)>— belum diatur —</option>
+                                            @foreach ($this->unitList as $unit)
+                                                <option value="{{ $unit->unit_id }}" @selected($row->emp_unit_id === $unit->unit_id)>{{ $unit->unit_name }}</option>
+                                            @endforeach
+                                        </x-select-input>
+                                        </div>
+                                    </td>
                                     <td>
                                         <div class="w-64">
                                         <x-select-input
@@ -445,7 +531,7 @@ new class extends Component {
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="3" class="px-6 py-10 text-center text-muted">Tidak ada karyawan untuk filter ini.</td>
+                                    <td colspan="4" class="px-6 py-10 text-center text-muted">Tidak ada karyawan untuk filter ini.</td>
                                 </tr>
                             @endforelse
                         </tbody>

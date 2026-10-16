@@ -24,6 +24,7 @@ new class extends Component {
 
     public string $bulan         = ''; // mm/yyyy
     public string $searchKeyword = '';
+    public string $filterUnit    = ''; // '' = semua unit
     public int    $itemsPerPage  = 25;
 
     public function mount(): void
@@ -33,11 +34,12 @@ new class extends Component {
 
     public function updatedBulan(): void         { $this->resetPage(); }
     public function updatedSearchKeyword(): void { $this->resetPage(); }
+    public function updatedFilterUnit(): void    { $this->resetPage(); }
     public function updatedItemsPerPage(): void  { $this->resetPage(); }
 
     public function resetFilters(): void
     {
-        $this->reset(['searchKeyword']);
+        $this->reset(['searchKeyword', 'filterUnit']);
         $this->bulan = now()->format(Format::BULAN);
         $this->itemsPerPage = 25;
         $this->resetPage();
@@ -118,6 +120,7 @@ new class extends Component {
                     ->where('ab.abs_date', '<=', $sampai);
             })
             ->where('em.active_status', '1')
+            ->when($this->filterUnit !== '', fn($subQuery) => $subQuery->where('em.emp_unit_id', $this->filterUnit))
             ->groupBy('em.emp_id', 'em.emp_name')
             ->select('em.emp_id', 'em.emp_name',
                 $hitung('H'), $hitung('T'), $hitung('I'), $hitung('S'), $hitung('C'), $hitung('A'), $hitung('L'),
@@ -163,6 +166,14 @@ new class extends Component {
                             <x-secondary-button type="button" wire:click="geserBulan(-1)" class="!px-2.5" title="Bulan sebelumnya">‹</x-secondary-button>
                             <x-text-input wire:model.live.debounce.600ms="bulan" x-mask="99/9999" placeholder="mm/yyyy" class="w-28 text-center font-mono" />
                             <x-secondary-button type="button" wire:click="geserBulan(1)" class="!px-2.5" title="Bulan berikutnya">›</x-secondary-button>
+                        </div>
+                        <div class="w-44">
+                            <x-select-input wire:model.live="filterUnit">
+                                <option value="">Semua unit</option>
+                                @foreach (\App\Support\UnitKerja::aktif() as $unit)
+                                    <option value="{{ $unit->unit_id }}">{{ $unit->unit_name }}</option>
+                                @endforeach
+                            </x-select-input>
                         </div>
                         <div class="w-full lg:w-64">
                             <x-input-label for="searchKeyword" value="Cari Karyawan" class="sr-only" />

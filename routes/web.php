@@ -25,6 +25,9 @@ Route::middleware(['auth'])->group(function () {
     Route::livewire('/master/shift', 'pages::master.master-shift.master-shift')
         ->name('master.shift');
 
+    Route::livewire('/master/unit-kerja', 'pages::master.master-unit-kerja.master-unit-kerja')
+        ->name('master.unit-kerja');
+
     Route::livewire('/master/lokasi-absen', 'pages::master.master-lokasi-absen.master-lokasi-absen')
         ->name('master.lokasi-absen');
 

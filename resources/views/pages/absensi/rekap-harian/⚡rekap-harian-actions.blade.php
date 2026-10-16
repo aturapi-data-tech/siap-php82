@@ -40,6 +40,19 @@ new class extends Component {
         return Absensi::shiftAktif();
     }
 
+    /** Pilihan shift di form = shift unit karyawan ini (+ shift yang sudah tercatat, agar data lama tetap tampil). */
+    #[Computed]
+    public function shiftPilihan()
+    {
+        if ($this->empId === '') {
+            return $this->shifts;
+        }
+        $shiftUnitId = Absensi::shiftPilihan($this->empId, $this->shifts)->pluck('shift_id')->all();
+        $tercatat = [$this->form['shift_id'] ?? '', $this->form['dobel_shift_id'] ?? ''];
+
+        return $this->shifts->filter(fn($shift) => in_array($shift->shift_id, [...$shiftUnitId, ...$tercatat], true))->values();
+    }
+
     // ─── Open ─────────────────────────────────────────────────────────────────
     #[On('absensi.rekap-harian.openInput')]
     public function openInput(string $empId, string $tanggal): void
@@ -361,7 +374,7 @@ new class extends Component {
                                         <x-input-label value="Shift *" />
                                         <x-select-input wire:model.live="form.shift_id" :error="$errors->has('form.shift_id')" class="mt-1">
                                             <option value="">— pilih —</option>
-                                            @foreach ($this->shifts as $shift)
+                                            @foreach ($this->shiftPilihan as $shift)
                                                 <option value="{{ $shift->shift_id }}">{{ $shift->shift_name }} ({{ $shift->jam_masuk }}–{{ $shift->jam_pulang }})</option>
                                             @endforeach
                                         </x-select-input>
@@ -394,7 +407,7 @@ new class extends Component {
                                             <x-input-label value="Dobel shift — shift kedua" />
                                             <x-select-input wire:model.live="form.dobel_shift_id" :error="$errors->has('form.dobel_shift_id')" class="mt-1">
                                                 <option value="">— tidak dobel shift —</option>
-                                                @foreach ($this->shifts as $shift)
+                                                @foreach ($this->shiftPilihan as $shift)
                                                     @continue($shift->shift_id === $form['shift_id'])
                                                     <option value="{{ $shift->shift_id }}">{{ $shift->shift_name }} ({{ $shift->jam_masuk }}–{{ $shift->jam_pulang }})</option>
                                                 @endforeach

@@ -8,23 +8,40 @@ use Carbon\Carbon;
 use App\Support\Absensi;
 use App\Support\Format;
 use App\Support\Jadwal;
+use App\Support\UnitKerja;
 
 /**
  * JADWAL DINAS BULANAN — grid karyawan × tanggal seperti "Jadwal Masuk Kerja Bulan …" lapangan.
  * Pilih kuas (kode shift / I / C / Libur) lalu klik sel. Kosong = libur/off, Minggu ditandai merah.
  * Tanggal yang sudah lewat TERKUNCI (Jadwal::terkunci) — semua aksi hanya mengubah hari ini & seterusnya.
  * Jadwal dipakai kiosk (shift otomatis), Generate Libur/Alpa, dan Rekap Harian.
+ *
+ * Unit kerja (UnitKerja::cakupanUser):
+ *   - admin / HRD   → pilih unit (atau semua unit); kuas = shift unit terpilih.
+ *   - role lain     → DIKUNCI ke unit karyawan yang terhubung ke akunnya (mis. kepala ruang).
+ * Semua aksi hanya menyentuh karyawan di $this->karyawan (sudah tersaring unit), dan kode yang
+ * diisikan divalidasi terhadap shift unit karyawan masing-masing.
  */
 new class extends Component {
     public string $bulan = '';      // mm/yyyy
     public string $kuas  = 'P';     // kode shift / I / C / '' (libur)
     public string $searchKeyword = '';
+    public string $filterUnit = ''; // admin/HRD: '' = semua unit
 
     private string $printView = 'pages.absensi.jadwal-dinas.jadwal-dinas-print';
+
+    /** Cache shift berkode per unit dalam satu request. */
+    private array $shiftPerUnit = [];
 
     public function mount(): void
     {
         $this->bulan = now()->format(Format::BULAN);
+        $this->kuas = (string) ($this->shifts->keys()->first() ?? 'I');
+    }
+
+    public function updatedFilterUnit(): void
+    {
+        unset($this->shifts, $this->karyawan, $this->jadwal);
         $this->kuas = (string) ($this->shifts->keys()->first() ?? 'I');
     }
 
@@ -37,29 +54,82 @@ new class extends Component {
         }
     }
 
-    public function geserBulan(int $n): void
+    public function geserBulan(int $jumlahBulan): void
     {
-        $this->bulan = $this->awalBulan()->addMonthsNoOverflow($n)->format(Format::BULAN);
+        $this->bulan = $this->awalBulan()->addMonthsNoOverflow($jumlahBulan)->format(Format::BULAN);
+    }
+
+    // ─── Cakupan unit ─────────────────────────────────────────────────────────
+    #[Computed]
+    public function cakupan(): array
+    {
+        return UnitKerja::cakupanUser(auth()->user());
+    }
+
+    /** Unit yang sedang ditampilkan (null = semua unit). Role terbatas selalu dikunci ke unitnya. */
+    public function unitAktif(): ?string
+    {
+        if (!$this->cakupan['semuaUnit']) {
+            return $this->cakupan['unitId'];
+        }
+
+        return $this->filterUnit !== '' ? $this->filterUnit : null;
+    }
+
+    public function bolehAkses(): bool
+    {
+        return $this->cakupan['semuaUnit'] || $this->cakupan['unitId'] !== null;
     }
 
     #[Computed]
+    public function unitList()
+    {
+        return UnitKerja::aktif();
+    }
+
+    #[Computed]
+    public function namaUnitAktif(): ?string
+    {
+        return $this->unitAktif() ? DB::table('siapmst_unit_kerjas')->where('unit_id', $this->unitAktif())->value('unit_name') : null;
+    }
+
+    // ─── Data ─────────────────────────────────────────────────────────────────
+    /** Kuas = shift tanpa unit + shift unit aktif (semua unit → hanya shift tanpa unit). */
+    #[Computed]
     public function shifts()
     {
-        return Jadwal::shiftBerkode();
+        return Jadwal::shiftBerkode($this->unitAktif());
+    }
+
+    /** Shift berkode untuk unit karyawan tertentu — validasi kode per karyawan. */
+    private function shiftUnit(?string $unitId)
+    {
+        return $this->shiftPerUnit[$unitId ?? ''] ??= Jadwal::shiftBerkode($unitId);
     }
 
     #[Computed]
     public function karyawan()
     {
-        // Urut ID → urutan baris bisa diatur lewat ID karyawan (sama dgn formulir jadwal lapangan).
-        $q = DB::table('siapmst_employers')->where('siapmst_employers.active_status', '1')->orderBy('emp_id');
-        if (trim($this->searchKeyword) !== '') {
-            $kw = mb_strtoupper(trim($this->searchKeyword));
-            $q->where(fn($s) => $s->whereRaw('UPPER(emp_name) LIKE ?', ["%{$kw}%"])->orWhereRaw('UPPER(emp_id) LIKE ?', ["%{$kw}%"]));
+        if (!$this->bolehAkses()) {
+            return collect();
         }
 
-        return $q->leftJoin('siapmst_shifts as sd', 'sd.shift_id', '=', 'siapmst_employers.emp_shift_default')
-            ->get(['emp_id', 'emp_name', 'sd.shift_kode as shift_default_kode']);
+        // Dikelompokkan per unit (tanpa unit paling bawah), lalu urut ID → urutan baris
+        // dalam unit bisa diatur lewat ID karyawan (sama dgn formulir jadwal lapangan).
+        $query = DB::table('siapmst_employers as em')
+            ->leftJoin('siapmst_shifts as sd', 'sd.shift_id', '=', 'em.emp_shift_default')
+            ->leftJoin('siapmst_unit_kerjas as un', 'un.unit_id', '=', 'em.emp_unit_id')
+            ->where('em.active_status', '1')
+            ->when($this->unitAktif(), fn($subQuery, $unitId) => $subQuery->where('em.emp_unit_id', $unitId))
+            ->orderByRaw('un.unit_name NULLS LAST')
+            ->orderBy('em.emp_id');
+
+        if (trim($this->searchKeyword) !== '') {
+            $keyword = mb_strtoupper(trim($this->searchKeyword));
+            $query->where(fn($subQuery) => $subQuery->whereRaw('UPPER(em.emp_name) LIKE ?', ["%{$keyword}%"])->orWhereRaw('UPPER(em.emp_id) LIKE ?', ["%{$keyword}%"]));
+        }
+
+        return $query->get(['em.emp_id', 'em.emp_name', 'em.emp_unit_id', 'un.unit_name', 'sd.shift_kode as shift_default_kode', 'sd.shift_warna as shift_default_warna']);
     }
 
     #[Computed]
@@ -77,7 +147,8 @@ new class extends Component {
     public function isiSel(string $empId, int $hari): void
     {
         $awal = $this->awalBulan();
-        if (!$this->kuasValid() || $hari < 1 || $hari > $awal->daysInMonth || !$this->karyawan->contains('emp_id', $empId)) {
+        $karyawan = $this->karyawan->firstWhere('emp_id', $empId);
+        if (!$this->kuasValid() || $hari < 1 || $hari > $awal->daysInMonth || !$karyawan) {
             return;
         }
 
@@ -87,10 +158,13 @@ new class extends Component {
         }
 
         // Klik sel yang isinya sama dengan kuas = hapus (toggle), memudahkan koreksi.
-        $lama = isset($this->jadwal[$empId][$hari]) ? Jadwal::kode($this->jadwal[$empId][$hari]) : '';
-        $kode = $lama === $this->kuas ? '' : $this->kuas;
+        $kodeLama = isset($this->jadwal[$empId][$hari]) ? Jadwal::kode($this->jadwal[$empId][$hari]) : '';
+        $kode = $kodeLama === $this->kuas ? '' : $this->kuas;
 
-        Jadwal::isi($empId, $awal->copy()->day($hari), $kode, auth()->id(), $this->shifts);
+        if (!Jadwal::isi($empId, $awal->copy()->day($hari), $kode, auth()->id(), $this->shiftUnit($karyawan->emp_unit_id))) {
+            $this->dispatch('toast', type: 'error', message: "Kode {$kode} bukan shift unit {$karyawan->emp_name}.");
+            return;
+        }
         unset($this->jadwal);
     }
 
@@ -104,16 +178,18 @@ new class extends Component {
         if (!$karyawan) {
             return;
         }
+        $shiftKaryawan = $this->shiftUnit($karyawan->emp_unit_id);
         $kode = $karyawan->shift_default_kode ?: $this->kuas;
-        if ($kode === '' || (!isset(Jadwal::KHUSUS[$kode]) && !$this->shifts->has($kode))) {
+        if ($kode === '' || (!isset(Jadwal::KHUSUS[$kode]) && !$shiftKaryawan->has($kode))) {
+            $this->dispatch('toast', type: 'error', message: "Kode {$kode} bukan shift unit {$karyawan->emp_name}.");
             return;
         }
 
         $awal = $this->awalBulan();
         $jumlah = 0;
-        for ($d = $awal->copy(); $d->lte($awal->copy()->endOfMonth()); $d->addDay()) {
-            if (!$d->isSunday() && !Jadwal::terkunci($d)) {
-                Jadwal::isi($empId, $d->copy(), $kode, auth()->id(), $this->shifts);
+        for ($tanggal = $awal->copy(); $tanggal->lte($awal->copy()->endOfMonth()); $tanggal->addDay()) {
+            if (!$tanggal->isSunday() && !Jadwal::terkunci($tanggal)) {
+                Jadwal::isi($empId, $tanggal->copy(), $kode, auth()->id(), $shiftKaryawan);
                 $jumlah++;
             }
         }
@@ -132,21 +208,21 @@ new class extends Component {
     {
         $awal = $this->awalBulan();
         $bulanLalu = $awal->copy()->subMonthNoOverflow();
-        $lalu = Jadwal::bulan($this->karyawan->pluck('emp_id')->all(), $bulanLalu);
+        $jadwalLalu = Jadwal::bulan($this->karyawan->pluck('emp_id')->all(), $bulanLalu);
         $jumlah = 0;
 
-        foreach ($this->karyawan as $k) {
-            for ($tgl = $awal->copy(); $tgl->lte($awal->copy()->endOfMonth()); $tgl->addDay()) {
-                if (isset($this->jadwal[$k->emp_id][$tgl->day]) || Jadwal::terkunci($tgl)) {
+        foreach ($this->karyawan as $karyawan) {
+            for ($tanggal = $awal->copy(); $tanggal->lte($awal->copy()->endOfMonth()); $tanggal->addDay()) {
+                if (isset($this->jadwal[$karyawan->emp_id][$tanggal->day]) || Jadwal::terkunci($tanggal)) {
                     continue;
                 }
-                $sumber = $tgl->copy()->subWeeks(4);
+                $sumber = $tanggal->copy()->subWeeks(4);
                 if ($sumber->isSameMonth($awal)) {
                     $sumber->subWeek();
                 }
-                $row = $lalu[$k->emp_id][$sumber->day] ?? null;
+                $row = $jadwalLalu[$karyawan->emp_id][$sumber->day] ?? null;
                 if ($row && $sumber->isSameMonth($bulanLalu)
-                    && Jadwal::isi($k->emp_id, $tgl->copy(), Jadwal::kode($row), auth()->id(), $this->shifts)) {
+                    && Jadwal::isi($karyawan->emp_id, $tanggal->copy(), Jadwal::kode($row), auth()->id(), $this->shiftUnit($karyawan->emp_unit_id))) {
                     $jumlah++;
                 }
             }
@@ -167,13 +243,13 @@ new class extends Component {
             return;
         }
 
-        $n = DB::table('siaptxn_jadwals')
+        $jumlahSel = DB::table('siaptxn_jadwals')
             ->whereIn('emp_id', $this->karyawan->pluck('emp_id')->all() ?: [''])
             ->where('jdw_tanggal', '>=', Absensi::tanggalSql($dari))
             ->where('jdw_tanggal', '<=', Absensi::tanggalSql($awal->copy()->endOfMonth()))
             ->delete();
 
-        $this->dispatch('toast', type: 'success', message: "Jadwal {$this->bulan} mulai " . Format::tanggal($dari) . " dikosongkan ({$n} sel).");
+        $this->dispatch('toast', type: 'success', message: "Jadwal {$this->bulan} mulai " . Format::tanggal($dari) . " dikosongkan ({$jumlahSel} sel).");
         unset($this->jadwal);
     }
 
@@ -181,14 +257,18 @@ new class extends Component {
     {
         $awal = $this->awalBulan();
         $pdf = Pdf::loadView($this->printView, [
-            'awal'     => $awal,
-            'karyawan' => $this->karyawan,
-            'jadwal'   => $this->jadwal,
-            'dicetak'  => now(),
-            'oleh'     => auth()->user()?->name,
+            'awal'      => $awal,
+            'karyawan'  => $this->karyawan,
+            'jadwal'    => $this->jadwal,
+            'shifts'    => $this->shifts,
+            'namaUnit'  => $this->namaUnitAktif,
+            'dicetak'   => now(),
+            'oleh'      => auth()->user()?->name,
         ])->setPaper('A4', 'landscape');
 
-        return response()->streamDownload(fn() => print $pdf->output(), 'jadwal-dinas-' . $awal->format('Y-m') . '.pdf');
+        $namaBerkas = 'jadwal-dinas-' . ($this->unitAktif() ? mb_strtolower($this->unitAktif()) . '-' : '') . $awal->format('Y-m') . '.pdf';
+
+        return response()->streamDownload(fn() => print $pdf->output(), $namaBerkas);
     }
 };
 ?>
@@ -197,17 +277,24 @@ new class extends Component {
 
     <x-page-title
         title="Jadwal Dinas"
-        subtitle="Jadwal masuk kerja bulanan — dasar shift di kiosk, Generate Libur/Alpa, dan rekap" />
+        subtitle="Jadwal masuk kerja bulanan per unit — dasar shift di kiosk, Generate Libur/Alpa, dan rekap" />
 
     @php
         $awal = $this->awalBulan();
-        $jmlHari = $awal->daysInMonth;
+        $jumlahHari = $awal->daysInMonth;
         $jadwal = $this->jadwal;
-        $warna = fn(string $k) => \App\Support\Jadwal::WARNA[$k] ?? \App\Support\Jadwal::WARNA_LAIN;
     @endphp
 
     <div class="w-full min-h-[calc(100vh-5rem)] flex flex-col bg-surface-soft dark:bg-gray-900">
         <div class="flex flex-col flex-1 px-6 pt-2 pb-6">
+
+            @if (!$this->bolehAkses())
+                <div class="max-w-2xl p-6 mt-6 border-2 border-amber-300 bg-amber-50 rounded-2xl text-amber-900">
+                    <p class="font-semibold">Akun Anda belum terhubung ke unit kerja.</p>
+                    <p class="mt-1 text-sm">Jadwal hanya bisa diatur untuk unit Anda sendiri. Minta admin menghubungkan akun ini ke data karyawan
+                        (Sistem › User Control) dan mengisi <b>Unit Kerja</b> karyawan tersebut (Master Karyawan).</p>
+                </div>
+            @else
 
             {{-- TOOLBAR --}}
             <div class="sticky z-30 px-4 py-3 bg-surface-soft border-b border-hairline top-20 dark:bg-gray-900 dark:border-gray-700">
@@ -218,19 +305,36 @@ new class extends Component {
                             <x-text-input wire:model.live.debounce.600ms="bulan" x-mask="99/9999" placeholder="mm/yyyy" class="w-28 font-mono text-center" />
                             <x-secondary-button type="button" wire:click="geserBulan(1)" class="!px-2.5" title="Bulan berikutnya">›</x-secondary-button>
                         </div>
+                        {{-- UNIT --}}
+                        @if ($this->cakupan['semuaUnit'])
+                            <div class="w-52">
+                                <x-select-input wire:model.live="filterUnit">
+                                    <option value="">Semua unit</option>
+                                    @foreach ($this->unitList as $unit)
+                                        <option value="{{ $unit->unit_id }}">{{ $unit->unit_name }}</option>
+                                    @endforeach
+                                </x-select-input>
+                            </div>
+                        @else
+                            <div class="px-3 py-2 text-sm font-semibold border rounded-lg bg-canvas border-hairline text-ink">
+                                Unit: {{ $this->namaUnitAktif }}
+                            </div>
+                        @endif
                         <div class="w-56">
                             <x-text-input type="text" wire:model.live.debounce.300ms="searchKeyword" placeholder="Cari karyawan..." class="block w-full" />
                         </div>
                         {{-- KUAS --}}
                         <div class="flex flex-wrap items-center gap-1 px-2 py-1 border rounded-xl bg-canvas border-hairline dark:border-gray-700">
                             <span class="mr-1 text-xs font-semibold text-muted">Kuas:</span>
-                            @foreach ($this->shifts as $kode => $sh)
-                                <button type="button" wire:click="$set('kuas', '{{ $kode }}')" title="{{ $sh->shift_name }} {{ $sh->jam_masuk }}–{{ $sh->jam_pulang }}"
-                                    class="w-9 h-8 text-sm font-bold rounded-lg {{ $warna($kode) }} {{ $kuas === $kode ? 'ring-4 ring-offset-1 ring-brand-green' : 'opacity-70 hover:opacity-100' }}">{{ $kode }}</button>
+                            @foreach ($this->shifts as $kode => $shift)
+                                <button type="button" wire:click="$set('kuas', '{{ $kode }}')" title="{{ $shift->shift_name }} {{ $shift->jam_masuk }}–{{ $shift->jam_pulang }}"
+                                    style="{{ \App\Support\Jadwal::gaya($kode, $shift->shift_warna) }}"
+                                    class="w-9 h-8 text-sm font-bold rounded-lg {{ $kuas === $kode ? 'ring-4 ring-offset-1 ring-brand-green' : 'opacity-70 hover:opacity-100' }}">{{ $kode }}</button>
                             @endforeach
                             @foreach (\App\Support\Jadwal::KHUSUS as $kode => $nama)
                                 <button type="button" wire:click="$set('kuas', '{{ $kode }}')" title="{{ $nama }}"
-                                    class="w-9 h-8 text-sm font-bold rounded-lg {{ $warna($kode) }} {{ $kuas === $kode ? 'ring-4 ring-offset-1 ring-brand-green' : 'opacity-70 hover:opacity-100' }}">{{ $kode }}</button>
+                                    style="{{ \App\Support\Jadwal::gaya($kode) }}"
+                                    class="w-9 h-8 text-sm font-bold rounded-lg {{ $kuas === $kode ? 'ring-4 ring-offset-1 ring-brand-green' : 'opacity-70 hover:opacity-100' }}">{{ $kode }}</button>
                             @endforeach
                             <button type="button" wire:click="$set('kuas', '')" title="Libur / hapus jadwal"
                                 class="px-2 h-8 text-xs font-bold rounded-lg border border-hairline bg-white text-gray-700 {{ $kuas === '' ? 'ring-4 ring-offset-1 ring-brand-green' : 'opacity-70 hover:opacity-100' }}">Libur</button>
@@ -251,11 +355,14 @@ new class extends Component {
                 <p class="mt-2 text-xs text-muted dark:text-gray-400">
                     Pilih kuas lalu klik sel. Klik sel yang isinya sama dengan kuas = hapus. Sel <b>kosong = libur/off</b>.
                     Tanggal yang sudah lewat 🔒 <b>terkunci</b> — tidak bisa diubah (menjaga keaslian data absensi).
-                    @foreach ($this->shifts as $kode => $sh)
-                        <b>{{ $kode }}</b> {{ $sh->shift_name }} ({{ $sh->jam_masuk }}–{{ $sh->jam_pulang }}){{ !$loop->last ? ' ·' : '' }}
+                    @foreach ($this->shifts as $kode => $shift)
+                        <b>{{ $kode }}</b> {{ $shift->shift_name }} ({{ $shift->jam_masuk }}–{{ $shift->jam_pulang }}){{ !$loop->last ? ' ·' : '' }}
                     @endforeach
                     · <b>I</b> Izin · <b>C</b> Cuti
                 </p>
+                @if ($this->cakupan['semuaUnit'] && $filterUnit === '')
+                    <p class="mt-1 text-xs text-amber-700">Mode <b>semua unit</b>: kuas hanya berisi shift yang berlaku untuk semua unit. Pilih unit untuk memakai shift khusus unit.</p>
+                @endif
             </div>
 
             {{-- GRID --}}
@@ -265,11 +372,11 @@ new class extends Component {
                         <tr>
                             <th class="sticky left-0 z-10 px-3 py-2 text-left bg-pink-100 border border-hairline min-w-[14rem]">NAMA KARYAWAN</th>
                             <th class="px-1 py-2 text-xs text-center bg-pink-100 border border-hairline" title="Shift default">P/S</th>
-                            @for ($h = 1; $h <= $jmlHari; $h++)
-                                @php $tgl = $awal->copy()->day($h); @endphp
-                                <th class="w-9 px-0 py-1 text-xs font-bold text-center border border-hairline {{ $tgl->isSunday() ? 'bg-[#ff0000] text-white' : 'bg-[#ff00ff] text-white' }} {{ $tgl->isToday() ? 'ring-2 ring-inset ring-sky-400' : '' }}">
-                                    {{ $h }}
-                                    <div class="text-[9px] font-normal opacity-90">{{ \App\Support\Jadwal::terkunci($tgl) ? '🔒' : mb_substr(\App\Support\Format::hari($tgl), 0, 3) }}</div>
+                            @for ($hari = 1; $hari <= $jumlahHari; $hari++)
+                                @php $tanggal = $awal->copy()->day($hari); @endphp
+                                <th class="w-9 px-0 py-1 text-xs font-bold text-center border border-hairline {{ $tanggal->isSunday() ? 'bg-[#ff0000] text-white' : 'bg-[#ff00ff] text-white' }} {{ $tanggal->isToday() ? 'ring-2 ring-inset ring-sky-400' : '' }}">
+                                    {{ $hari }}
+                                    <div class="text-[9px] font-normal opacity-90">{{ \App\Support\Jadwal::terkunci($tanggal) ? '🔒' : mb_substr(\App\Support\Format::hari($tanggal), 0, 3) }}</div>
                                 </th>
                             @endfor
                             <th class="px-2 py-1 text-xs border bg-surface-card border-hairline">Hari kerja</th>
@@ -277,64 +384,81 @@ new class extends Component {
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse ($this->karyawan as $k)
-                            @php $baris = $jadwal[$k->emp_id] ?? []; @endphp
-                            <tr wire:key="jdw-{{ $k->emp_id }}">
+                        @forelse ($this->karyawan->groupBy(fn($row) => $row->unit_name ?? 'Belum ada unit') as $namaUnitKelompok => $karyawanUnit)
+                            @unless ($this->unitAktif())
+                                <tr wire:key="jdw-unit-{{ $loop->index }}">
+                                    <td colspan="{{ $jumlahHari + 4 }}" class="p-0 border border-hairline bg-surface-card dark:bg-gray-800">
+                                        <div class="sticky left-0 inline-flex items-center gap-2 px-3 py-1.5 text-xs font-bold tracking-wide uppercase text-ink dark:text-gray-100">
+                                            {{ $namaUnitKelompok }}
+                                            <span class="font-normal normal-case text-muted">{{ $karyawanUnit->count() }} karyawan</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            @endunless
+                            @foreach ($karyawanUnit as $karyawan)
+                            @php $jadwalKaryawan = $jadwal[$karyawan->emp_id] ?? []; @endphp
+                            <tr wire:key="jdw-{{ $karyawan->emp_id }}">
                                 <td class="sticky left-0 z-10 px-3 py-1 border bg-orange-50 border-hairline dark:bg-gray-900">
-                                    <div class="font-semibold uppercase text-ink dark:text-gray-100">{{ $k->emp_name }}</div>
-                                    <div class="font-mono text-[10px] text-muted">{{ $k->emp_id }}</div>
+                                    <div class="font-semibold uppercase text-ink dark:text-gray-100">{{ $karyawan->emp_name }}</div>
+                                    <div class="font-mono text-[10px] text-muted">{{ $karyawan->emp_id }}</div>
                                 </td>
                                 <td class="px-1 text-center border border-hairline bg-orange-50">
-                                    @if ($k->shift_default_kode)
-                                        <span class="inline-block w-7 py-0.5 text-xs font-bold rounded {{ $warna($k->shift_default_kode) }}">{{ $k->shift_default_kode }}</span>
+                                    @if ($karyawan->shift_default_kode)
+                                        <span class="inline-block w-7 py-0.5 text-xs font-bold rounded" style="{{ \App\Support\Jadwal::gaya($karyawan->shift_default_kode, $karyawan->shift_default_warna) }}">{{ $karyawan->shift_default_kode }}</span>
                                     @endif
                                 </td>
-                                @for ($h = 1; $h <= $jmlHari; $h++)
+                                @for ($hari = 1; $hari <= $jumlahHari; $hari++)
                                     @php
-                                        $sel = $baris[$h] ?? null;
+                                        $sel = $jadwalKaryawan[$hari] ?? null;
                                         $kode = $sel ? \App\Support\Jadwal::kode($sel) : '';
-                                        $minggu = $awal->copy()->day($h)->isSunday();
-                                        $kunci = \App\Support\Jadwal::terkunci($awal->copy()->day($h));
+                                        $gayaSel = $kode ? \App\Support\Jadwal::gaya($kode, $sel->shift_warna ?? null) : '';
+                                        $minggu = $awal->copy()->day($hari)->isSunday();
+                                        $terkunci = \App\Support\Jadwal::terkunci($awal->copy()->day($hari));
                                     @endphp
                                     <td class="p-0 border border-hairline {{ !$sel && $minggu ? 'bg-[#ff0000]' : '' }}">
-                                        @if ($kunci)
+                                        @if ($terkunci)
                                             {{-- Tanggal lewat: terkunci, hanya tampil --}}
-                                            <div title="{{ \App\Support\Format::tanggal($awal->copy()->day($h)) }} · terkunci (sudah lewat)"
-                                                class="flex items-center justify-center w-9 h-9 text-sm font-bold cursor-not-allowed {{ $kode ? $warna($kode) . ' opacity-75' : '' }}">
+                                            <div title="{{ \App\Support\Format::tanggal($awal->copy()->day($hari)) }} · terkunci (sudah lewat)" style="{{ $gayaSel }}"
+                                                class="flex items-center justify-center w-9 h-9 text-sm font-bold cursor-not-allowed {{ $kode ? 'opacity-75' : '' }}">
                                                 {{ $kode }}
                                             </div>
                                         @else
-                                            <button type="button" wire:click="isiSel(@js($k->emp_id), {{ $h }})"
-                                                title="{{ \App\Support\Format::tanggal($awal->copy()->day($h)) }}{{ $sel && $sel->shift_name ? ' · ' . $sel->shift_name : ($kode ? ' · ' . (\App\Support\Jadwal::KHUSUS[$kode] ?? '') : ' · libur') }}"
-                                                class="w-9 h-9 text-sm font-bold transition hover:ring-2 hover:ring-inset hover:ring-brand-green {{ $kode ? $warna($kode) : '' }}">
+                                            <button type="button" wire:click="isiSel(@js($karyawan->emp_id), {{ $hari }})" style="{{ $gayaSel }}"
+                                                title="{{ \App\Support\Format::tanggal($awal->copy()->day($hari)) }}{{ $sel && $sel->shift_name ? ' · ' . $sel->shift_name : ($kode ? ' · ' . (\App\Support\Jadwal::KHUSUS[$kode] ?? '') : ' · libur') }}"
+                                                class="w-9 h-9 text-sm font-bold transition hover:ring-2 hover:ring-inset hover:ring-brand-green">
                                                 {{ $kode }}
                                             </button>
                                         @endif
                                     </td>
                                 @endfor
-                                @php $kerja = collect($baris)->where('jdw_jenis', 'K')->count(); @endphp
+                                @php $hariKerja = collect($jadwalKaryawan)->where('jdw_jenis', 'K')->count(); @endphp
                                 <td class="px-2 text-center border border-hairline">
-                                    <div class="font-mono font-semibold">{{ $kerja }}</div>
+                                    <div class="font-mono font-semibold">{{ $hariKerja }}</div>
                                     <div class="text-[10px] text-muted whitespace-nowrap">
-                                        {{ collect($baris)->map(fn($r) => \App\Support\Jadwal::kode($r))->countBy()->sortKeys()->map(fn($n, $kd) => "{$kd}:{$n}")->implode(' ') }}
+                                        {{ collect($jadwalKaryawan)->map(fn($row) => \App\Support\Jadwal::kode($row))->countBy()->sortKeys()->map(fn($jumlah, $kodeJadwal) => "{$kodeJadwal}:{$jumlah}")->implode(' ') }}
                                     </div>
                                 </td>
                                 <td class="px-2 border border-hairline">
-                                    <button type="button" wire:click="isiHariKerja(@js($k->emp_id))"
+                                    <button type="button" wire:click="isiHariKerja(@js($karyawan->emp_id))"
                                         class="text-xs font-semibold whitespace-nowrap text-brand-green hover:underline"
-                                        title="Isi Senin–Sabtu bulan ini dengan shift default {{ $k->shift_default_kode ?: '(belum ada — pakai kuas)' }}">
-                                        Isi Sen–Sab{{ $k->shift_default_kode ? ' (' . $k->shift_default_kode . ')' : '' }}
+                                        title="Isi Senin–Sabtu bulan ini dengan shift default {{ $karyawan->shift_default_kode ?: '(belum ada — pakai kuas)' }}">
+                                        Isi Sen–Sab{{ $karyawan->shift_default_kode ? ' (' . $karyawan->shift_default_kode . ')' : '' }}
                                     </button>
                                 </td>
                             </tr>
+                            @endforeach
                         @empty
                             <tr>
-                                <td colspan="{{ $jmlHari + 4 }}" class="px-6 py-10 text-center text-muted">Tidak ada karyawan aktif.</td>
+                                <td colspan="{{ $jumlahHari + 4 }}" class="px-6 py-10 text-center text-muted">
+                                    {{ $this->unitAktif() ? 'Belum ada karyawan aktif di unit ini — atur Unit Kerja karyawan di Master Karyawan / Pengaturan Absensi.' : 'Tidak ada karyawan aktif.' }}
+                                </td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
+
+            @endif
 
         </div>
     </div>

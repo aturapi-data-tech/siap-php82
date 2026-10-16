@@ -66,7 +66,7 @@ new class extends Component {
                     <h2>Gambaran alur</h2>
                     <div class="grid grid-cols-1 gap-2 mt-4 text-sm sm:grid-cols-5">
                         @foreach ([
-                            ['Persiapan', 'Pengaturan Absensi: shift, titik lokasi, akun kiosk', 'sekali'],
+                            ['Persiapan', 'Pengaturan Absensi: unit, shift, titik lokasi, akun kiosk', 'sekali'],
                             ['Jadwal Dinas', 'P / S / M / I / C per tanggal', 'tiap bulan'],
                             ['Kiosk / HP', 'Scan ID, atau GPS + selfie di HP', 'tiap hari'],
                             ['Rekap Harian', 'Cek, isi izin, Generate', 'tiap hari'],
@@ -88,18 +88,26 @@ new class extends Component {
                     <h2>1. Persiapan (cukup sekali)</h2>
                     <div class="p-3 mt-3 text-sm border rounded-xl border-brand-green/40 bg-brand-green/5">
                         💡 Semua setup absensi ada di satu tempat: {!! $tautan('absensi.pengaturan', 'Pengaturan Absensi') !!}
-                        — tab <b>Aturan Absen</b>, <b>Shift &amp; Toleransi</b>, <b>Titik Lokasi HP</b>, dan <b>Lokasi Karyawan</b>.
+                        — tab <b>Aturan Absen</b>, <b>Unit Kerja</b>, <b>Shift &amp; Toleransi</b>, <b>Titik Lokasi HP</b>, dan <b>Unit &amp; Lokasi Karyawan</b>.
                         Menu Master Shift & Master Karyawan yang lama tetap bisa dipakai.
                     </div>
 
-                    <h3 class="mt-4">a. Shift — {!! $tautan('absensi.pengaturan', 'buka tab Shift', ['tab' => 'shift']) !!}</h3>
+                    <h3 class="mt-4">a. Unit Kerja — {!! $tautan('absensi.pengaturan', 'buka tab Unit Kerja', ['tab' => 'unit']) !!}</h3>
+                    <ul class="mt-1 text-sm">
+                        <li>Buat unit / ruang tempat karyawan bekerja, mis. <i>Instalasi Gizi</i>, <i>Rawat Inap</i>, <i>IGD</i>.</li>
+                        <li>Atur unit tiap karyawan di tab {!! $tautan('absensi.pengaturan', 'Unit & Lokasi Karyawan', ['tab' => 'lokasi-karyawan']) !!} (per orang atau sekaligus), atau di Master Karyawan.</li>
+                        <li><b>Kepala ruang hanya bisa mengatur jadwal unitnya sendiri</b> — unitnya diambil dari data karyawan yang terhubung ke akunnya
+                            ({!! $tautan('sistem.user-control', 'User Control') !!} → kolom Karyawan). Admin & HRD bisa mengatur semua unit.</li>
+                    </ul>
+
+                    <h3 class="mt-5">b. Shift — {!! $tautan('absensi.pengaturan', 'buka tab Shift', ['tab' => 'shift']) !!}</h3>
                     <p class="mt-1 text-sm">Shift yang berlaku sekarang:</p>
                     <table class="mt-2 ds-table">
                         <thead><tr><th>Kode</th><th>Shift</th><th>Jam</th><th>Toleransi terlambat</th></tr></thead>
                         <tbody>
                             @foreach ($this->shifts() as $shift)
                                 <tr>
-                                    <td><span class="inline-block w-7 py-0.5 text-xs font-bold text-center rounded {{ \App\Support\Jadwal::WARNA[$shift->shift_kode] ?? \App\Support\Jadwal::WARNA_LAIN }}">{{ $shift->shift_kode }}</span></td>
+                                    <td><span class="inline-block w-7 py-0.5 text-xs font-bold text-center rounded" style="{{ \App\Support\Jadwal::gaya($shift->shift_kode, $shift->shift_warna) }}">{{ $shift->shift_kode }}</span></td>
                                     <td>{{ $shift->shift_name }}</td>
                                     <td class="font-mono">{{ $shift->jam_masuk }} – {{ $shift->jam_pulang }}</td>
                                     <td>{{ (int) $shift->toleransi_menit }} menit</td>
@@ -111,7 +119,24 @@ new class extends Component {
                         <li><b>Kode Jadwal</b> (P, S, …) adalah huruf yang dipakai di grid jadwal. I dan C tidak boleh dipakai (khusus Izin & Cuti).</li>
                         <li>Jam pulang lebih kecil dari jam masuk = shift <b>lintas hari</b> (pulang esok hari) — otomatis.</li>
                         <li><b>Toleransi terlambat</b> diatur per shift. Contoh: shift 07:00 toleransi 10 menit → masuk 07:10 masih Hadir, 07:11 Terlambat.</li>
+                        <li><b>Unit</b>: kosong = shift berlaku untuk <i>semua unit</i>. Isi unit bila jam shift-nya khusus satu unit — unit lain tidak melihat shift itu.</li>
+                        <li><b>Kode jadwal unik per unit</b>: Gizi dan Rawat Inap boleh sama-sama memakai <code>P</code> asalkan masing-masing shift khusus unitnya.
+                            Shift semua-unit kodenya harus unik di seluruh RS.</li>
+                        <li><b>Warna di jadwal</b> bisa dipilih per shift; klik <i>bawaan</i> untuk kembali ke warna standar (P kuning, S hijau, M biru).</li>
                     </ul>
+                    <div class="p-3 mt-3 text-sm border rounded-xl border-hairline bg-surface-soft dark:bg-gray-800 dark:border-gray-700">
+                        <b>Contoh jam shift beda per unit</b> — Gizi shift 1 06:00–11:00, Perawat shift 1 07:00–14:00:
+                        <table class="mt-2 ds-table">
+                            <thead><tr><th>ID</th><th>Kode</th><th>Nama</th><th>Jam</th><th>Unit</th></tr></thead>
+                            <tbody>
+                                <tr><td><code>GZ1</code></td><td>P</td><td>Gizi Shift 1</td><td class="font-mono">06:00–11:00</td><td>Instalasi Gizi</td></tr>
+                                <tr><td><code>GZ2</code></td><td>S</td><td>Gizi Shift 2</td><td class="font-mono">11:00–16:00</td><td>Instalasi Gizi</td></tr>
+                                <tr><td><code>PAGI</code></td><td>P</td><td>Perawat Pagi</td><td class="font-mono">07:00–14:00</td><td>Rawat Inap</td></tr>
+                                <tr><td><code>SORE</code></td><td>S</td><td>Perawat Sore</td><td class="font-mono">14:00–21:00</td><td>Rawat Inap</td></tr>
+                            </tbody>
+                        </table>
+                        Staf gizi yang terjadwal P dihitung dari 06:00, perawat yang terjadwal P dari 07:00.
+                    </div>
                     <div class="p-3 mt-3 text-sm border rounded-xl border-hairline bg-surface-soft dark:bg-gray-800 dark:border-gray-700">
                         <b>Contoh membuat shift malam (shift 3)</b> — klik <i>+ Tambah Shift</i>, isi:
                         ID <code>MALAM</code> · Kode Jadwal <code>M</code> · Nama <i>Shift Malam</i> · Jam Masuk <code>21:00</code> · Jam Pulang <code>07:00</code> · Toleransi <code>10</code>.
@@ -119,23 +144,24 @@ new class extends Component {
                         (jaga Senin 21:00 – Selasa 07:00 → M di tanggal Senin). Absensinya tercatat di tanggal Senin, jam pulang ditandai "(+1 hari)".
                     </div>
 
-                    <h3 class="mt-5">b. Master Karyawan — {!! $tautan('master.karyawan', 'buka') !!}</h3>
+                    <h3 class="mt-5">c. Master Karyawan — {!! $tautan('master.karyawan', 'buka') !!}</h3>
                     <ul class="mt-1 text-sm">
                         <li><b>ID Karyawan</b> (mis. <code>KMP-001</code>) dipakai untuk absen di kiosk — bisa diketik atau dicetak sebagai barcode di kartu karyawan.</li>
-                        <li><b>Shift Default (P/S)</b> = kolom P/S di jadwal; dipakai tombol <i>Isi Sen–Sab</i>.</li>
+                        <li><b>Unit Kerja</b> menentukan shift yang bisa dipakai karyawan & kepala ruang mana yang mengatur jadwalnya.</li>
+                        <li><b>Shift Default (P/S)</b> = kolom P/S di jadwal; dipakai tombol <i>Isi Sen–Sab</i>. Pilihannya hanya shift unit karyawan itu.</li>
                         <li>Karyawan keluar: <b>non-aktifkan</b> (toggle), jangan dihapus — riwayat absensinya tetap tersimpan.</li>
                         <li>Centang <b>Tenaga Kesehatan</b> bila wajib STR/SIP — tombol STR/SIP muncul di daftar.</li>
                         <li><b>Lokasi Absen HP</b> = RS / klinik tempat karyawan bekerja (lihat poin d).</li>
                     </ul>
 
-                    <h3 class="mt-5">c. Akun komputer kiosk</h3>
+                    <h3 class="mt-5">d. Akun komputer kiosk</h3>
                     <ol class="mt-1 text-sm">
                         <li>Buat role <code>kiosk</code> di {!! $tautan('sistem.role-control', 'Role Control') !!}.</li>
                         <li>Buat user khusus (mis. <i>kiosk@…</i>) di {!! $tautan('sistem.user-control', 'User Control') !!}, beri role <code>kiosk</code>.</li>
                         <li>Login dengan akun itu di komputer dekat pintu, buka menu <b>Kiosk Absensi</b>, biarkan layar terbuka.</li>
                     </ol>
 
-                    <h3 class="mt-5">d. Titik lokasi absen HP — {!! $tautan('absensi.pengaturan', 'buka tab Titik Lokasi HP', ['tab' => 'lokasi']) !!}</h3>
+                    <h3 class="mt-5">e. Titik lokasi absen HP — {!! $tautan('absensi.pengaturan', 'buka tab Titik Lokasi HP', ['tab' => 'lokasi']) !!}</h3>
                     <p class="mt-1 text-sm">Wajib bila karyawan absen lewat HP. Satu titik = satu gedung RS / klinik.</p>
                     <ol class="mt-1 text-sm">
                         <li>Klik <b>+ Tambah Lokasi</b>, isi Kode (mis. <code>RSU</code>) dan Nama (mis. <i>RS Utama</i>).</li>
@@ -157,7 +183,7 @@ new class extends Component {
                     <h2>2. Jadwal Dinas bulanan — {!! $tautan('absensi.jadwal-dinas', 'buka') !!}</h2>
                     <p class="mt-2 text-sm">Buat sebelum bulan berjalan. Satu baris = satu karyawan, satu kolom = satu tanggal.</p>
                     <ol class="mt-3 text-sm">
-                        <li>Pilih <b>bulan</b> (tombol ‹ ›).</li>
+                        <li>Pilih <b>bulan</b> (tombol ‹ ›) dan <b>unit</b>. Kepala ruang otomatis hanya melihat unitnya; admin & HRD bisa memilih unit atau <i>Semua unit</i>.</li>
                         <li>Pilih <b>kuas</b>: P, S, I (izin), C (cuti), atau <b>Libur</b> (menghapus isi sel).</li>
                         <li><b>Klik sel</b> untuk mengisi. Klik sel yang isinya sama dengan kuas = menghapus.</li>
                         <li>Cara cepat:
@@ -166,8 +192,10 @@ new class extends Component {
                                 <li><b>Salin bulan lalu</b> → menyalin jadwal bulan lalu per <i>hari yang sama</i> (Senin→Senin), hanya ke sel kosong.</li>
                             </ul>
                         </li>
-                        <li><b>Cetak PDF</b> untuk ditempel / dibagikan (format "Jadwal Masuk Kerja Bulan …").</li>
+                        <li><b>Cetak PDF</b> untuk ditempel / dibagikan (format "Jadwal Masuk Kerja Bulan … — nama unit").</li>
                     </ol>
+                    <p class="mt-3 text-sm"><b>Kuas</b> berisi shift unit yang dipilih + shift semua-unit. Pada <i>Semua unit</i>, kuas hanya berisi shift semua-unit —
+                        pilih unitnya dulu untuk memakai shift khusus unit. Kode yang bukan shift unit karyawan tersebut ditolak.</p>
                     <div class="p-3 mt-4 text-sm border rounded-xl border-amber-300 bg-amber-50 text-amber-900">
                         🔒 <b>Tanggal yang sudah lewat terkunci</b> — tidak bisa diubah, supaya absensi, Generate, dan % kehadiran yang sudah dihitung tetap asli.
                         Hari ini & seterusnya masih bisa diubah (mis. tukar dinas mendadak).
@@ -185,7 +213,7 @@ new class extends Component {
                             <tr><td>Terjadwal P/S hari ini, belum absen</td><td>Langsung tercatat <b>MASUK</b> dengan shift jadwal ("sesuai jadwal")</td></tr>
                             <tr><td>Sudah masuk, belum pulang</td><td>Tercatat <b>PULANG</b> (jam saat itu)</td></tr>
                             <tr><td>Scan ulang &lt; {{ $pengaturan::jedaMinPulangMenit() }} menit setelah masuk</td><td>Hanya info — dianggap scan dobel, <i>tidak</i> dicatat pulang</td></tr>
-                            <tr><td>Tidak terjadwal (libur)</td><td>Diminta <b>pilih shift</b> (untuk tukar dinas) dengan catatan "tidak terjadwal"</td></tr>
+                            <tr><td>Tidak terjadwal (libur)</td><td>Diminta <b>pilih shift</b> (untuk tukar dinas) dengan catatan "tidak terjadwal" — hanya shift unit karyawan itu yang ditawarkan</td></tr>
                             <tr><td>Terjadwal I / C, atau sudah diisi Izin/Sakit/dll.</td><td>Hanya info — hubungi HRD bila ternyata masuk</td></tr>
                             <tr><td>Masuk & pulang sudah lengkap</td><td>Info "absen hari ini sudah lengkap" (+ saran lapor HRD bila dobel shift)</td></tr>
                         </tbody>
@@ -339,10 +367,10 @@ new class extends Component {
                             <h3>Kode jadwal</h3>
                             <div class="flex flex-wrap gap-2 mt-2 text-sm">
                                 @foreach ($this->shifts() as $shift)
-                                    <span class="px-2 py-0.5 font-bold rounded {{ \App\Support\Jadwal::WARNA[$shift->shift_kode] ?? \App\Support\Jadwal::WARNA_LAIN }}">{{ $shift->shift_kode }}</span><span>{{ $shift->shift_name }}</span>
+                                    <span class="px-2 py-0.5 font-bold rounded" style="{{ \App\Support\Jadwal::gaya($shift->shift_kode, $shift->shift_warna) }}">{{ $shift->shift_kode }}</span><span>{{ $shift->shift_name }}</span>
                                 @endforeach
-                                <span class="px-2 py-0.5 font-bold rounded {{ \App\Support\Jadwal::WARNA['I'] }}">I</span><span>Izin</span>
-                                <span class="px-2 py-0.5 font-bold rounded {{ \App\Support\Jadwal::WARNA['C'] }}">C</span><span>Cuti</span>
+                                <span class="px-2 py-0.5 font-bold rounded" style="{{ \App\Support\Jadwal::gaya('I') }}">I</span><span>Izin</span>
+                                <span class="px-2 py-0.5 font-bold rounded" style="{{ \App\Support\Jadwal::gaya('C') }}">C</span><span>Cuti</span>
                                 <span class="px-2 py-0.5 rounded border border-hairline">kosong</span><span>Libur</span>
                             </div>
                         </div>
@@ -360,6 +388,8 @@ new class extends Component {
                             ['Izin mendadak (tidak ada di jadwal)?', 'Isi di Rekap Harian → Izin + keterangan. Ini menurunkan % kehadiran; izin yang direncanakan sebaiknya dijadwalkan sebagai I.'],
                             ['Jadwal tanggal lalu salah?', 'Tanggal lalu terkunci. Kehadiran tetap bisa dikoreksi di Rekap Harian; bila jadwalnya sendiri harus diubah, hubungi Admin.'],
                             ['Lembur tidak muncul?', 'Lembur hanya tercatat bila pulang ≥ ' . $pengaturan::minLemburMenit() . ' menit lewat jadwal pulang shift.'],
+                            ['Jam shift Gizi berbeda dengan Perawat?', 'Buat shift terpisah dengan Unit diisi (mis. Gizi Shift 1 06:00–11:00 unit Gizi, Perawat Pagi 07:00–14:00 unit Rawat Inap). Kodenya boleh sama (P) karena beda unit. Lihat contoh di bagian Persiapan.'],
+                            ['Kepala ruang tidak bisa membuka jadwal / jadwalnya kosong?', 'Pastikan akun kepala ruang terhubung ke data karyawan (User Control → Karyawan) dan karyawan itu punya Unit Kerja. Karyawan unitnya juga harus sudah diatur unitnya.'],
                             ['Karyawan sudah keluar?', 'Non-aktifkan di Master Karyawan — tidak muncul lagi di kiosk, jadwal, dan rekap, tetapi riwayatnya aman.'],
                             ['Absen HP ditolak "di luar area" padahal sudah di RS?', 'Cek titik koordinat di Pengaturan Absensi › Titik Lokasi HP (klik koordinatnya untuk membuka peta), dan pastikan lokasi kerja karyawan di tab Lokasi Karyawan benar. Bila GPS di dalam gedung meleset, minta karyawan mendekati jendela, atau perbesar radius.'],
                             ['Karyawan lupa ID-nya?', 'ID ada di Master Karyawan (mis. KMP-001). HP mengingat ID terakhir yang berhasil dipakai, jadi biasanya cukup sekali ketik.'],

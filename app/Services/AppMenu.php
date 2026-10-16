@@ -86,6 +86,7 @@ class AppMenu
         return [
             // ── Master ─────────────────────────────────────────────────
             $entry(['group' => 'Master', 'groupOrder' => 1, 'order' => 1, 'route' => 'master.karyawan', 'title' => 'Master Karyawan', 'desc' => 'Data karyawan, penanda nakes & status aktif', 'roles' => $masterRoles, 'badge' => 'KRY']),
+            $entry(['group' => 'Master', 'groupOrder' => 1, 'order' => 1.5, 'route' => 'master.unit-kerja', 'title' => 'Master Unit Kerja', 'desc' => 'Unit / ruang karyawan — jadwal & shift per unit', 'roles' => [...$masterRoles, 'hrd'], 'badge' => 'UNT']),
             $entry(['group' => 'Master', 'groupOrder' => 1, 'order' => 2, 'route' => 'master.shift', 'title' => 'Master Shift', 'desc' => 'Jam kerja shift untuk absensi', 'roles' => [...$masterRoles, 'hrd'], 'badge' => 'SFT']),
 
             $entry(['group' => 'Master', 'groupOrder' => 1, 'order' => 2.5, 'route' => 'master.lokasi-absen', 'title' => 'Lokasi Absen HP', 'desc' => 'Titik RS / klinik + radius untuk absen GPS & selfie', 'roles' => [...$masterRoles, 'hrd'], 'badge' => 'LOK']),

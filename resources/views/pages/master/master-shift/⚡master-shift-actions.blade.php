@@ -4,11 +4,16 @@ use Livewire\Component;
 use Livewire\Attributes\On;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Database\QueryException;
+use Livewire\Attributes\Computed;
+use App\Support\UnitKerja;
 use App\Http\Traits\Concerns\WithRenderVersioningTrait;
 
 /**
  * Modal CRUD `siapmst_shifts`. lintas_hari diturunkan otomatis:
  * jam pulang <= jam masuk berarti pulang esok hari (mis. 21:00–07:00).
+ * Unit kosong = shift berlaku untuk semua unit. Kode jadwal unik dalam cakupan unit:
+ * shift semua-unit tidak boleh berbagi kode dengan shift mana pun; shift unit X tidak boleh
+ * berbagi kode dengan shift semua-unit / shift unit X lain (unit berbeda boleh sama, mis. P).
  */
 new class extends Component {
     use WithRenderVersioningTrait;
@@ -24,6 +29,12 @@ new class extends Component {
     {
         $this->registerAreas(['modal']);
         $this->resetForm();
+    }
+
+    #[Computed]
+    public function unitList()
+    {
+        return UnitKerja::aktif();
     }
 
     // ─── Open Create ──────────────────────────────────────────────────────────
@@ -58,6 +69,8 @@ new class extends Component {
             'jam_masuk'       => (string) $row->jam_masuk,
             'jam_pulang'      => (string) $row->jam_pulang,
             'toleransi_menit' => (string) (int) $row->toleransi_menit,
+            'unit_id'         => (string) ($row->unit_id ?? ''),
+            'shift_warna'     => (string) ($row->shift_warna ?? ''),
             'active_status'   => (string) $row->active_status === '1' ? '1' : '0',
         ];
 
@@ -79,12 +92,12 @@ new class extends Component {
 
             $this->dispatch('toast', type: 'success', message: 'Shift berhasil dihapus.');
             $this->dispatch('master.shift.saved');
-        } catch (QueryException $e) {
-            if (str_contains($e->getMessage(), 'ORA-02292')) {
+        } catch (QueryException $exception) {
+            if (str_contains($exception->getMessage(), 'ORA-02292')) {
                 $this->dispatch('toast', type: 'error', message: 'Shift tidak bisa dihapus karena sudah dipakai di data absensi. Non-aktifkan saja.');
                 return;
             }
-            throw $e;
+            throw $exception;
         }
     }
 
@@ -97,8 +110,15 @@ new class extends Component {
                 : ['required', 'string'],
             'form.shift_name'      => 'required|string|max:50',
             'form.shift_kode'      => ['required', 'string', 'max:2', 'regex:/^[A-Za-z0-9]+$/',
-                \Illuminate\Validation\Rule::unique('siapmst_shifts', 'shift_kode')->ignore($this->originalShiftId, 'shift_id'),
-                \Illuminate\Validation\Rule::notIn(['I', 'C', 'i', 'c'])],
+                \Illuminate\Validation\Rule::notIn(['I', 'C', 'i', 'c']),
+                function ($attribute, $value, $fail) {
+                    if ($bentrok = $this->shiftBerkodeSama((string) $value)) {
+                        $fail("Kode Jadwal sudah dipakai {$bentrok->shift_name}"
+                            . ($bentrok->unit_name ? " (unit {$bentrok->unit_name})" : ' (semua unit)') . '.');
+                    }
+                }],
+            'form.unit_id'         => 'nullable|exists:siapmst_unit_kerjas,unit_id',
+            'form.shift_warna'     => ['nullable', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'form.jam_masuk'       => 'required|date_format:H:i',
             'form.jam_pulang'      => 'required|date_format:H:i|different:form.jam_masuk',
             'form.toleransi_menit' => 'required|integer|min:0|max:240',
@@ -120,6 +140,7 @@ new class extends Component {
             'form.shift_id.regex' => ':attribute hanya boleh huruf, angka, strip, atau garis bawah.',
             'form.shift_kode.regex' => ':attribute hanya huruf/angka.',
             'form.shift_kode.not_in' => ':attribute I dan C dipakai untuk Izin & Cuti di jadwal.',
+            'form.shift_warna.regex' => ':attribute harus berformat #rrggbb.',
         ];
     }
 
@@ -132,6 +153,8 @@ new class extends Component {
             'form.jam_masuk'       => 'Jam Masuk',
             'form.jam_pulang'      => 'Jam Pulang',
             'form.toleransi_menit' => 'Toleransi',
+            'form.unit_id'         => 'Unit',
+            'form.shift_warna'     => 'Warna',
             'form.active_status'   => 'Status',
         ];
     }
@@ -149,6 +172,8 @@ new class extends Component {
             'jam_pulang'      => $form['jam_pulang'],
             'toleransi_menit' => (int) $form['toleransi_menit'],
             'lintas_hari'     => $form['jam_pulang'] <= $form['jam_masuk'] ? '1' : '0',
+            'unit_id'         => $form['unit_id'] !== '' ? $form['unit_id'] : null,
+            'shift_warna'     => $form['shift_warna'] !== '' ? mb_strtolower($form['shift_warna']) : null,
             'active_status'   => $form['active_status'],
             'updated_at'      => now(),
         ];
@@ -168,6 +193,22 @@ new class extends Component {
         $this->dispatch('master.shift.saved');
     }
 
+    /**
+     * Shift lain yang kodenya bentrok dalam cakupan unit form ini (null = aman).
+     * Shift semua-unit terlihat oleh setiap unit, jadi kodenya harus unik terhadap semua shift.
+     */
+    private function shiftBerkodeSama(string $kode): ?object
+    {
+        $unitId = $this->form['unit_id'] !== '' ? $this->form['unit_id'] : null;
+
+        return DB::table('siapmst_shifts as sh')
+            ->leftJoin('siapmst_unit_kerjas as un', 'un.unit_id', '=', 'sh.unit_id')
+            ->whereRaw('UPPER(sh.shift_kode) = ?', [mb_strtoupper(trim($kode))])
+            ->where('sh.shift_id', '!=', $this->originalShiftId !== '' ? $this->originalShiftId : mb_strtoupper(trim($this->form['shift_id'])))
+            ->when($unitId !== null, fn($query) => $query->where(fn($subQuery) => $subQuery->whereNull('sh.unit_id')->orWhere('sh.unit_id', $unitId)))
+            ->first(['sh.shift_name', 'un.unit_name']);
+    }
+
     // ─── Close ────────────────────────────────────────────────────────────────
     public function closeModal(): void
     {
@@ -185,6 +226,8 @@ new class extends Component {
             'jam_masuk'       => '',
             'jam_pulang'      => '',
             'toleransi_menit' => '10',
+            'unit_id'         => '',
+            'shift_warna'     => '',
             'active_status'   => '1',
         ];
         $this->resetValidation();
@@ -295,6 +338,36 @@ new class extends Component {
                                         :error="$errors->has('form.toleransi_menit')" class="w-full mt-1"
                                         x-on:keydown.enter.prevent="$wire.save()" />
                                     <x-input-error :messages="$errors->get('form.toleransi_menit')" class="mt-1" />
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                                <div class="sm:col-span-2">
+                                    <x-input-label value="Unit" />
+                                    <x-select-input wire:model.live="form.unit_id" :error="$errors->has('form.unit_id')" class="mt-1">
+                                        <option value="">— semua unit —</option>
+                                        @foreach ($this->unitList as $unit)
+                                            <option value="{{ $unit->unit_id }}">{{ $unit->unit_name }}</option>
+                                        @endforeach
+                                    </x-select-input>
+                                    <p class="mt-1 text-[11px] text-muted dark:text-gray-400">
+                                        Isi bila jam shift ini khusus satu unit (mis. Gizi Shift 1 06:00–11:00). Unit lain tidak melihat shift ini.
+                                    </p>
+                                    <x-input-error :messages="$errors->get('form.unit_id')" class="mt-1" />
+                                </div>
+                                <div>
+                                    <x-input-label value="Warna di jadwal" />
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <input type="color" wire:model.live="form.shift_warna"
+                                            value="{{ $form['shift_warna'] ?: \App\Support\Jadwal::warna((string) $form['shift_kode'])[0] }}"
+                                            class="w-10 h-10 p-0.5 border rounded-lg cursor-pointer border-hairline" />
+                                        <span class="inline-flex items-center justify-center w-9 h-9 text-sm font-bold rounded-lg"
+                                            style="{{ \App\Support\Jadwal::gaya(mb_strtoupper((string) $form['shift_kode']), $form['shift_warna'] ?: null) }}">{{ mb_strtoupper((string) $form['shift_kode']) ?: '?' }}</span>
+                                        @if ($form['shift_warna'] !== '')
+                                            <button type="button" wire:click="$set('form.shift_warna', '')" class="text-xs underline text-muted">bawaan</button>
+                                        @endif
+                                    </div>
+                                    <x-input-error :messages="$errors->get('form.shift_warna')" class="mt-1" />
                                 </div>
                             </div>
 
