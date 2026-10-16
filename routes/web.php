@@ -59,6 +59,10 @@ Route::middleware(['auth'])->group(function () {
     Route::livewire('/absensi/rekap-bulanan', 'pages::absensi.rekap-bulanan.rekap-bulanan')
         ->name('absensi.rekap-bulanan');
 
+    // Keuangan — hak akses dicek di komponen (Gate gaji.kelola, AksiRole::GAJI_KELOLA)
+    Route::livewire('/keuangan/gaji-karyawan', 'pages::keuangan.gaji-karyawan.gaji-karyawan')
+        ->name('keuangan.gaji-karyawan');
+
     // ── PANDUAN (cara pakai, semua user) ──
     Route::livewire('/panduan/absensi', 'pages::panduan.panduan-absensi.panduan-absensi')
         ->name('panduan.absensi');

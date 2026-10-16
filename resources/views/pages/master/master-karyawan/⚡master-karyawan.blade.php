@@ -10,14 +10,18 @@ new class extends Component {
     use WithPagination;
 
     public string $searchKeyword = '';
+    public string $filterUnit    = ''; // '' = semua unit, '-' = belum ada unit
+    public string $filterGaji    = ''; // '' | ATUR | BELUM — hanya untuk role gaji.kelola
     public int    $itemsPerPage  = 10;
 
     public function updatedSearchKeyword(): void { $this->resetPage(); }
+    public function updatedFilterUnit(): void    { $this->resetPage(); }
+    public function updatedFilterGaji(): void    { $this->resetPage(); }
     public function updatedItemsPerPage(): void  { $this->resetPage(); }
 
     public function resetFilters(): void
     {
-        $this->reset(['searchKeyword']);
+        $this->reset(['searchKeyword', 'filterUnit', 'filterGaji']);
         $this->itemsPerPage = 10;
         $this->resetPage();
     }
@@ -54,6 +58,22 @@ new class extends Component {
         );
     }
 
+    /** Parameter gaji (rahasia) — hanya role gaji.kelola; tombol & modalnya juga hanya dirender untuk role itu. */
+    public function openGaji(string $empId): void
+    {
+        abort_unless($this->bolehGaji, 403);
+        $this->dispatch('keuangan.parameter-gaji.openEdit', empId: $empId);
+    }
+
+    #[On('keuangan.parameter-gaji.saved')]
+    public function refreshAfterGajiSaved(): void {}
+
+    #[Computed]
+    public function bolehGaji(): bool
+    {
+        return (bool) auth()->user()?->can('gaji.kelola');
+    }
+
     public function openStrSip(string $empId): void
     {
         $this->dispatch('master.karyawan.openStrSip', empId: $empId);
@@ -70,6 +90,12 @@ new class extends Component {
     public function refreshAfterStrSipSaved(): void {}
 
     #[Computed]
+    public function unitList()
+    {
+        return DB::table('siapmst_unit_kerjas')->orderBy('unit_name')->get(['unit_id', 'unit_name', 'active_status']);
+    }
+
+    #[Computed]
     public function rows()
     {
         $query = DB::table('siapmst_employers')
@@ -77,7 +103,16 @@ new class extends Component {
             ->leftJoin('siapmst_unit_kerjas as un', 'un.unit_id', '=', 'siapmst_employers.emp_unit_id')
             ->select('emp_id', 'emp_name', 'emp_sex', 'emp_phone', 'emp_join_date', 'emp_is_nakes', 'siapmst_employers.active_status',
                 'sd.shift_kode as shift_default_kode', 'sd.shift_name as shift_default_name', 'sd.shift_warna as shift_default_warna', 'un.unit_name')
+            ->when($this->filterUnit === '-', fn($subQuery) => $subQuery->whereNull('siapmst_employers.emp_unit_id'))
+            ->when(!in_array($this->filterUnit, ['', '-'], true), fn($subQuery) => $subQuery->where('siapmst_employers.emp_unit_id', $this->filterUnit))
             ->orderBy('emp_id');
+
+        if ($this->bolehGaji) {
+            $punyaGaji = fn($subQuery) => $subQuery->select('emp_id')->from('siapmst_gaji_karyawans');
+            $query->addSelect(DB::raw('(SELECT COUNT(*) FROM siapmst_gaji_karyawans gk WHERE gk.emp_id = siapmst_employers.emp_id) AS punya_gaji'))
+                ->when($this->filterGaji === 'ATUR', fn($subQuery) => $subQuery->whereIn('emp_id', $punyaGaji))
+                ->when($this->filterGaji === 'BELUM', fn($subQuery) => $subQuery->whereNotIn('emp_id', $punyaGaji));
+        }
 
         if (trim($this->searchKeyword) !== '') {
             $keyword = mb_strtoupper(trim($this->searchKeyword));
@@ -150,13 +185,35 @@ new class extends Component {
             <div class="sticky z-30 px-4 py-3 bg-surface-soft border-b border-hairline top-20 dark:bg-gray-900 dark:border-gray-700">
                 <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
 
-                    {{-- SEARCH --}}
-                    <div class="w-full lg:max-w-md">
-                        <x-input-label for="searchKeyword" value="Cari Karyawan" class="sr-only" />
-                        <x-text-input id="searchKeyword" type="text"
-                            wire:model.live.debounce.300ms="searchKeyword"
-                            placeholder="Cari ID / nama / no. HP..."
-                            class="block w-full" />
+                    {{-- SEARCH + FILTER UNIT (satu kelompok di kiri) --}}
+                    <div class="flex flex-col gap-2 lg:flex-row">
+                        <div class="w-full lg:w-72">
+                            <x-input-label for="searchKeyword" value="Cari Karyawan" class="sr-only" />
+                            <x-text-input id="searchKeyword" type="text"
+                                wire:model.live.debounce.300ms="searchKeyword"
+                                placeholder="Cari ID / nama / no. HP..."
+                                class="block w-full" />
+                        </div>
+                        {{-- Lebar muat nama unit terpanjang ("Pendaftaran & Rekam Medis") --}}
+                        <div class="w-full lg:w-64 shrink-0">
+                            <x-input-label for="filterUnit" value="Unit Kerja" class="sr-only" />
+                            <x-select-input id="filterUnit" wire:model.live="filterUnit">
+                                <option value="">Semua unit</option>
+                                @foreach ($this->unitList as $unit)
+                                    <option value="{{ $unit->unit_id }}">{{ $unit->unit_name }}{{ (string) $unit->active_status === '1' ? '' : ' (non-aktif)' }}</option>
+                                @endforeach
+                                <option value="-">— Belum ada unit —</option>
+                            </x-select-input>
+                        </div>
+                        @if ($this->bolehGaji)
+                            <div class="w-full lg:w-64 shrink-0">
+                                <x-select-input wire:model.live="filterGaji">
+                                    <option value="">Parameter gaji: semua</option>
+                                    <option value="ATUR">Gaji sudah diatur</option>
+                                    <option value="BELUM">Gaji belum diatur</option>
+                                </x-select-input>
+                            </div>
+                        @endif
                     </div>
 
                     {{-- RIGHT ACTIONS --}}
@@ -241,6 +298,12 @@ new class extends Component {
                                                     STR/SIP
                                                 </x-secondary-button>
                                             @endif
+                                            @if ($this->bolehGaji)
+                                                <x-secondary-button type="button" wire:click="openGaji('{{ $row->emp_id }}')" class="!px-2.5 !py-1 text-xs"
+                                                    title="{{ (int) $row->punya_gaji > 0 ? 'Parameter gaji' : 'Parameter gaji belum diatur — tidak ikut generate slip' }}">
+                                                    {{ (int) $row->punya_gaji > 0 ? 'Gaji' : 'Atur gaji' }}
+                                                </x-secondary-button>
+                                            @endif
                                             <x-action-edit wire:click="openEdit('{{ $row->emp_id }}')" />
                                             <x-action-delete :action="'requestDelete(\'' . $row->emp_id . '\')'"
                                                 title="Hapus Karyawan"
@@ -270,6 +333,9 @@ new class extends Component {
 
             <livewire:pages::master.master-karyawan.master-karyawan-actions wire:key="master-karyawan-actions" />
             <livewire:pages::master.master-karyawan.str-sip.master-str-sip-actions wire:key="master-str-sip-actions" />
+            @if ($this->bolehGaji)
+                <livewire:pages::keuangan.parameter-gaji.parameter-gaji-actions wire:key="parameter-gaji-actions" />
+            @endif
 
         </div>
     </div>

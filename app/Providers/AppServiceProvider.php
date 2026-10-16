@@ -36,6 +36,7 @@ class AppServiceProvider extends ServiceProvider
         // yang dipakai blade (@can) & server (->can()) tidak perlu ikut berubah.
         // Contoh:
         // Gate::define('dokumen.hapus', fn ($user) => $user->hasAnyRole(AksiRole::DOKUMEN_HAPUS));
+        Gate::define('gaji.kelola', fn ($user) => $user->hasAnyRole(AksiRole::GAJI_KELOLA));
 
         // Blade directive untuk render path TTD user (dua format kolom
         // myuser_ttd_image: filename saja vs legacy 'UserTtd/abc.png') —

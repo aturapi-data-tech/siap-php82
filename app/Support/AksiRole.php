@@ -32,7 +32,12 @@ namespace App\Support;
  */
 class AksiRole
 {
-    /* ─────────────── CONTOH (hapus/ganti saat modul pertama dibuat) ─────────────── */
+    /* ─────────────── KEUANGAN ─────────────── */
+
+    /** Role yang boleh membuka & mengelola gaji karyawan (parameter, slip, cetak). Data gaji = rahasia. */
+    public const GAJI_KELOLA = ['Admin', 'Keuangan'];
+
+    /* ─────────────── CONTOH ─────────────── */
 
     // /** Role yang boleh MENGHAPUS entri dokumen. */
     // public const DOKUMEN_HAPUS = ['Admin', 'Manager Umum', 'Manager Medis'];

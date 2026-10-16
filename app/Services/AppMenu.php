@@ -107,6 +107,9 @@ class AppMenu
 
             $entry(['group' => 'Absensi', 'groupOrder' => 2, 'order' => 4, 'route' => 'absensi.pengaturan', 'title' => 'Pengaturan Absensi', 'desc' => 'Satu dasbor: aturan absen, shift, titik lokasi HP & lokasi karyawan', 'roles' => ['admin', 'hrd'], 'badge' => 'SET']),
 
+            // ── Keuangan (data gaji = rahasia; selaras AksiRole::GAJI_KELOLA) ──
+            $entry(['group' => 'Keuangan', 'groupOrder' => 4, 'order' => 1, 'route' => 'keuangan.gaji-karyawan', 'title' => 'Gaji Karyawan', 'desc' => 'Slip gaji bulanan: generate dari parameter & absensi, rincian, final, cetak', 'roles' => ['admin', 'keuangan'], 'badge' => 'GJI']),
+
             // ── Panduan (semua user) ───────────────────────────────────
             $entry(['group' => 'Panduan', 'groupOrder' => 90, 'order' => 1, 'route' => 'panduan.absensi', 'title' => 'Panduan Absensi', 'desc' => 'Cara pakai jadwal dinas, kiosk, rekap & lembur', 'roles' => [self::SEMUA_ROLE], 'badge' => '?']),
             $entry(['group' => 'Panduan', 'groupOrder' => 90, 'order' => 2, 'route' => 'panduan.aset', 'title' => 'Panduan Aset', 'desc' => 'Cara pakai inventaris, kalibrasi, pemeliharaan, perbaikan', 'roles' => [self::SEMUA_ROLE], 'badge' => '?']),
