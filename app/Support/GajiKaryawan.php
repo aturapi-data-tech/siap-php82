@@ -17,10 +17,14 @@ use Illuminate\Support\Facades\DB;
  *   gaji_diterima    = total_pendapatan + total_potongan
  *
  * Generate (per periode) menyusun baris OTOMATIS dari parameter gaji + absensi:
- *   gaji pokok, tunjangan makan & transport (tarif × hari hadir H/T), tunjangan struktural &
+ *   gaji pokok, tunjangan makan & transport (tarif × HARI KERJA slip), tunjangan struktural &
  *   profesi, potongan rutin. Baris yang diisi petugas (jasa medik, upah lembur, bonus, kasbon,
  *   angsuran, …) dan baris otomatis yang nilainya ditimpa TIDAK disentuh saat generate ulang.
  * Slip Final terkunci — generate ulang melewatinya; buka kembali ke Draft untuk mengubah.
+ *
+ * HARI KERJA (kolom header hari_hadir) = pengali tarif harian. Slip baru memakai hari_kerja_default
+ * dari parameter; setelah itu diedit petugas di rincian (cuti / izin / tambahan) lewat ubahHariKerja().
+ * Generate ulang TIDAK menimpanya. Jumlah hadir menurut absensi (hariHadir) hanya acuan di layar.
  */
 class GajiKaryawan
 {
@@ -65,8 +69,8 @@ class GajiKaryawan
         'tunjangan_profesi'    => 'PROFESI',
     ];
 
-    /** Kolom parameter tarif per hari hadir → kode. */
-    private const PENDAPATAN_HARIAN = [
+    /** Kolom parameter tarif per hari kerja → kode (baris "harian": nilai = hari kerja × tarif). */
+    public const PENDAPATAN_HARIAN = [
         'tarif_makan'     => 'MAKAN',
         'tarif_transport' => 'TRANSPORT',
     ];
@@ -149,7 +153,6 @@ class GajiKaryawan
         $berparameter = $karyawanList->whereNotNull('parameter_emp_id');
         $hasil['tanpaParameter'] = $karyawanList->count() - $berparameter->count();
 
-        $hariHadir = self::hariHadir($berparameter->pluck('emp_id')->all(), $periode);
         $slipLama = DB::table('siaptxn_gaji_hdrs')->where('periode', $periode)
             ->whereIn('emp_id', $berparameter->pluck('emp_id')->all() ?: [''])
             ->get()->keyBy('emp_id');
@@ -161,10 +164,11 @@ class GajiKaryawan
                 continue;
             }
 
-            DB::transaction(function () use ($parameter, $slip, $periode, $hariHadir, $userId, &$hasil) {
+            DB::transaction(function () use ($parameter, $slip, $periode, $userId, &$hasil) {
                 $snapshot = [
                     'unit_id'         => $parameter->emp_unit_id,
-                    'hari_hadir'      => $hariHadir[$parameter->emp_id] ?? 0,
+                    // Slip yang sudah ada: hari kerja hasil edit petugas dipertahankan.
+                    'hari_hadir'      => $slip ? (int) $slip->hari_hadir : (int) $parameter->hari_kerja_default,
                     'gaji_pokok'      => (float) $parameter->gaji_pokok,
                     'tarif_makan'     => (float) $parameter->tarif_makan,
                     'tarif_transport' => (float) $parameter->tarif_transport,
@@ -208,7 +212,7 @@ class GajiKaryawan
     }
 
     /** Baris otomatis dari parameter gaji (nilai nol dilewati). */
-    private static function barisOtomatis(object $parameter, int $hariHadir): array
+    private static function barisOtomatis(object $parameter, int $hariKerja): array
     {
         $baris = [];
         foreach (self::PENDAPATAN_RUTIN as $kolom => $kode) {
@@ -218,8 +222,8 @@ class GajiKaryawan
         }
         foreach (self::PENDAPATAN_HARIAN as $kolom => $kode) {
             if ((float) $parameter->$kolom > 0) {
-                $baris[] = ['jenis' => 'D', 'kode' => $kode, 'jumlah' => $hariHadir, 'tarif' => (float) $parameter->$kolom,
-                    'keterangan' => "{$hariHadir} hari hadir", 'nilai' => $hariHadir * (float) $parameter->$kolom];
+                $baris[] = ['jenis' => 'D', 'kode' => $kode, 'jumlah' => $hariKerja, 'tarif' => (float) $parameter->$kolom,
+                    'keterangan' => "{$hariKerja} hari kerja", 'nilai' => $hariKerja * (float) $parameter->$kolom];
             }
         }
         foreach (self::POTONGAN_RUTIN as $kolom => $kode) {
@@ -292,6 +296,29 @@ class GajiKaryawan
     public static function bisaDiubah(int $gajiId): bool
     {
         return DB::table('siaptxn_gaji_hdrs')->where('gaji_id', $gajiId)->value('gaji_status') === self::STATUS_DRAFT;
+    }
+
+    /** Ubah hari kerja slip → baris harian (makan, transport) dihitung ulang = hari × tarif. */
+    public static function ubahHariKerja(int $gajiId, int $hariKerja): bool
+    {
+        if ($hariKerja < 0 || $hariKerja > 31 || !self::bisaDiubah($gajiId)) {
+            return false;
+        }
+
+        DB::table('siaptxn_gaji_hdrs')->where('gaji_id', $gajiId)->update(['hari_hadir' => $hariKerja, 'updated_at' => now()]);
+        $barisHarian = DB::table('siaptxn_gaji_dtls')->where('gaji_id', $gajiId)->whereIn('kode', array_values(self::PENDAPATAN_HARIAN))->get();
+        foreach ($barisHarian as $row) {
+            DB::table('siaptxn_gaji_dtls')->where('dtl_id', $row->dtl_id)->update([
+                'jumlah'       => $hariKerja,
+                'nilai'        => round($hariKerja * (float) $row->tarif, 2),
+                'keterangan'   => "{$hariKerja} hari kerja",
+                'nilai_manual' => '0',
+                'updated_at'   => now(),
+            ]);
+        }
+        self::hitungUlang($gajiId);
+
+        return true;
     }
 
     /** Ubah nilai satu baris. Baris otomatis jadi "ditimpa" → dipertahankan saat generate ulang. */

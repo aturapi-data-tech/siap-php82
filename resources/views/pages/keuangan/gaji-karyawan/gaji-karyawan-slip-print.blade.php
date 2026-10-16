@@ -47,7 +47,7 @@
                 <tr><td style="width:28%">Nama</td><td style="width:2%">:</td><td><b>{{ $header->emp_name }}</b></td></tr>
                 <tr><td>ID Karyawan</td><td>:</td><td>{{ $header->emp_id }}</td></tr>
                 <tr><td>Unit</td><td>:</td><td>{{ $header->unit_name ?? '—' }}</td></tr>
-                <tr><td>Hari hadir</td><td>:</td><td>{{ (int) $header->hari_hadir }} hari</td></tr>
+                <tr><td>Hari kerja</td><td>:</td><td>{{ (int) $header->hari_hadir }} hari</td></tr>
                 @if ($header->no_rekening)
                     <tr><td>Rekening</td><td>:</td><td>{{ trim(($header->nama_bank ?? '') . ' ' . $header->no_rekening) }}</td></tr>
                 @endif

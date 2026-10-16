@@ -49,6 +49,7 @@ new class extends Component {
                 $this->form[$kolom] = (int) round((float) $parameter->$kolom);
             }
             $this->form['pph21_persen'] = (float) $parameter->pph21_persen;
+            $this->form['hari_kerja_default'] = (int) $parameter->hari_kerja_default;
             $this->form['nama_bank']    = (string) ($parameter->nama_bank ?? '');
             $this->form['no_rekening']  = (string) ($parameter->no_rekening ?? '');
         }
@@ -66,6 +67,7 @@ new class extends Component {
 
         return [...$rules,
             'form.pph21_persen' => 'required|numeric|min:0|max:50',
+            'form.hari_kerja_default' => 'required|integer|min:0|max:31',
             'form.nama_bank'    => 'nullable|string|max:30',
             'form.no_rekening'  => 'nullable|string|max:30',
         ];
@@ -88,7 +90,7 @@ new class extends Component {
             'form.tunjangan_struktural' => 'Tunjangan Struktural', 'form.tunjangan_profesi' => 'Tunjangan Profesi',
             'form.potongan_asuransi' => 'Asuransi', 'form.potongan_organisasi' => 'Iuran Organisasi', 'form.potongan_arisan' => 'Arisan',
             'form.potongan_koperasi' => 'Koperasi', 'form.potongan_infaq' => 'Infaq', 'form.potongan_bpjs' => 'BPJS',
-            'form.pph21_persen' => 'PPh 21', 'form.nama_bank' => 'Bank', 'form.no_rekening' => 'No. Rekening',
+            'form.pph21_persen' => 'PPh 21', 'form.hari_kerja_default' => 'Hari Kerja Default', 'form.nama_bank' => 'Bank', 'form.no_rekening' => 'No. Rekening',
         ];
     }
 
@@ -96,7 +98,7 @@ new class extends Component {
     {
         $this->validate();
 
-        $payload = ['pph21_persen' => (float) $this->form['pph21_persen'], 'updated_by' => auth()->id(), 'updated_at' => now(),
+        $payload = ['pph21_persen' => (float) $this->form['pph21_persen'], 'hari_kerja_default' => (int) $this->form['hari_kerja_default'], 'updated_by' => auth()->id(), 'updated_at' => now(),
             'nama_bank'   => trim($this->form['nama_bank']) !== '' ? trim($this->form['nama_bank']) : null,
             'no_rekening' => trim($this->form['no_rekening']) !== '' ? trim($this->form['no_rekening']) : null];
         foreach (GajiKaryawan::KOLOM_NOMINAL as $kolom) {
@@ -123,7 +125,7 @@ new class extends Component {
 
     private function resetForm(): void
     {
-        $this->form = array_fill_keys(GajiKaryawan::KOLOM_NOMINAL, 0) + ['pph21_persen' => 0, 'nama_bank' => '', 'no_rekening' => ''];
+        $this->form = array_fill_keys(GajiKaryawan::KOLOM_NOMINAL, 0) + ['pph21_persen' => 0, 'hari_kerja_default' => 25, 'nama_bank' => '', 'no_rekening' => ''];
         $this->sudahAda = false;
         $this->resetValidation();
     }
@@ -168,8 +170,8 @@ new class extends Component {
                                 'gaji_pokok' => ['Gaji Pokok', 'per bulan'],
                                 'tunjangan_struktural' => ['Tunjangan Struktural', 'per bulan'],
                                 'tunjangan_profesi' => ['Tunjangan Profesi', 'per bulan'],
-                                'tarif_makan' => ['Tarif Makan', 'per hari hadir'],
-                                'tarif_transport' => ['Tarif Transport', 'per hari hadir'],
+                                'tarif_makan' => ['Tarif Makan', 'per hari kerja'],
+                                'tarif_transport' => ['Tarif Transport', 'per hari kerja'],
                             ] as $kolom => [$labelKolom, $satuan])
                                 <div wire:key="kolom-{{ $kolom }}">
                                     <x-input-label :value="$labelKolom . ' (' . $satuan . ')'" />
@@ -177,8 +179,14 @@ new class extends Component {
                                     <x-input-error :messages="$errors->get('form.' . $kolom)" class="mt-1" />
                                 </div>
                             @endforeach
+                            <div>
+                                <x-input-label value="Hari Kerja Default (per bulan)" />
+                                <x-text-input-number wire:model="form.hari_kerja_default" :error="$errors->has('form.hari_kerja_default')" class="w-full mt-1" />
+                                <x-input-error :messages="$errors->get('form.hari_kerja_default')" class="mt-1" />
+                            </div>
                         </div>
-                        <p class="mt-3 text-xs text-muted">Jasa medik, upah lembur, bonus &amp; rapel diisi di rincian slip setiap bulan.</p>
+                        <p class="mt-3 text-xs text-muted">Tunjangan makan &amp; transport = tarif × hari kerja. Slip baru memakai hari kerja default ini;
+                            di rincian slip bisa diubah bila ada cuti / izin. Jasa medik, upah lembur, bonus &amp; rapel diisi di rincian slip setiap bulan.</p>
                     </x-border-form>
 
                     <x-border-form title="Potongan Rutin (per bulan)">

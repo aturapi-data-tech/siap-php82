@@ -15,7 +15,7 @@ use App\Support\UnitKerja;
  * GAJI KARYAWAN — slip per karyawan per bulan (pola gaji dokter sirus-php82).
  *
  * Alur: atur parameter gaji (Master Karyawan → tombol Gaji) → Generate (Draft, dari parameter + hari hadir absensi)
- *   → Rincian: isi jasa medik, upah lembur, bonus, kasbon, angsuran … → Final (terkunci) → Cetak slip.
+ *   → Rincian: sesuaikan hari kerja (cuti / izin), isi jasa medik, upah lembur, bonus, kasbon, angsuran … → Final (terkunci) → Cetak slip.
  * Generate ulang aman: slip Final dilewati, baris yang diisi / ditimpa petugas dipertahankan.
  * Hanya role gaji.kelola (AksiRole::GAJI_KELOLA) — dicek di boot(), berlaku untuk setiap aksi.
  */
@@ -215,24 +215,31 @@ new class extends Component {
 <div>
     <x-page-title
         title="Gaji Karyawan"
-        subtitle="Slip gaji bulanan — generate dari parameter gaji & absensi, lengkapi rincian, finalkan, cetak" />
+        subtitle="Slip gaji bulanan — generate dari parameter gaji, sesuaikan hari kerja & rincian, finalkan, cetak" />
 
     <div class="w-full h-[calc(100vh-5rem)] flex flex-col bg-surface-soft dark:bg-gray-900">
         <div class="flex flex-col flex-1 min-h-0 px-6 pt-2 pb-6">
 
-            {{-- TOOLBAR --}}
-            <div class="sticky z-30 px-4 py-3 bg-surface-soft border-b border-hairline top-20 dark:bg-gray-900 dark:border-gray-700">
-                <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                    <div class="flex flex-col gap-2 lg:flex-row lg:items-end">
-                        <div class="flex items-center gap-1">
-                            <x-secondary-button type="button" wire:click="geserBulan(-1)" class="!px-2.5" title="Bulan sebelumnya">‹</x-secondary-button>
-                            <x-text-input wire:model.live.debounce.600ms="bulan" x-mask="99/9999" placeholder="mm/yyyy" class="w-28 text-center font-mono" />
-                            <x-secondary-button type="button" wire:click="geserBulan(1)" class="!px-2.5" title="Bulan berikutnya">›</x-secondary-button>
+            {{-- TOOLBAR — satu baris (pola gaji dokter sirus): saringan berlabel di kiri, aksi di kanan (ml-auto). --}}
+            <div class="sticky z-30 px-4 pt-1 pb-3 bg-surface-soft border-b border-hairline top-20 dark:bg-gray-900 dark:border-gray-700">
+                <div class="flex flex-wrap items-end gap-3">
+                    <div>
+                        <x-input-label value="Bulan Kerja" />
+                        <div class="flex items-center gap-1 mt-1">
+                            <x-secondary-button type="button" wire:click="geserBulan(-1)" class="!px-3" title="Bulan sebelumnya">‹</x-secondary-button>
+                            <div class="w-28">
+                                <x-text-input wire:model.live.debounce.600ms="bulan" x-mask="99/9999" placeholder="mm/yyyy" class="w-full text-center font-mono" />
+                            </div>
+                            <x-secondary-button type="button" wire:click="geserBulan(1)" class="!px-3" title="Bulan berikutnya">›</x-secondary-button>
                         </div>
-                        <div class="w-full lg:w-64">
-                            <x-text-input type="text" wire:model.live.debounce.300ms="searchKeyword" placeholder="Cari ID / nama..." class="block w-full" />
-                        </div>
-                        <div class="w-full lg:w-64 shrink-0">
+                    </div>
+                    <div class="w-48">
+                        <x-input-label value="Cari Karyawan" />
+                        <x-text-input type="text" wire:model.live.debounce.300ms="searchKeyword" placeholder="ID / nama" class="block w-full mt-1" />
+                    </div>
+                    <div class="w-56">
+                        <x-input-label value="Unit" />
+                        <div class="mt-1">
                             <x-select-input wire:model.live="filterUnit">
                                 <option value="">Semua unit</option>
                                 @foreach ($this->unitList as $unit)
@@ -240,38 +247,41 @@ new class extends Component {
                                 @endforeach
                             </x-select-input>
                         </div>
-                        <div class="w-40 shrink-0">
+                    </div>
+                    <div class="w-36">
+                        <x-input-label value="Status" />
+                        <div class="mt-1">
                             <x-select-input wire:model.live="filterStatus">
-                                <option value="">Semua status</option>
+                                <option value="">Semua</option>
                                 <option value="D">Draft</option>
                                 <option value="F">Final</option>
                             </x-select-input>
                         </div>
                     </div>
-                    <div class="flex flex-wrap items-center justify-end gap-2">
+
+                    <div class="flex flex-wrap items-end gap-2 ml-auto">
                         <x-confirm-button variant="primary" action="generate()" title="Generate Slip Gaji"
-                            message="Susun slip {{ $bulan }}{{ $filterUnit !== '' ? ' untuk unit terpilih' : '' }} dari parameter gaji & absensi? Slip Final dilewati; rincian yang sudah diisi petugas tetap." confirmText="Ya, generate" cancelText="Batal">
-                            Generate {{ $bulan }}
+                            message="Susun slip {{ $bulan }}{{ $filterUnit !== '' ? ' untuk unit terpilih' : '' }} dari parameter gaji? Slip baru memakai hari kerja default; slip Final dilewati; hari kerja & rincian yang sudah diisi petugas tetap." confirmText="Ya, generate" cancelText="Batal">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                            Generate
                         </x-confirm-button>
-                        <x-confirm-button variant="secondary" action="finalkanSemua()" title="Finalkan Semua"
-                            message="Kunci semua slip Draft {{ $bulan }} yang tampil? Slip Final tidak bisa diubah sampai dibuka kembali." confirmText="Ya, finalkan" cancelText="Batal"
+                        <x-confirm-button variant="secondary" action="finalkanSemua()" title="Final Semua"
+                            message="Kunci {{ $this->ringkasan['draft'] }} slip Draft {{ $bulan }} yang tampil? Slip Final tidak bisa diubah sampai dibuka kembali." confirmText="Ya, finalkan" cancelText="Batal"
                             :disabled="$this->ringkasan['draft'] === 0">
-                            Finalkan semua
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                            Final Semua
                         </x-confirm-button>
-                        <x-secondary-button type="button" wire:click="cetakMassal" wire:loading.attr="disabled" wire:target="cetakMassal">
-                            <span wire:loading.remove wire:target="cetakMassal">Cetak semua</span>
-                            <span wire:loading wire:target="cetakMassal">Menyiapkan...</span>
-                        </x-secondary-button>
+                        <x-cetak-button wire:click="cetakMassal" label="Cetak Semua" title="Cetak semua slip yang tampil — satu karyawan satu halaman" />
                         <x-toolbar-refresh-reset :label="null" />
                     </div>
                 </div>
 
                 @php $ringkasan = $this->ringkasan; @endphp
-                <div class="flex flex-wrap gap-2 mt-3 text-xs">
-                    <span class="px-3 py-1.5 font-semibold border rounded-lg bg-canvas border-hairline">{{ $ringkasan['jumlah'] }} slip · {{ $ringkasan['draft'] }} draft</span>
-                    <span class="px-3 py-1.5 font-semibold border rounded-lg bg-canvas border-hairline">Pendapatan Rp {{ \App\Support\GajiKaryawan::rupiah($ringkasan['pendapatan']) }}</span>
-                    <span class="px-3 py-1.5 font-semibold text-red-700 border rounded-lg bg-canvas border-hairline">Potongan Rp {{ \App\Support\GajiKaryawan::rupiah(abs($ringkasan['potongan'])) }}</span>
-                    <span class="px-3 py-1.5 font-semibold border rounded-lg text-emerald-800 bg-emerald-50 border-emerald-400">Diterima Rp {{ \App\Support\GajiKaryawan::rupiah($ringkasan['diterima']) }}</span>
+                <div class="flex flex-wrap gap-2 mt-3">
+                    <x-badge variant="gray">{{ $ringkasan['jumlah'] }} slip · {{ $ringkasan['draft'] }} draft</x-badge>
+                    <x-badge variant="info">Pendapatan Rp {{ \App\Support\GajiKaryawan::rupiah($ringkasan['pendapatan']) }}</x-badge>
+                    <x-badge variant="danger">Potongan Rp {{ \App\Support\GajiKaryawan::rupiah(abs($ringkasan['potongan'])) }}</x-badge>
+                    <x-badge variant="success">Diterima Rp {{ \App\Support\GajiKaryawan::rupiah($ringkasan['diterima']) }}</x-badge>
                 </div>
             </div>
 
@@ -282,7 +292,7 @@ new class extends Component {
                         <thead class="sticky top-0 z-10">
                             <tr>
                                 <th>Karyawan</th>
-                                <th class="ds-c">Hari Hadir</th>
+                                <th class="ds-c">Hari Kerja</th>
                                 <th class="text-right">Pendapatan</th>
                                 <th class="text-right">Potongan</th>
                                 <th class="text-right">Diterima</th>
@@ -306,14 +316,21 @@ new class extends Component {
                                         <x-badge :variant="$final ? 'success' : 'warning'">{{ \App\Support\GajiKaryawan::STATUS[$row->gaji_status] ?? $row->gaji_status }}</x-badge>
                                     </td>
                                     <td class="ds-c">
-                                        <div class="flex items-center justify-center gap-2 text-xs font-semibold whitespace-nowrap">
-                                            <button type="button" wire:click="openRincian({{ $row->gaji_id }})" class="text-brand-green hover:underline">Rincian</button>
-                                            <button type="button" wire:click="cetakSlip({{ $row->gaji_id }})" class="text-brand-green hover:underline">Cetak</button>
+                                        {{-- Urutan tetap: Rincian · Final/Buka · Cetak --}}
+                                        <div class="flex items-center justify-center gap-2 whitespace-nowrap">
+                                            <x-lihat-button wire:click="openRincian({{ $row->gaji_id }})" title="Rincian slip {{ $row->emp_name }}" />
                                             @if ($final)
-                                                <button type="button" wire:click="ubahStatus({{ $row->gaji_id }}, 'D')" class="text-muted hover:underline">Buka</button>
+                                                <x-warning-button type="button" wire:click="ubahStatus({{ $row->gaji_id }}, 'D')" class="!px-3 shrink-0" title="Buka kembali ke Draft">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" /></svg>
+                                                    Buka
+                                                </x-warning-button>
                                             @else
-                                                <button type="button" wire:click="ubahStatus({{ $row->gaji_id }}, 'F')" class="text-muted hover:underline">Finalkan</button>
+                                                <x-primary-button type="button" wire:click="ubahStatus({{ $row->gaji_id }}, 'F')" class="!px-3 shrink-0" title="Kunci slip sebagai Final">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                                    Final
+                                                </x-primary-button>
                                             @endif
+                                            <x-cetak-button wire:click="cetakSlip({{ $row->gaji_id }})" title="Cetak slip {{ $row->emp_name }}" />
                                         </div>
                                     </td>
                                 </tr>
