@@ -7,6 +7,7 @@ use Livewire\Attributes\On;
 use Illuminate\Support\Facades\DB;
 use App\Support\PengaturanAbsensi;
 use App\Support\UnitKerja;
+use App\Support\Jadwal;
 
 /**
  * PENGATURAN ABSENSI — satu dasbor untuk semua setup absensi HRD:
@@ -214,11 +215,11 @@ new class extends Component {
     {
         DB::table('siapmst_employers')->whereIn('emp_id', $empIds)->update(['emp_unit_id' => $unitId, 'updated_at' => now()]);
 
+        // Shift default yang tidak berlaku di unit baru dikosongkan.
         DB::table('siapmst_employers')
             ->whereIn('emp_id', $empIds)
-            ->whereIn('emp_shift_default', fn($subQuery) => $subQuery->select('shift_id')->from('siapmst_shifts')
-                ->whereNotNull('unit_id')
-                ->when($unitId !== null, fn($kondisi) => $kondisi->where('unit_id', '!=', $unitId)))
+            ->whereNotNull('emp_shift_default')
+            ->whereNotIn('emp_shift_default', Jadwal::shiftBerkode($unitId)->pluck('shift_id')->all() ?: [''])
             ->update(['emp_shift_default' => null]);
     }
 

@@ -27,6 +27,16 @@ class Jadwal
     public const WARNA_LAIN = '#fdba74';
 
     /**
+     * Pilihan warna shift di Master Shift — terang & mudah dibedakan di grid / cetak.
+     * Sengaja tanpa hitam / warna gelap: tidak informatif dan menenggelamkan kodenya.
+     */
+    public const PALET = [
+        '#ffff00' => 'Kuning', '#00ff00' => 'Hijau', '#7dd3fc' => 'Biru muda', '#2563eb' => 'Biru',
+        '#5eead4' => 'Toska', '#c084fc' => 'Ungu', '#f9a8d4' => 'Merah muda', '#f87171' => 'Merah',
+        '#fdba74' => 'Oranye', '#bef264' => 'Hijau muda', '#fcd34d' => 'Emas', '#a5b4fc' => 'Lavender',
+    ];
+
+    /**
      * [latar, teks] untuk satu kode jadwal — dipakai layar & cetak PDF.
      * Teks hitam / putih dipilih dari kecerahan latar supaya selalu terbaca.
      */

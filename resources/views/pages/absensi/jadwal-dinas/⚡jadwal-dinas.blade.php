@@ -94,7 +94,7 @@ new class extends Component {
     }
 
     // ─── Data ─────────────────────────────────────────────────────────────────
-    /** Kuas = shift tanpa unit + shift unit aktif (semua unit → hanya shift tanpa unit). */
+    /** Kuas = shift khusus unit aktif, atau shift umum bila unit belum punya shift khusus / semua unit. */
     #[Computed]
     public function shifts()
     {

@@ -119,23 +119,30 @@ new class extends Component {
                         <li><b>Kode Jadwal</b> (P, S, …) adalah huruf yang dipakai di grid jadwal. I dan C tidak boleh dipakai (khusus Izin & Cuti).</li>
                         <li>Jam pulang lebih kecil dari jam masuk = shift <b>lintas hari</b> (pulang esok hari) — otomatis.</li>
                         <li><b>Toleransi terlambat</b> diatur per shift. Contoh: shift 07:00 toleransi 10 menit → masuk 07:10 masih Hadir, 07:11 Terlambat.</li>
-                        <li><b>Unit</b>: kosong = shift berlaku untuk <i>semua unit</i>. Isi unit bila jam shift-nya khusus satu unit — unit lain tidak melihat shift itu.</li>
+                        <li><b>Unit</b>: kosong = <i>shift umum</i>, dipakai unit yang belum punya shift khusus. Isi unit bila jam shift-nya khusus satu unit —
+                            begitu unit punya shift khusus, kuas jadwal, kiosk, dan absen HP unit itu <b>hanya</b> memakai shift khususnya (shift umum tidak tampil).</li>
                         <li><b>Kode jadwal unik per unit</b>: Gizi dan Rawat Inap boleh sama-sama memakai <code>P</code> asalkan masing-masing shift khusus unitnya.
                             Shift semua-unit kodenya harus unik di seluruh RS.</li>
-                        <li><b>Warna di jadwal</b> bisa dipilih per shift; klik <i>bawaan</i> untuk kembali ke warna standar (P kuning, S hijau, M biru).</li>
+                        <li><b>Warna di jadwal</b> dipilih per shift dari palet warna terang (tanpa hitam / warna gelap supaya kode tetap terbaca); pilih <i>Bawaan</i> untuk kembali ke warna standar (P kuning, S hijau, M biru).</li>
                     </ul>
                     <div class="p-3 mt-3 text-sm border rounded-xl border-hairline bg-surface-soft dark:bg-gray-800 dark:border-gray-700">
-                        <b>Contoh jam shift beda per unit</b> — Gizi shift 1 06:00–11:00, Perawat shift 1 07:00–14:00:
+                        <b>Contoh jam shift beda per unit</b> — perawat standar 07:00–14:00; Gizi masuk lebih awal & pulang lebih cepat (2 shift);
+                        Satpam mulai jam 06:00 seperti Gizi (3 shift); Pendaftaran / Apotek / Poli memakai shift umum P &amp; S:
                         <table class="mt-2 ds-table">
-                            <thead><tr><th>ID</th><th>Kode</th><th>Nama</th><th>Jam</th><th>Unit</th></tr></thead>
+                            <thead><tr><th>Unit</th><th>Kode</th><th>Nama</th><th>Jam</th></tr></thead>
                             <tbody>
-                                <tr><td><code>GZ1</code></td><td>P</td><td>Gizi Shift 1</td><td class="font-mono">06:00–11:00</td><td>Instalasi Gizi</td></tr>
-                                <tr><td><code>GZ2</code></td><td>S</td><td>Gizi Shift 2</td><td class="font-mono">11:00–16:00</td><td>Instalasi Gizi</td></tr>
-                                <tr><td><code>PAGI</code></td><td>P</td><td>Perawat Pagi</td><td class="font-mono">07:00–14:00</td><td>Rawat Inap</td></tr>
-                                <tr><td><code>SORE</code></td><td>S</td><td>Perawat Sore</td><td class="font-mono">14:00–21:00</td><td>Rawat Inap</td></tr>
+                                <tr><td rowspan="3">Ruang Rawat Inap</td><td>R1</td><td>Rawat Inap Pagi</td><td class="font-mono">07:00–14:00</td></tr>
+                                <tr><td>R2</td><td>Rawat Inap Sore</td><td class="font-mono">14:00–21:00</td></tr>
+                                <tr><td>M</td><td>Shift Malam Rawat Inap</td><td class="font-mono">21:00–07:00 (+1)</td></tr>
+                                <tr><td rowspan="2">Gizi</td><td>G1</td><td>Gizi Shift 1</td><td class="font-mono">06:00–13:00</td></tr>
+                                <tr><td>G2</td><td>Gizi Shift 2</td><td class="font-mono">13:00–20:00</td></tr>
+                                <tr><td rowspan="3">Satpam</td><td>K1</td><td>Satpam Shift 1</td><td class="font-mono">06:00–14:00</td></tr>
+                                <tr><td>K2</td><td>Satpam Shift 2</td><td class="font-mono">14:00–22:00</td></tr>
+                                <tr><td>K3</td><td>Satpam Shift 3</td><td class="font-mono">22:00–06:00 (+1)</td></tr>
+                                <tr><td>(umum)</td><td>P / S</td><td>Shift Pagi / Sore</td><td class="font-mono">07:00–12:00 / 17:00–21:00</td></tr>
                             </tbody>
                         </table>
-                        Staf gizi yang terjadwal P dihitung dari 06:00, perawat yang terjadwal P dari 07:00.
+                        Kode dibuat beda per unit (R, G, K) supaya di mode <i>Semua unit</i> &amp; cetakan tetap jelas shift unit mana.
                     </div>
                     <div class="p-3 mt-3 text-sm border rounded-xl border-hairline bg-surface-soft dark:bg-gray-800 dark:border-gray-700">
                         <b>Contoh membuat shift malam (shift 3)</b> — klik <i>+ Tambah Shift</i>, isi:
@@ -194,7 +201,7 @@ new class extends Component {
                         </li>
                         <li><b>Cetak PDF</b> untuk ditempel / dibagikan (format "Jadwal Masuk Kerja Bulan … — nama unit").</li>
                     </ol>
-                    <p class="mt-3 text-sm"><b>Kuas</b> berisi shift unit yang dipilih + shift semua-unit. Pada <i>Semua unit</i>, kuas hanya berisi shift semua-unit —
+                    <p class="mt-3 text-sm"><b>Kuas</b> berisi shift khusus unit yang dipilih (atau shift umum bila unit itu belum punya shift khusus). Pada <i>Semua unit</i>, kuas hanya berisi shift umum —
                         pilih unitnya dulu untuk memakai shift khusus unit. Kode yang bukan shift unit karyawan tersebut ditolak.</p>
                     <div class="p-3 mt-4 text-sm border rounded-xl border-amber-300 bg-amber-50 text-amber-900">
                         🔒 <b>Tanggal yang sudah lewat terkunci</b> — tidak bisa diubah, supaya absensi, Generate, dan % kehadiran yang sudah dihitung tetap asli.
@@ -388,7 +395,7 @@ new class extends Component {
                             ['Izin mendadak (tidak ada di jadwal)?', 'Isi di Rekap Harian → Izin + keterangan. Ini menurunkan % kehadiran; izin yang direncanakan sebaiknya dijadwalkan sebagai I.'],
                             ['Jadwal tanggal lalu salah?', 'Tanggal lalu terkunci. Kehadiran tetap bisa dikoreksi di Rekap Harian; bila jadwalnya sendiri harus diubah, hubungi Admin.'],
                             ['Lembur tidak muncul?', 'Lembur hanya tercatat bila pulang ≥ ' . $pengaturan::minLemburMenit() . ' menit lewat jadwal pulang shift.'],
-                            ['Jam shift Gizi berbeda dengan Perawat?', 'Buat shift terpisah dengan Unit diisi (mis. Gizi Shift 1 06:00–11:00 unit Gizi, Perawat Pagi 07:00–14:00 unit Rawat Inap). Kodenya boleh sama (P) karena beda unit. Lihat contoh di bagian Persiapan.'],
+                            ['Jam shift Gizi berbeda dengan Perawat?', 'Buat shift terpisah dengan Unit diisi (mis. Gizi Shift 1 06:00–13:00 unit Gizi, Rawat Inap Pagi 07:00–14:00 unit Rawat Inap). Unit yang punya shift khusus hanya memakai shift khususnya, shift umum P / S tidak ikut tampil. Lihat contoh di bagian Persiapan.'],
                             ['Kepala ruang tidak bisa membuka jadwal / jadwalnya kosong?', 'Pastikan akun kepala ruang terhubung ke data karyawan (User Control → Karyawan) dan karyawan itu punya Unit Kerja. Karyawan unitnya juga harus sudah diatur unitnya.'],
                             ['Karyawan sudah keluar?', 'Non-aktifkan di Master Karyawan — tidak muncul lagi di kiosk, jadwal, dan rekap, tetapi riwayatnya aman.'],
                             ['Absen HP ditolak "di luar area" padahal sudah di RS?', 'Cek titik koordinat di Pengaturan Absensi › Titik Lokasi HP (klik koordinatnya untuk membuka peta), dan pastikan lokasi kerja karyawan di tab Lokasi Karyawan benar. Bila GPS di dalam gedung meleset, minta karyawan mendekati jendela, atau perbesar radius.'],

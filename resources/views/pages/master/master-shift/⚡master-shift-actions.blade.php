@@ -6,12 +6,15 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Database\QueryException;
 use Livewire\Attributes\Computed;
 use App\Support\UnitKerja;
+use App\Support\Jadwal;
+use Illuminate\Validation\Rule;
 use App\Http\Traits\Concerns\WithRenderVersioningTrait;
 
 /**
  * Modal CRUD `siapmst_shifts`. lintas_hari diturunkan otomatis:
  * jam pulang <= jam masuk berarti pulang esok hari (mis. 21:00–07:00).
- * Unit kosong = shift berlaku untuk semua unit. Kode jadwal unik dalam cakupan unit:
+ * Unit kosong = shift umum (dipakai unit yang belum punya shift khusus — UnitKerja::saringShift).
+ * Kode jadwal unik dalam cakupan unit:
  * shift semua-unit tidak boleh berbagi kode dengan shift mana pun; shift unit X tidak boleh
  * berbagi kode dengan shift semua-unit / shift unit X lain (unit berbeda boleh sama, mis. P).
  */
@@ -118,7 +121,7 @@ new class extends Component {
                     }
                 }],
             'form.unit_id'         => 'nullable|exists:siapmst_unit_kerjas,unit_id',
-            'form.shift_warna'     => ['nullable', 'regex:/^#[0-9a-fA-F]{6}$/'],
+            'form.shift_warna'     => ['nullable', Rule::in(array_keys(Jadwal::PALET))],
             'form.jam_masuk'       => 'required|date_format:H:i',
             'form.jam_pulang'      => 'required|date_format:H:i|different:form.jam_masuk',
             'form.toleransi_menit' => 'required|integer|min:0|max:240',
@@ -140,7 +143,7 @@ new class extends Component {
             'form.shift_id.regex' => ':attribute hanya boleh huruf, angka, strip, atau garis bawah.',
             'form.shift_kode.regex' => ':attribute hanya huruf/angka.',
             'form.shift_kode.not_in' => ':attribute I dan C dipakai untuk Izin & Cuti di jadwal.',
-            'form.shift_warna.regex' => ':attribute harus berformat #rrggbb.',
+            'form.shift_warna.in' => ':attribute harus salah satu pilihan palet.',
         ];
     }
 
@@ -351,21 +354,22 @@ new class extends Component {
                                         @endforeach
                                     </x-select-input>
                                     <p class="mt-1 text-[11px] text-muted dark:text-gray-400">
-                                        Isi bila jam shift ini khusus satu unit (mis. Gizi Shift 1 06:00–11:00). Unit lain tidak melihat shift ini.
+                                        Isi bila jam shift ini khusus satu unit (mis. Gizi Shift 1 06:00–13:00). Unit yang punya shift khusus hanya memakai shift khususnya; kosong = shift umum.
                                     </p>
                                     <x-input-error :messages="$errors->get('form.unit_id')" class="mt-1" />
                                 </div>
                                 <div>
                                     <x-input-label value="Warna di jadwal" />
-                                    <div class="flex items-center gap-2 mt-1">
-                                        <input type="color" wire:model.live="form.shift_warna"
-                                            value="{{ $form['shift_warna'] ?: \App\Support\Jadwal::warna((string) $form['shift_kode'])[0] }}"
-                                            class="w-10 h-10 p-0.5 border rounded-lg cursor-pointer border-hairline" />
-                                        <span class="inline-flex items-center justify-center w-9 h-9 text-sm font-bold rounded-lg"
-                                            style="{{ \App\Support\Jadwal::gaya(mb_strtoupper((string) $form['shift_kode']), $form['shift_warna'] ?: null) }}">{{ mb_strtoupper((string) $form['shift_kode']) ?: '?' }}</span>
-                                        @if ($form['shift_warna'] !== '')
-                                            <button type="button" wire:click="$set('form.shift_warna', '')" class="text-xs underline text-muted">bawaan</button>
-                                        @endif
+                                    @php $kodePratinjau = mb_strtoupper((string) $form['shift_kode']) ?: '?'; @endphp
+                                    <div class="flex flex-wrap items-center gap-1.5 mt-1">
+                                        <button type="button" wire:click="$set('form.shift_warna', '')" title="Warna bawaan kode {{ $kodePratinjau }}"
+                                            style="{{ \App\Support\Jadwal::gaya($kodePratinjau) }}"
+                                            class="h-8 px-2 text-[11px] font-bold rounded-lg {{ $form['shift_warna'] === '' ? 'ring-4 ring-offset-1 ring-brand-green' : 'opacity-70 hover:opacity-100' }}">Bawaan</button>
+                                        @foreach (\App\Support\Jadwal::PALET as $warna => $namaWarna)
+                                            <button type="button" wire:click="$set('form.shift_warna', '{{ $warna }}')" title="{{ $namaWarna }}"
+                                                style="{{ \App\Support\Jadwal::gaya($kodePratinjau, $warna) }}"
+                                                class="w-8 h-8 text-xs font-bold rounded-lg {{ $form['shift_warna'] === $warna ? 'ring-4 ring-offset-1 ring-brand-green' : 'opacity-70 hover:opacity-100' }}">{{ $kodePratinjau }}</button>
+                                        @endforeach
                                     </div>
                                     <x-input-error :messages="$errors->get('form.shift_warna')" class="mt-1" />
                                 </div>

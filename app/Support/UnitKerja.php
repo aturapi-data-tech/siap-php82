@@ -50,14 +50,17 @@ class UnitKerja
     }
 
     /**
-     * Shift yang berlaku untuk satu unit: shift tanpa unit (semua unit) + shift khusus unit tsb.
-     * $unitId null = hanya shift tanpa unit.
+     * Shift yang berlaku untuk satu unit:
+     * - unit punya shift khusus → HANYA shift khusus unit tsb (jam unit beda dgn jam umum, mis. Gizi 06–13);
+     * - unit tanpa shift khusus / $unitId null → shift tanpa unit (semua unit).
      *
      * @param  Collection<int, object>  $shifts
      * @return Collection<int, object>
      */
     public static function saringShift(Collection $shifts, ?string $unitId): Collection
     {
-        return $shifts->filter(fn($shift) => $shift->unit_id === null || ($unitId !== null && $shift->unit_id === $unitId))->values();
+        $shiftKhusus = $unitId !== null ? $shifts->where('unit_id', $unitId) : collect();
+
+        return ($shiftKhusus->isNotEmpty() ? $shiftKhusus : $shifts->whereNull('unit_id'))->values();
     }
 }
