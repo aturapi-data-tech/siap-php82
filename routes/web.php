@@ -74,6 +74,8 @@ Route::middleware(['auth'])->group(function () {
         ->name('panduan.absensi');
     Route::livewire('/panduan/aset', 'pages::panduan.panduan-aset.panduan-aset')
         ->name('panduan.aset');
+    Route::livewire('/panduan/gaji', 'pages::panduan.panduan-gaji.panduan-gaji')
+        ->name('panduan.gaji');
 
     // ── SISTEM ──
     Route::livewire('/sistem/identitas', 'pages::sistem.identitas-instansi.identitas-instansi')

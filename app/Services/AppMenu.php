@@ -113,6 +113,7 @@ class AppMenu
             // ── Panduan (semua user) ───────────────────────────────────
             $entry(['group' => 'Panduan', 'groupOrder' => 90, 'order' => 1, 'route' => 'panduan.absensi', 'title' => 'Panduan Absensi', 'desc' => 'Cara pakai jadwal dinas, kiosk, rekap & lembur', 'roles' => [self::SEMUA_ROLE], 'badge' => '?']),
             $entry(['group' => 'Panduan', 'groupOrder' => 90, 'order' => 2, 'route' => 'panduan.aset', 'title' => 'Panduan Aset', 'desc' => 'Cara pakai inventaris, kalibrasi, pemeliharaan, perbaikan', 'roles' => [self::SEMUA_ROLE], 'badge' => '?']),
+            $entry(['group' => 'Panduan', 'groupOrder' => 90, 'order' => 3, 'route' => 'panduan.gaji', 'title' => 'Panduan Gaji', 'desc' => 'Cara pakai parameter gaji, slip, hari kerja, PPh, cetak & kirim WA', 'roles' => ['admin', 'keuangan'], 'badge' => '?']),
 
             // ── Sistem ─────────────────────────────────────────────────
             $entry(['group' => 'Sistem', 'groupOrder' => 15, 'order' => 0, 'route' => 'sistem.identitas', 'title' => 'Identitas Instansi', 'desc' => 'Logo, nama & profil instansi (kop cetakan, halaman depan)', 'roles' => ['admin'], 'badge' => 'ID']),
