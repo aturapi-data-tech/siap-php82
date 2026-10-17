@@ -11,14 +11,15 @@
     - variant   : diwarisi dari <x-tabs> via @aware (pill|underline|card|chip). Override per item boleh.
     - active    : (bool) state aktif — dipakai di server mode.
     - active-expr: (string JS) ekspresi Alpine; kalau diisi → pakai mode Alpine (x-bind:class reaktif).
-    - color     : warna aktif utk variant underline & pill — brand|emerald|rose|blue|purple|violet (default brand).
+    - color     : warna aktif utk variant underline & pill — brand|emerald|rose|blue|purple|violet
+                  (default: emerald utk underline, brand utk pill).
     - Atribut lain (wire:click, x-on:click, title, dll) diteruskan ke <button>.
 --}}
 @aware(['variant' => 'underline'])
 @props([
     'active' => false,
     'activeExpr' => null,
-    'color' => 'brand',
+    'color' => null,
 ])
 
 @php
@@ -26,18 +27,24 @@
     // fallback 'underline'. ($variant ?? ...) aman walau @aware tak set (mis. <x-tab> tanpa induk <x-tabs>).
     $variant = $attributes->get('variant', $variant ?? 'underline');
 
+    // Warna bawaan bila `color` tak diisi: underline → emerald, lainnya → brand.
+    $color ??= $variant === 'underline' ? 'emerald' : 'brand';
+
+    // Tampilan = sirus-php82. Tambahan SIAP (tidak mengubah tampilan): cincin fokus keyboard + role/aria-selected.
     $base = 'px-4 py-2 text-title-sm font-medium whitespace-nowrap transition-colors focus:outline-none cursor-pointer'
         . ' focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2 dark:focus-visible:ring-brand-lime dark:focus-visible:ring-offset-gray-900';
 
     // warna aktif (hanya underline & pill yg colorable; card/chip selalu brand)
     $palette = [
+        // underline: tab aktif = latar lembut senada (surface-strong / tint) + teks berwarna,
+        // supaya menyatu dengan tab nonaktif bg-surface-soft dan tidak mencolok.
         'underline' => [
-            'brand'   => 'text-fg-brand border-brand dark:border-brand-lime',
-            'emerald' => 'text-emerald-700 border-emerald-600 dark:text-emerald-300 dark:border-emerald-400',
-            'rose'    => 'text-rose-700 border-rose-600 dark:text-rose-300 dark:border-rose-400',
-            'blue'    => 'text-blue-700 border-blue-600 dark:text-blue-300 dark:border-blue-400',
-            'purple'  => 'text-purple-700 border-purple-600 dark:text-purple-300 dark:border-purple-400',
-            'violet'  => 'text-violet-700 border-violet-600 dark:text-violet-300 dark:border-violet-400',
+            'brand'   => 'bg-surface-strong border-hairline text-brand dark:bg-surface-dark-elevated dark:border-gray-600 dark:text-brand-lime',
+            'emerald' => 'bg-surface-strong border-hairline text-brand dark:bg-surface-dark-elevated dark:border-gray-600 dark:text-brand-lime',
+            'rose'    => 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-900/30 dark:border-rose-800 dark:text-rose-300',
+            'blue'    => 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300',
+            'purple'  => 'bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-900/30 dark:border-purple-800 dark:text-purple-300',
+            'violet'  => 'bg-violet-50 border-violet-200 text-violet-700 dark:bg-violet-900/30 dark:border-violet-800 dark:text-violet-300',
         ],
         'pill' => [
             'brand'   => 'bg-brand text-white shadow-[0_1px_3px_rgba(15,86,52,0.35)]',
@@ -56,9 +63,10 @@
             'inactive' => 'text-muted hover:text-ink hover:bg-surface-card dark:text-gray-400 dark:hover:text-gray-100 dark:hover:bg-gray-700',
         ],
         'underline' => [
-            'shape'    => '-mb-px border-b-2',
+            'shape'    => '-mb-px rounded-t-md border',
             'active'   => ($palette['underline'][$color] ?? $palette['underline']['brand']) . ' font-semibold',
-            'inactive' => 'border-transparent text-body hover:text-fg-brand hover:border-brand dark:text-gray-400 dark:hover:border-brand-lime',
+            // Tab nonaktif ikut berbingkai tipis supaya ada garis pemisah antar tab.
+            'inactive' => 'bg-canvas border-hairline text-muted hover:text-body hover:bg-surface-soft dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700',
         ],
         'card' => [
             'shape'    => '-mb-px rounded-t-[10px] border border-b-0',

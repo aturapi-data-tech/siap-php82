@@ -276,43 +276,43 @@ new class extends Component {
         subtitle="Semua setup absensi di satu tempat — aturan, unit kerja, shift, titik lokasi HP, unit & lokasi karyawan" />
 
     <div class="w-full min-h-[calc(100vh-5rem)] bg-surface-soft dark:bg-gray-900">
-        <div class="px-6 py-4 mx-auto max-w-7xl">
+        {{-- Lebar penuh (px-6) — sama dengan tab master yang ditanam (Unit Kerja, Shift, Titik Lokasi) --}}
+        <div class="px-6 py-4">
 
-            {{-- RINGKASAN --}}
-            @php $ringkasan = $this->ringkasan; @endphp
-            <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <button type="button" wire:click="pilihTab('aturan')"
-                    class="p-4 text-left border rounded-2xl bg-canvas border-hairline hover:border-brand-green dark:bg-gray-900 dark:border-gray-700">
-                    <p class="text-xs font-semibold tracking-wide uppercase text-muted">Absen HP</p>
-                    <p class="mt-1 text-2xl font-bold {{ $ringkasan['absenHpAktif'] ? 'text-emerald-700' : 'text-amber-700' }}">
-                        {{ $ringkasan['absenHpAktif'] ? 'Aktif' : 'Nonaktif' }}
-                    </p>
-                    <p class="text-xs text-muted">GPS + selfie di <span class="font-mono">/absensi/hp</span></p>
+            {{-- RINGKASAN — chip ringkas satu baris (klik = buka tab terkait); keterangan di tooltip --}}
+            @php
+                $ringkasan = $this->ringkasan;
+                $titik = fn(bool $baik) => $baik ? 'bg-success' : 'bg-warning';
+            @endphp
+            <div class="flex flex-wrap items-center gap-2">
+                <button type="button" wire:click="pilihTab('aturan')" title="GPS + selfie di /absensi/hp" class="inline-flex items-center gap-2 px-3 py-1.5 text-sm border rounded-full bg-canvas border-hairline hover:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green dark:bg-gray-800 dark:border-gray-700 dark:hover:border-brand-lime">
+                    <span class="w-2 h-2 rounded-full {{ $titik($ringkasan['absenHpAktif']) }}" aria-hidden="true"></span>
+                    <span class="text-muted">Absen HP</span>
+                    <b class="{{ $ringkasan['absenHpAktif'] ? 'text-fg-success-strong' : 'text-fg-warning' }}">{{ $ringkasan['absenHpAktif'] ? 'Aktif' : 'Nonaktif' }}</b>
                 </button>
-                <button type="button" wire:click="pilihTab('shift')"
-                    class="p-4 text-left border rounded-2xl bg-canvas border-hairline hover:border-brand-green dark:bg-gray-900 dark:border-gray-700">
-                    <p class="text-xs font-semibold tracking-wide uppercase text-muted">Shift aktif</p>
-                    <p class="mt-1 text-2xl font-bold text-ink">{{ $ringkasan['shiftAktif'] }}</p>
-                    <p class="text-xs text-muted">jam kerja & toleransi terlambat</p>
+                <button type="button" wire:click="pilihTab('shift')" title="Jam kerja & toleransi terlambat" class="inline-flex items-center gap-2 px-3 py-1.5 text-sm border rounded-full bg-canvas border-hairline hover:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green dark:bg-gray-800 dark:border-gray-700 dark:hover:border-brand-lime">
+                    <span class="text-muted">Shift aktif</span>
+                    <b class="text-heading tabular-nums">{{ $ringkasan['shiftAktif'] }}</b>
                 </button>
-                <button type="button" wire:click="pilihTab('lokasi')"
-                    class="p-4 text-left border rounded-2xl bg-canvas border-hairline hover:border-brand-green dark:bg-gray-900 dark:border-gray-700">
-                    <p class="text-xs font-semibold tracking-wide uppercase text-muted">Titik lokasi aktif</p>
-                    <p class="mt-1 text-2xl font-bold {{ $ringkasan['lokasiAktif'] > 0 ? 'text-ink' : 'text-red-600' }}">{{ $ringkasan['lokasiAktif'] }}</p>
-                    <p class="text-xs text-muted">{{ $ringkasan['lokasiAktif'] > 0 ? 'RS / klinik + radius' : 'belum ada — absen HP tidak bisa dipakai' }}</p>
+                <button type="button" wire:click="pilihTab('lokasi')" title="Titik RS / klinik + radius absen HP" class="inline-flex items-center gap-2 px-3 py-1.5 text-sm border rounded-full bg-canvas border-hairline hover:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green dark:bg-gray-800 dark:border-gray-700 dark:hover:border-brand-lime">
+                    <span class="w-2 h-2 rounded-full {{ $titik($ringkasan['lokasiAktif'] > 0) }}" aria-hidden="true"></span>
+                    <span class="text-muted">Titik lokasi</span>
+                    <b class="tabular-nums {{ $ringkasan['lokasiAktif'] > 0 ? 'text-heading' : 'text-fg-danger-strong' }}">{{ $ringkasan['lokasiAktif'] }}</b>
+                    @if ($ringkasan['lokasiAktif'] === 0)
+                        <span class="text-xs text-fg-danger-strong">— absen HP belum bisa dipakai</span>
+                    @endif
                 </button>
                 <button type="button" wire:click="pilihTab('lokasi-karyawan')"
-                    class="p-4 text-left border rounded-2xl bg-canvas border-hairline hover:border-brand-green dark:bg-gray-900 dark:border-gray-700">
-                    <p class="text-xs font-semibold tracking-wide uppercase text-muted">Karyawan belum diatur</p>
-                    <p class="mt-1 text-2xl font-bold {{ $ringkasan['tanpaUnit'] > 0 ? 'text-amber-700' : 'text-ink' }}">
-                        {{ $ringkasan['tanpaUnit'] }} <span class="text-sm font-normal text-muted">tanpa unit / {{ $ringkasan['karyawanAktif'] }}</span>
-                    </p>
-                    <p class="text-xs text-muted">{{ $ringkasan['tanpaLokasi'] }} tanpa lokasi HP (boleh di titik mana pun)</p>
+                    title="{{ $ringkasan['tanpaLokasi'] }} karyawan tanpa lokasi HP (boleh absen di titik mana pun)" class="inline-flex items-center gap-2 px-3 py-1.5 text-sm border rounded-full bg-canvas border-hairline hover:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green dark:bg-gray-800 dark:border-gray-700 dark:hover:border-brand-lime">
+                    <span class="w-2 h-2 rounded-full {{ $titik($ringkasan['tanpaUnit'] === 0) }}" aria-hidden="true"></span>
+                    <span class="text-muted">Tanpa unit</span>
+                    <b class="tabular-nums {{ $ringkasan['tanpaUnit'] > 0 ? 'text-fg-warning' : 'text-heading' }}">{{ $ringkasan['tanpaUnit'] }}</b>
+                    <span class="text-xs text-muted tabular-nums">/ {{ $ringkasan['karyawanAktif'] }} karyawan</span>
                 </button>
             </div>
 
             {{-- TAB --}}
-            <x-tabs variant="underline" class="mt-6">
+            <x-tabs variant="underline" class="mt-4">
                 @foreach ($this::TABS as $kunci => $label)
                     <x-tab :active="$tab === $kunci" wire:click="pilihTab('{{ $kunci }}')">{{ $label }}</x-tab>
                 @endforeach
@@ -321,7 +321,7 @@ new class extends Component {
 
         {{-- TAB: ATURAN --}}
         @if ($tab === 'aturan')
-            <div wire:key="tab-aturan" class="px-6 pb-8 mx-auto max-w-7xl">
+            <div wire:key="tab-aturan" class="px-6 pb-8">
                 <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
 
                     <x-border-form title="Absen HP (GPS + selfie)">
@@ -443,7 +443,7 @@ new class extends Component {
 
         {{-- TAB: UNIT & LOKASI KARYAWAN --}}
         @if ($tab === 'lokasi-karyawan')
-            <div wire:key="tab-lokasi-karyawan" class="px-6 pb-8 mx-auto max-w-7xl">
+            <div wire:key="tab-lokasi-karyawan" class="px-6 pb-8">
                 <div class="flex flex-col gap-3 py-3 lg:flex-row lg:items-end lg:justify-between">
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
                         <x-text-input type="text" wire:model.live.debounce.300ms="searchKeyword"
