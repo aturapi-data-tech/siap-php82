@@ -10,143 +10,134 @@ new class extends Component {
 @extends('layouts.app-welcome')
 
 @section('content')
-    <div class="relative w-full min-h-[calc(100vh-5rem)] overflow-hidden bg-canvas dark:bg-gray-900">
-        {{-- BG Welcome --}}
-        <div class="absolute inset-0 z-10 overflow-hidden pointer-events-none">
-            <img src="{{ asset('images/Logogram black solid.png') }}" alt=""
-                class="absolute -left-[5%] -bottom-[10%] w-[40rem] lg:w-[48rem] opacity-5">
-        </div>
-
+    <div class="relative w-full min-h-[calc(100vh-5rem)] bg-surface-soft dark:bg-gray-900">
         @php
             $identitas = \App\Support\Identitas::get();
             $logoIdentitas = \App\Support\Identitas::logoUrl();
-            $slides = [
-                asset('images/landing/slide-1.png'),
-                asset('images/landing/slide-2.png'),
-                asset('images/landing/slide-3.png'),
-                asset('images/landing/slide-4.png'),
-                asset('images/landing/slide-5.png'),
-                asset('images/landing/slide-6.png'),
-                asset('images/landing/slide-7.png'),
-                asset('images/landing/slide-8.png'),
-                asset('images/landing/slide-9.png'),
+            $slides = collect(range(1, 9))->map(fn($n) => asset("images/landing/slide-{$n}.png"))->all();
+            // Absen HP terbuka tanpa login; modul lain lewat halaman Masuk.
+            $modules = [
+                ['label' => 'Absen HP', 'desc' => 'Absen masuk & pulang dari HP — GPS dan selfie.', 'href' => route('absensi.hp'), 'publik' => true, 'icon' => 'M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3'],
+                ['label' => 'Absensi & Jadwal Dinas', 'desc' => 'Jadwal bulanan, kiosk, rekap harian & bulanan.', 'href' => route('login'), 'publik' => false, 'icon' => 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z'],
+                ['label' => 'Kepegawaian & Gaji', 'desc' => 'Data karyawan, STR/SIP, slip gaji bulanan.', 'href' => route('login'), 'publik' => false, 'icon' => 'M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z'],
+                ['label' => 'Manajemen Aset', 'desc' => 'Inventaris, kalibrasi, pemeliharaan, perbaikan alat.', 'href' => route('login'), 'publik' => false, 'icon' => 'M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z'],
             ];
         @endphp
 
         {{-- WRAPPER flex supaya footer nempel bawah --}}
-        <section class="relative z-20 flex flex-col min-h-[calc(100vh-5rem)]">
-            {{-- HERO --}}
-            <div class="flex-1">
-                <div class="grid items-center grid-cols-1 gap-10 px-6 py-10 mx-auto max-w-7xl lg:grid-cols-2 lg:py-14">
-                    {{-- LEFT --}}
-                    <div>
-                        <p
-                            class="inline-flex items-center gap-2 px-3 py-1.5 text-caption font-semibold uppercase tracking-wide rounded-full ring-1
-                                   bg-brand-green/10 text-brand-green ring-brand-green/20
-                                   dark:bg-brand-lime/10 dark:text-brand-lime dark:ring-brand-lime/20">
-                            <span class="w-2 h-2 rounded-full bg-brand-lime animate-pulse"></span>
+        <section class="flex flex-col min-h-[calc(100vh-5rem)]">
+            <div class="flex-1 px-4 pt-4 pb-12 sm:px-6 sm:pt-6">
+
+                {{-- HERO: banner foto RS penuh lebar + teks di atas lapisan hijau hutan.
+                     Slider berhenti saat disorot / difokus, bisa dijeda, dan diam bila prefers-reduced-motion. --}}
+                <div x-data="{
+                        i: 0,
+                        jumlah: {{ count($slides) }},
+                        t: null,
+                        jalan: true,
+                        start() {
+                            if (this.t || !this.jalan || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+                            this.t = setInterval(() => this.i = (this.i + 1) % this.jumlah, 5000);
+                        },
+                        stop() { clearInterval(this.t); this.t = null },
+                        alihJalan() { this.jalan = !this.jalan; this.jalan ? this.start() : this.stop() },
+                        destroy() { this.stop() },
+                    }" x-init="start()" x-on:mouseenter="stop()" x-on:mouseleave="start()"
+                    x-on:focusin="stop()" x-on:focusout="start()"
+                    class="relative mx-auto overflow-hidden max-w-7xl rounded-3xl bg-surface-dark">
+                    @foreach ($slides as $k => $src)
+                        <img src="{{ $src }}" alt="" loading="{{ $k === 0 ? 'eager' : 'lazy' }}" decoding="async"
+                            x-show="i === {{ $k }}" @if ($k > 0) x-cloak @endif
+                            x-transition:enter="transition-opacity duration-700 ease-out motion-reduce:transition-none"
+                            x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+                            class="absolute inset-0 object-cover w-full h-full">
+                    @endforeach
+                    {{-- Lapisan gelap: penuh di HP, memudar ke kanan di layar lebar supaya foto tetap terlihat --}}
+                    <div class="absolute inset-0 bg-surface-dark/80 lg:bg-transparent lg:bg-gradient-to-r lg:from-surface-dark/95 lg:via-surface-dark/75 lg:to-surface-dark/10"></div>
+
+                    <div class="relative flex flex-col justify-center min-h-[26rem] max-w-2xl px-6 pt-12 pb-20 sm:px-10 lg:min-h-[32rem] lg:px-14">
+                        <p class="inline-flex items-center self-start gap-2 px-3 py-1.5 text-caption font-semibold uppercase tracking-wide rounded-full
+                                  text-brand-lime bg-white/10 ring-1 ring-white/20">
+                            <span class="w-2 h-2 rounded-full bg-brand-lime"></span>
                             Sistem Informasi Aset &amp; Pegawai
                         </p>
 
-                        <h1 class="mt-5 font-bold tracking-tight text-5xl leading-tight sm:text-6xl text-ink dark:text-white">
-                            Selamat Datang di
-                            <span class="text-brand-green dark:text-brand-lime whitespace-nowrap">SIAP</span>
+                        <h1 class="mt-5 text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl lg:text-6xl">
+                            Selamat Datang di <span class="text-brand-lime whitespace-nowrap">SIAP</span>
                         </h1>
 
-                        <p class="max-w-xl mt-5 text-lg leading-relaxed text-body dark:text-gray-300">
-                            Sistem Informasi Aset &amp; Pegawai <b>{{ $identitas->nama }}</b> — absensi, kepegawaian,
-                            dan manajemen aset dalam satu aplikasi.
+                        <p class="max-w-xl mt-4 text-lg leading-relaxed text-white/85">
+                            Absensi, kepegawaian, dan manajemen aset <b class="text-white">{{ $identitas->nama }}</b> dalam satu aplikasi.
                         </p>
                         @if (filled($identitas->tagline))
-                            <p class="max-w-xl mt-2 italic text-muted dark:text-gray-400">“{{ $identitas->tagline }}”</p>
+                            <p class="max-w-xl mt-2 italic text-white/70">“{{ $identitas->tagline }}”</p>
                         @endif
 
-                        {{-- CTA --}}
+                        {{-- CTA: tautan bergaya tombol (bukan <button> di dalam <a>) --}}
                         <div class="flex flex-wrap items-center gap-3 mt-8">
-                            <a href="{{ Route::has('login') ? route('login') : '#' }}" wire:navigate>
-                                <x-primary-button type="button" class="px-5 py-3">
-                                    Masuk
-                                </x-primary-button>
+                            <a href="{{ route('login') }}" wire:navigate
+                                class="inline-flex items-center justify-center px-6 py-3 text-base font-semibold transition rounded-xl text-ink bg-brand-lime hover:bg-brand-lime/90
+                                       focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-surface-dark">
+                                Masuk
                             </a>
-
-                            <x-secondary-button type="button" onclick="location.href='#tentang'">
-                                Pelajari lebih lanjut
-                            </x-secondary-button>
-                        </div>
-
-                        {{-- Akses cepat: Absen HP publik, sisanya lewat login --}}
-                        <div class="mt-8">
-                            <div class="flex items-center gap-2 mb-3">
-                                <span class="inline-block w-2 h-2 rounded-full bg-brand-lime"></span>
-                                <p class="text-xs font-semibold tracking-[0.12em] uppercase text-brand-green dark:text-brand-lime">
-                                    Modul
-                                </p>
-                            </div>
-                            @php
-                                $modules = [
-                                    ['label' => 'Absen HP', 'href' => route('absensi.hp'), 'icon' => 'M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3'],
-                                    ['label' => 'Absensi & Jadwal Dinas', 'href' => route('login'), 'icon' => 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z'],
-                                    ['label' => 'Kepegawaian & Gaji', 'href' => route('login'), 'icon' => 'M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z'],
-                                    ['label' => 'Manajemen Aset', 'href' => route('login'), 'icon' => 'M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z'],
-                                ];
-                            @endphp
-                            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                @foreach ($modules as $modul)
-                                    <a href="{{ $modul['href'] }}"
-                                        class="flex items-center gap-3 px-4 py-3 transition rounded-xl bg-surface-card ring-1 ring-hairline hover:ring-2 hover:ring-brand-green
-                                            dark:bg-white/5 dark:ring-white/10 dark:hover:ring-brand-lime">
-                                        <svg class="w-5 h-5 text-brand-green shrink-0 dark:text-brand-lime"
-                                            fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="{{ $modul['icon'] }}" />
-                                        </svg>
-                                        <span class="flex-1 text-sm font-semibold text-ink dark:text-slate-100">{{ $modul['label'] }}</span>
-                                        <svg class="w-4 h-4 text-muted shrink-0 dark:text-gray-400" fill="none" stroke="currentColor"
-                                            viewBox="0 0 24 24" stroke-width="2">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-                                        </svg>
-                                    </a>
-                                @endforeach
-                            </div>
+                            <a href="{{ route('absensi.hp') }}"
+                                class="inline-flex items-center justify-center gap-2 px-6 py-3 text-base font-semibold text-white transition border rounded-xl border-white/40 hover:bg-white/10
+                                       focus:outline-none focus-visible:ring-2 focus-visible:ring-white">
+                                Absen HP
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                                </svg>
+                            </a>
                         </div>
                     </div>
 
-                    {{-- RIGHT (Slider) --}}
-                    <div x-data="{
-                        i: 0,
-                        slides: @js($slides),
-                        interval: null,
-                        next() { this.i = (this.i + 1) % this.slides.length },
-                        prev() { this.i = (this.i - 1 + this.slides.length) % this.slides.length },
-                        start() { this.interval = setInterval(() => this.next(), 3000) },
-                        stop() { clearInterval(this.interval);
-                            this.interval = null },
-                    }" x-init="start()" class="relative">
-                        <div
-                            class="relative overflow-hidden border rounded-2xl border-hairline bg-surface-soft dark:border-white/10 dark:bg-white/5">
-                            <div class="aspect-[16/10] relative">
-                                <template x-for="(src, idx) in slides" :key="idx">
-                                    <img x-show="i === idx" x-transition:enter="transition-opacity duration-500 ease-out"
-                                        x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
-                                        x-transition:leave="transition-opacity duration-500 ease-in"
-                                        x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
-                                        :src="src" alt="Landing image"
-                                        class="absolute inset-0 object-cover w-full h-full" />
-                                </template>
-                            </div>
-                        </div>
-
-                        <div
-                            class="absolute w-24 h-24 rounded-full -top-6 -right-6 bg-brand-lime blur-2xl opacity-40 -z-10">
-                        </div>
-                        <div
-                            class="absolute w-32 h-32 rounded-full opacity-25 -bottom-10 -left-10 bg-brand-green blur-3xl -z-10">
-                        </div>
+                    {{-- Kontrol slider: titik per foto + jeda --}}
+                    <div class="absolute flex items-center gap-1 right-4 bottom-14 sm:right-6 lg:top-6 lg:bottom-auto">
+                        @foreach ($slides as $k => $src)
+                            <button type="button" x-on:click="i = {{ $k }}" aria-label="Foto {{ $k + 1 }}"
+                                :aria-current="i === {{ $k }} ? 'true' : 'false'"
+                                class="grid w-6 h-6 rounded-full place-items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-white">
+                                <span class="block h-1.5 rounded-full transition-all motion-reduce:transition-none"
+                                    :class="i === {{ $k }} ? 'w-5 bg-brand-lime' : 'w-1.5 bg-white/60'"></span>
+                            </button>
+                        @endforeach
+                        <button type="button" x-on:click="alihJalan()" :aria-label="jalan ? 'Jeda slide foto' : 'Putar slide foto'"
+                            class="grid ml-1 rounded-full w-8 h-8 place-items-center text-white bg-white/15 hover:bg-white/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-white">
+                            <svg x-show="jalan" class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M6 4h3v12H6zM11 4h3v12h-3z" /></svg>
+                            <svg x-show="!jalan" x-cloak class="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M6 4l10 6-10 6z" /></svg>
+                        </button>
                     </div>
                 </div>
+
+                {{-- MODUL: kartu putih yang menumpuk ke tepi bawah banner --}}
+                <nav aria-label="Modul SIAP" class="relative grid grid-cols-1 gap-3 mx-auto -mt-10 max-w-6xl sm:grid-cols-2 lg:grid-cols-4 sm:px-6">
+                    @foreach ($modules as $modul)
+                        <a href="{{ $modul['href'] }}" @unless ($modul['publik']) wire:navigate @endunless
+                            class="flex flex-col gap-3 p-5 transition border shadow-sm group rounded-2xl bg-canvas border-hairline hover:border-brand-green hover:shadow-md
+                                   focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2
+                                   dark:bg-gray-800 dark:border-gray-700 dark:hover:border-brand-lime dark:focus-visible:ring-brand-lime dark:focus-visible:ring-offset-gray-900">
+                            <span class="grid w-10 h-10 rounded-xl place-items-center {{ $modul['publik'] ? 'bg-brand-lime text-ink' : 'bg-surface-strong text-brand-green dark:bg-brand-lime/10 dark:text-brand-lime' }}">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="{{ $modul['icon'] }}" />
+                                </svg>
+                            </span>
+                            <span>
+                                <span class="block font-semibold text-ink dark:text-gray-100">{{ $modul['label'] }}</span>
+                                <span class="block mt-1 text-sm leading-snug text-muted">{{ $modul['desc'] }}</span>
+                            </span>
+                            <span class="inline-flex items-center gap-1 mt-auto text-sm font-semibold text-brand-green dark:text-brand-lime">
+                                {{ $modul['publik'] ? 'Buka tanpa login' : 'Masuk untuk membuka' }}
+                                <svg class="w-4 h-4 transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                                </svg>
+                            </span>
+                        </a>
+                    @endforeach
+                </nav>
             </div>
 
             {{-- TENTANG / PROFIL INSTANSI (Sistem › Identitas Instansi) --}}
-            <div id="tentang" class="px-6 py-12 border-t scroll-mt-24 border-hairline bg-surface-soft/60 dark:bg-white/5 dark:border-white/10">
+            <div id="tentang" class="px-6 py-12 border-t scroll-mt-24 border-hairline bg-canvas dark:bg-gray-800 dark:border-gray-700">
                 <div class="grid items-start grid-cols-1 gap-8 mx-auto max-w-7xl lg:grid-cols-3">
                     <div class="flex flex-col items-center text-center lg:items-start lg:text-left">
                         @if ($logoIdentitas)
