@@ -77,13 +77,12 @@
     // Samakan dengan <x-text-input>. v2: fokus ring brand + angka pakai .input-num (mono renggang, tabular).
     // Border & focus-ring dipisah dari $baseClass supaya saat error tidak bentrok
     // dgn border-gray (border-gray-300 ada SETELAH border-error di CSS build → gray menang).
-    $baseClass = 'bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100
-        rounded-lg shadow-sm disabled:opacity-90 disabled:bg-gray-100 disabled:cursor-not-allowed w-full input-num text-right';
-    $normalClass = 'border-gray-300 dark:border-gray-700
-        focus:border-brand-green focus:ring-brand-green/40
-        dark:focus:border-brand-lime dark:focus:ring-brand-lime/40';
-    $errorClass = 'border-error focus:border-error focus:ring-error/40
-        dark:border-error dark:focus:border-error dark:focus:ring-error/40';
+    // Flowbite v4 (sama dengan x-text-input): latar/teks/border hanya di kelompok normal/galat.
+    $baseClass = 'rounded-base shadow-xs disabled:text-fg-disabled disabled:cursor-not-allowed w-full input-num text-right';
+    $normalClass = 'bg-neutral-secondary-medium text-heading border-default-medium placeholder:text-gray-500 dark:placeholder:text-gray-400
+        focus:ring-brand focus:border-brand';
+    $errorClass = 'bg-danger-soft text-fg-danger-strong border-danger-subtle placeholder:text-fg-danger-strong
+        focus:ring-danger focus:border-danger';
 @endphp
 
 <input @disabled($disabled) value="{{ $initialValue }}" inputmode="{{ $desimal > 0 ? 'decimal' : 'numeric' }}"

@@ -4,21 +4,18 @@
 ])
 
 @php
-    // Tanpa text-sm bawaan — ukuran font ikut x-text-input (text-base) supaya
-    // TINGGI select = tinggi text input saat bersanding di toolbar/form.
-    // Pemakai yang butuh font kecil tetap bisa pass class="text-sm".
-    //
-    // Border & focus-ring dipisah dari $baseClass supaya saat error tidak bentrok
-    // dgn border-gray (border-gray-300 ada SETELAH border-error di CSS build → gray menang).
-    $baseClass = 'block w-full rounded-lg bg-gray-50 text-gray-900 shadow-sm
-        disabled:opacity-90 disabled:bg-gray-100 disabled:cursor-not-allowed
-        dark:bg-gray-900 dark:text-gray-100';
+    // Flowbite v4 input: bg-neutral-secondary-medium, border-default-medium, text-heading, rounded-base,
+    // shadow-xs, focus ring/border brand; galat = latar danger-soft + teks fg-danger-strong.
+    // Latar, teks & border SENGAJA hanya di $normalClass / $errorClass (tidak di $baseClass): kalau dua kelas
+    // satu jenis ikut bersamaan, urutan CSS build yang menang — bukan maksud kita.
+    // Padding & ukuran font dibiarkan bawaan @tailwindcss/forms (halaman banyak menimpa lewat class="...").
+    $baseClass = 'block w-full rounded-base shadow-xs disabled:text-fg-disabled disabled:cursor-not-allowed';
 
-    $normalClass = 'border-gray-300 focus:border-brand-green focus:ring-brand-green/40
-        dark:border-gray-700 dark:focus:border-brand-lime dark:focus:ring-brand-lime/40';
+    $normalClass = 'bg-neutral-secondary-medium text-heading border-default-medium placeholder:text-gray-500 dark:placeholder:text-gray-400
+        focus:ring-brand focus:border-brand';
 
-    $errorClass = 'border-error focus:border-error focus:ring-error/40
-        dark:border-error dark:focus:border-error dark:focus:ring-error/40';
+    $errorClass = 'bg-danger-soft text-fg-danger-strong border-danger-subtle placeholder:text-fg-danger-strong
+        focus:ring-danger focus:border-danger';
 @endphp
 
 <select {{ $disabled ? 'disabled' : '' }} {!! $attributes->merge([

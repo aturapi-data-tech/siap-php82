@@ -15,20 +15,20 @@
         'flex items-center p-3 border rounded-lg cursor-pointer transition-colors duration-200 ' .
         ($disabled
             ? 'opacity-50 cursor-not-allowed bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
-            : 'hover:bg-gray-50 dark:hover:bg-gray-800 border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900');
+            : 'hover:bg-neutral-secondary-soft border-default-medium bg-neutral-primary');
 
     $inputClasses =
-        'w-4 h-4 text-brand focus:ring-brand dark:bg-gray-800 dark:border-gray-600 ' .
+        'w-4 h-4 text-brand bg-neutral-secondary-medium border-default-medium focus:ring-2 focus:ring-brand-medium ' .
         ($disabled ? 'cursor-not-allowed' : 'cursor-pointer');
 
     $labelClasses =
-        'ml-2 text-sm text-gray-700 dark:text-gray-300 ' . ($disabled ? 'cursor-not-allowed' : 'cursor-pointer');
+        'ms-2 text-sm font-medium text-heading ' . ($disabled ? 'cursor-not-allowed' : 'cursor-pointer');
 
     // Tambahkan class untuk state error jika diperlukan
     $hasError = $errors->has($name);
     if ($hasError && !$disabled) {
-        $containerClasses .= ' border-red-300 dark:border-red-700';
-        $inputClasses .= ' border-red-500 text-red-600 focus:ring-red-500';
+        $containerClasses .= ' border-danger-subtle';
+        $inputClasses .= ' border-danger text-danger focus:ring-danger-medium';
     }
 @endphp
 

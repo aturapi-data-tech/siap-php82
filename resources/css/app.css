@@ -56,6 +56,90 @@
     --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+/* ── Token semantik Flowbite v4 bermuatan warna brand (opsi "Netral Klinis").
+   Komponen memakai nama kelas Flowbite (bg-brand, hover:bg-brand-strong, focus:ring-brand-medium,
+   text-heading, border-default, bg-neutral-secondary-medium, bg-danger-soft, …) — nilainya di sini.
+   Format "R G B" supaya modifier opasitas Tailwind (/50) tetap jalan; .dark menukar otomatis.
+   Kontras: ring brand-medium 3,97:1, toggle mati (quaternary) ≥3:1, teks ≥4,5:1. ── */
+:root {
+    --fb-brand: 21 117 71;
+    --fb-brand-strong: 15 86 52;
+    --fb-brand-medium: 63 143 92;
+    --fb-brand-soft: 207 230 214;
+    --fb-brand-softer: 227 240 230;
+    --fb-brand-subtle: 183 217 194;
+    --fb-fg-brand: 21 117 71;
+    --fb-fg-brand-strong: 15 86 52;
+    --fb-fg-danger-strong: 156 50 50;
+    --fb-fg-success-strong: 35 116 74;
+    --fb-fg-warning: 138 106 14;
+    --fb-fg-disabled: 154 165 157;
+    --fb-heading: 19 32 26;
+    --fb-body: 60 70 63;
+    --fb-neutral-primary: 255 255 255;
+    --fb-neutral-primary-soft: 255 255 255;
+    --fb-neutral-primary-medium: 255 255 255;
+    --fb-neutral-secondary-soft: 244 246 244;
+    --fb-neutral-secondary-medium: 244 246 244;
+    --fb-neutral-tertiary-soft: 238 241 238;
+    --fb-neutral-tertiary: 226 230 227;
+    --fb-neutral-tertiary-medium: 233 236 233;
+    --fb-neutral-quaternary: 128 138 131;
+    --fb-default: 226 230 227;
+    --fb-default-medium: 213 219 214;
+    --fb-default-light: 236 239 236;
+    --fb-danger: 198 69 69;
+    --fb-danger-strong: 156 50 50;
+    --fb-danger-medium: 207 96 96;
+    --fb-danger-soft: 250 231 231;
+    --fb-danger-subtle: 241 196 196;
+    --fb-success-strong: 35 116 74;
+    --fb-success-soft: 226 243 232;
+    --fb-success-subtle: 185 226 200;
+    --fb-warning-strong: 138 106 14;
+    --fb-warning-soft: 250 241 217;
+    --fb-warning-subtle: 239 219 164;
+}
+.dark {
+    --fb-brand: 21 117 71;
+    --fb-brand-strong: 27 138 84;
+    --fb-brand-medium: 161 205 58;
+    --fb-brand-soft: 42 61 49;
+    --fb-brand-softer: 29 43 34;
+    --fb-brand-subtle: 51 80 61;
+    --fb-fg-brand: 161 205 58;
+    --fb-fg-brand-strong: 185 220 106;
+    --fb-fg-danger-strong: 224 133 133;
+    --fb-fg-success-strong: 127 210 162;
+    --fb-fg-warning: 227 191 87;
+    --fb-fg-disabled: 102 113 106;
+    --fb-heading: 238 242 239;
+    --fb-body: 196 205 198;
+    --fb-neutral-primary: 22 30 26;
+    --fb-neutral-primary-soft: 22 30 26;
+    --fb-neutral-primary-medium: 26 35 30;
+    --fb-neutral-secondary-soft: 18 24 21;
+    --fb-neutral-secondary-medium: 26 35 30;
+    --fb-neutral-tertiary-soft: 29 39 33;
+    --fb-neutral-tertiary: 38 50 43;
+    --fb-neutral-tertiary-medium: 34 45 38;
+    --fb-neutral-quaternary: 102 113 106;
+    --fb-default: 38 50 43;
+    --fb-default-medium: 51 64 58;
+    --fb-default-light: 29 39 33;
+    --fb-danger: 198 69 69;
+    --fb-danger-strong: 168 58 58;
+    --fb-danger-medium: 224 133 133;
+    --fb-danger-soft: 58 29 29;
+    --fb-danger-subtle: 90 42 42;
+    --fb-success-strong: 127 210 162;
+    --fb-success-soft: 27 53 38;
+    --fb-success-subtle: 42 79 57;
+    --fb-warning-strong: 227 191 87;
+    --fb-warning-soft: 53 43 16;
+    --fb-warning-subtle: 90 74 28;
+}
+
 /* ── v2: Token gelap. darkMode:"class" → cukup toggle class="dark" di <html>.
    Semua kelas ds, badge-ds, alert-ds yang pakai var() ikut ber-swap
    otomatis tanpa perlu menulis dark: di tiap elemen. ── */

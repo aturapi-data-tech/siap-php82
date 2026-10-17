@@ -16,12 +16,51 @@ module.exports = {
             colors: {
                 // Brand inti
                 brand: {
-                    DEFAULT: "#157547",
+                    DEFAULT: "rgb(var(--fb-brand) / <alpha-value>)",
+                    // ── semantik Flowbite v4 (nilai di app.css --fb-*) ──
+                    strong: "rgb(var(--fb-brand-strong) / <alpha-value>)",
+                    medium: "rgb(var(--fb-brand-medium) / <alpha-value>)",
+                    soft: "rgb(var(--fb-brand-soft) / <alpha-value>)",
+                    softer: "rgb(var(--fb-brand-softer) / <alpha-value>)",
+                    subtle: "rgb(var(--fb-brand-subtle) / <alpha-value>)",
                     green: "#157547",
                     lime: "#A1CD3A",
                     "green-active": "#0f5634", // hover/press hijau
                     "green-soft": "#4f9e6a", // indikator/aksen hijau-soft
                     "green-pale": "#cfe0d3", // disabled hijau
+                },
+                // ── Token semantik Flowbite v4 (dipetakan ke brand; nilai & mode gelap di app.css --fb-*) ──
+                heading: "rgb(var(--fb-heading) / <alpha-value>)",
+                fg: {
+                    brand: "rgb(var(--fb-fg-brand) / <alpha-value>)",
+                    "brand-strong": "rgb(var(--fb-fg-brand-strong) / <alpha-value>)",
+                    "danger-strong": "rgb(var(--fb-fg-danger-strong) / <alpha-value>)",
+                    "success-strong": "rgb(var(--fb-fg-success-strong) / <alpha-value>)",
+                    warning: "rgb(var(--fb-fg-warning) / <alpha-value>)",
+                    disabled: "rgb(var(--fb-fg-disabled) / <alpha-value>)",
+                },
+                neutral: {
+                    primary: "rgb(var(--fb-neutral-primary) / <alpha-value>)",
+                    "primary-soft": "rgb(var(--fb-neutral-primary-soft) / <alpha-value>)",
+                    "primary-medium": "rgb(var(--fb-neutral-primary-medium) / <alpha-value>)",
+                    "secondary-soft": "rgb(var(--fb-neutral-secondary-soft) / <alpha-value>)",
+                    "secondary-medium": "rgb(var(--fb-neutral-secondary-medium) / <alpha-value>)",
+                    "tertiary-soft": "rgb(var(--fb-neutral-tertiary-soft) / <alpha-value>)",
+                    tertiary: "rgb(var(--fb-neutral-tertiary) / <alpha-value>)",
+                    "tertiary-medium": "rgb(var(--fb-neutral-tertiary-medium) / <alpha-value>)",
+                    quaternary: "rgb(var(--fb-neutral-quaternary) / <alpha-value>)",
+                },
+                default: {
+                    DEFAULT: "rgb(var(--fb-default) / <alpha-value>)",
+                    medium: "rgb(var(--fb-default-medium) / <alpha-value>)",
+                    light: "rgb(var(--fb-default-light) / <alpha-value>)",
+                },
+                danger: {
+                    DEFAULT: "rgb(var(--fb-danger) / <alpha-value>)",
+                    strong: "rgb(var(--fb-danger-strong) / <alpha-value>)",
+                    medium: "rgb(var(--fb-danger-medium) / <alpha-value>)",
+                    soft: "rgb(var(--fb-danger-soft) / <alpha-value>)",
+                    subtle: "rgb(var(--fb-danger-subtle) / <alpha-value>)",
                 },
                 // Teks di atas permukaan gelap
                 on: {
@@ -44,8 +83,8 @@ module.exports = {
                     950: "#0a0f0c",
                 },
                 // Semantic (v2: DEFAULT + -tint utk badge/alert bg + -deep utk teks) — hex eksak dari style guide v2
-                success: { DEFAULT: "#3fae6a", tint: "#e2f3e8", deep: "#23744a" },
-                warning: { DEFAULT: "#d4a017", tint: "#faf1d9", deep: "#8a6a0e" },
+                success: { DEFAULT: "#3fae6a", tint: "#e2f3e8", deep: "#23744a", strong: "rgb(var(--fb-success-strong) / <alpha-value>)", soft: "rgb(var(--fb-success-soft) / <alpha-value>)", subtle: "rgb(var(--fb-success-subtle) / <alpha-value>)" },
+                warning: { DEFAULT: "#d4a017", tint: "#faf1d9", deep: "#8a6a0e", strong: "rgb(var(--fb-warning-strong) / <alpha-value>)", soft: "rgb(var(--fb-warning-soft) / <alpha-value>)", subtle: "rgb(var(--fb-warning-subtle) / <alpha-value>)" },
                 error: { DEFAULT: "#c64545", tint: "#fae7e7", deep: "#9c3232" },
                 info: { DEFAULT: "#2e7da6", tint: "#e3eff5", deep: "#205d7d" },
                 // ===== Design system tokens (acuan /standarisasi-ui) =====
@@ -75,6 +114,12 @@ module.exports = {
                     DEFAULT: "#e2e6e3", // garis 1px di permukaan terang
                     soft: "#ecefec", // divider sangat halus
                 },
+            },
+            borderRadius: {
+                base: "0.5rem", // rounded-base Flowbite v4
+            },
+            boxShadow: {
+                xs: "0 1px 2px 0 rgb(0 0 0 / 0.05)", // shadow-xs Flowbite v4
             },
             fontFamily: {
                 // v2: Source Sans 3 (x-height tinggi, mudah dibaca lansia); Inter fallback

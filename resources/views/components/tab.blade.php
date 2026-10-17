@@ -32,7 +32,7 @@
     // warna aktif (hanya underline & pill yg colorable; card/chip selalu brand)
     $palette = [
         'underline' => [
-            'brand'   => 'text-brand border-brand dark:text-brand-lime dark:border-brand-lime',
+            'brand'   => 'text-fg-brand border-brand dark:border-brand-lime',
             'emerald' => 'text-emerald-700 border-emerald-600 dark:text-emerald-300 dark:border-emerald-400',
             'rose'    => 'text-rose-700 border-rose-600 dark:text-rose-300 dark:border-rose-400',
             'blue'    => 'text-blue-700 border-blue-600 dark:text-blue-300 dark:border-blue-400',
@@ -58,7 +58,7 @@
         'underline' => [
             'shape'    => '-mb-px border-b-2',
             'active'   => ($palette['underline'][$color] ?? $palette['underline']['brand']) . ' font-semibold',
-            'inactive' => 'border-transparent text-muted hover:text-body dark:text-gray-400 dark:hover:text-gray-200',
+            'inactive' => 'border-transparent text-body hover:text-fg-brand hover:border-brand dark:text-gray-400 dark:hover:border-brand-lime',
         ],
         'card' => [
             'shape'    => '-mb-px rounded-t-[10px] border border-b-0',

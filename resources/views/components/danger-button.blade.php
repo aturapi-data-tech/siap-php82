@@ -5,22 +5,16 @@
 
 <button type="{{ $type }}" {{ $disabled ? 'disabled' : '' }}
     {{ $attributes->class([
-        // layout — sama persis dengan semua button lainnya
-        'inline-flex items-center justify-center gap-2',
-        'px-5 py-2.5 rounded-lg',
-        'text-sm font-medium',
+        // Flowbite v4 (warna = token brand di tailwind.config.cjs / app.css --fb-*)
+        'inline-flex items-center justify-center gap-2 box-border border',
+        'px-4 py-2.5 rounded-base shadow-xs',
+        'text-sm font-medium leading-5',
         'transition-colors duration-150',
-    
-        // v2 — token error solid, hover error-deep
-        'text-white bg-error',
-        'hover:bg-error-deep',
-        'focus:outline-none focus:ring-4 focus:ring-error/30',
+        'focus:outline-none focus:ring-4',
 
-        // dark mode
-        'dark:bg-error',
-        'dark:hover:bg-error-deep',
-        'dark:focus:ring-error/40',
-    
+        // Danger
+        'text-white bg-danger border-transparent hover:bg-danger-strong focus:ring-danger-medium',
+
         // disabled
         'disabled:opacity-50',
         'disabled:cursor-not-allowed',

@@ -69,18 +69,15 @@
             wire:click="{{ $wireClick }}"
         @endif
     @endif
-    class="flex items-center space-x-2 text-left rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2 dark:focus-visible:ring-brand-lime dark:focus-visible:ring-offset-gray-900 {{ $disabled ? 'cursor-not-allowed opacity-90' : 'cursor-pointer' }}"
+    class="inline-flex items-center gap-3 text-left rounded-full focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-medium {{ $disabled ? 'cursor-not-allowed' : 'cursor-pointer' }}"
     {{ $attrs }}>
-    <span class="block h-6 transition rounded-full w-11 shrink-0
-        {{ $isOn ? $onColor : 'bg-gray-300' }}">
-        <span class="block w-4 h-4 mt-1 transition transform bg-white rounded-full shadow
-            {{ $isOn ? 'translate-x-6 ml-1' : 'translate-x-1' }}">
+    {{-- Flowbite v4 toggle: jalur w-9 h-5, kenop 16px; mati = neutral-quaternary (≥3:1 terhadap latar) --}}
+    <span class="relative block w-9 h-5 transition-colors rounded-full shrink-0
+        {{ $disabled ? 'bg-neutral-tertiary' : ($isOn ? $onColor : 'bg-neutral-quaternary') }}">
+        <span class="absolute top-[2px] start-[2px] block w-4 h-4 transition-transform bg-white rounded-full shadow-xs motion-reduce:transition-none
+            {{ $isOn ? 'translate-x-4' : 'translate-x-0' }}">
         </span>
     </span>
 
-    @if ($label)
-        <span class="block text-sm font-medium text-gray-700 dark:text-gray-300 {{ $disabled ? 'opacity-90' : '' }}">{{ $label }}</span>
-    @else
-        <span class="block text-sm font-medium text-gray-700 dark:text-gray-300 {{ $disabled ? 'opacity-90' : '' }}">{{ $slot }}</span>
-    @endif
+    <span class="block text-sm font-medium select-none {{ $disabled ? 'text-fg-disabled' : 'text-heading' }}">{{ $label ?? $slot }}</span>
 </button>

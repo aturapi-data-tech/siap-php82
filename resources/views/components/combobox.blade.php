@@ -63,8 +63,8 @@
     // ditempel lewat merge, yang menang ditentukan urutan CSS — penanda error bisa
     // tidak kelihatan sama sekali.
     $borderClass = $error
-        ? 'border-red-500 dark:border-red-500 focus:border-red-500 focus:ring-red-500'
-        : 'border-gray-300 dark:border-gray-700 focus:border-brand-lime focus:ring-brand-lime';
+        ? 'border-danger-subtle focus:border-danger focus:ring-danger'
+        : 'border-default-medium focus:border-brand focus:ring-brand';
 @endphp
 
 <div class="relative w-full"

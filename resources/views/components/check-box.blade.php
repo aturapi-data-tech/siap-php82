@@ -21,24 +21,24 @@
             @if ($required) required @endif
             {{ $attributes->except(['class'])->merge([
                 'class' =>
-                    'w-4 h-4 text-brand-green bg-gray-100 border-gray-300 rounded focus:ring-brand-green/50 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 ' .
-                    ($error ? 'border-red-500 dark:border-red-500' : ''),
+                    'w-4 h-4 text-brand bg-neutral-secondary-medium border-default-medium rounded-sm focus:ring-2 focus:ring-brand-medium ' .
+                    ($error ? 'border-danger' : ''),
             ]) }}>
 
         @if ($label)
             <label for="{{ $id }}"
-                class="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer {{ $disabled ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed' : '' }}">
+                class="select-none ms-2 text-sm font-medium cursor-pointer {{ $disabled ? 'text-fg-disabled cursor-not-allowed' : 'text-heading' }}">
                 {{ $label }}
 
                 @if ($required)
-                    <span class="text-red-500">*</span>
+                    <span class="text-fg-danger-strong">*</span>
                 @endif
             </label>
         @endif
     </div>
 
     @if ($helpText)
-        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        <p class="mt-1 text-sm text-body dark:text-gray-400">
             {{ $helpText }}
         </p>
     @endif
