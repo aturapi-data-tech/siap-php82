@@ -7,7 +7,7 @@ description: Indeks pola UI/komponen terdokumentasi di folder docs/. Baca sebelu
 
 Sebelum membuat komponen baru, cek apakah polanya sudah ada di `docs/`. Ikuti pola yang ada agar konsisten. Baca file docs terkait sebelum implementasi.
 
-> Katalog SEMUA skill repo (6) ada di `docs/skills-index.md` — daftar skill + "baca saat".
+> Katalog SEMUA skill repo (7) ada di `docs/skills-index.md` — daftar skill + "baca saat".
 
 | Kebutuhan | Baca file |
 |---|---|
@@ -31,4 +31,4 @@ Sebelum membuat komponen baru, cek apakah polanya sudah ada di `docs/`. Ikuti po
 - **Stable lookup list**: list HANYA depend tanggal; decouple dari filterStatus/filterKlaim.
 - **Tab bar**: pakai `x-tabs`/`x-tab`, JANGAN tulis ulang `<ul><li><button @class([...])>`. `variant` di `<x-tabs>` diwarisi via `@aware`. Mode server (`:active` + `wire:click`) vs Alpine (`active-expr` + `x-on:click`, untuk `@entangle`). Di dalam `<x-scrollable-tabs>` jangan bungkus lagi dengan `<x-tabs>` (border dobel). Warna baru → tambah di map `$palette` (statis, bukan kelas dinamis).
 
-Lihat juga skill terkait: `blade-safe-edit`, `livewire-input-patterns`.
+Lihat juga skill terkait: `blade-safe-edit`, `livewire-input-patterns`, `siap-ui-ux` (warna, aturan UX Livewire, verifikasi).

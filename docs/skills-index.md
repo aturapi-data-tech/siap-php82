@@ -8,7 +8,7 @@ File tiap skill: `.claude/skills/<nama>/SKILL.md`. Panggil dengan `/<nama>`.
 > pembungkus "baca-dulu-sebelum-X" yang sering **menunjuk** ke docs terkait. Banyak skill = docs +
 > aturan keras + kapan-wajib-dibaca.
 
-Total: **6 skill**.
+Total: **7 skill**.
 
 ---
 
@@ -32,6 +32,7 @@ Total: **6 skill**.
 | **livewire-input-patterns** | Pola input Livewire/Alpine teruji: `wire:model.blur` auto-calc, `x-text-input-number`, Enter→`$wire` race, `x-now-button`, search input "mental", **persist filter antar tab (`#[Session]`)**. | Menambah/men-debug input numerik EMR, aksi Enter, filter list ber-tab. |
 | **livewire-render-versioning** | Aturan `wire:key` berversi (`WithRenderVersioningTrait` / `renderKey`) saat ada komponen Livewire bersarang di dalamnya. | Sebelum menambah `renderKey`/`incrementVersion` pada pembungkus, atau saat muncul "Snapshot missing on Livewire component". |
 | **ui-pattern-docs** | Indeks pola UI di `docs/` (tombol, modal, tab, page-frame, cetak PDF/TTD, editor, list stabil, wrapper hub). | Sebelum membuat komponen UI baru — cek dulu polanya sudah ada. |
+| **siap-ui-ux** | Aturan UI/UX SIAP untuk Livewire/Volt/Alpine: token warna "Netral Klinis", komponen wajib, loading per aksi + `wire:target`, konfirmasi aksi berisiko, modal (dirty guard, dialog anak, satu akar), timer Alpine `destroy()`, jalur gagal `$wire`, aksesibilitas, verifikasi (uji asap + screenshot headless). Disusun dari audit UI UX Pro Max (skill pihak ketiga itu tidak dipasang). | Membuat/merombak halaman, form, modal, warna; mengaudit UX. |
 
 ---
 
