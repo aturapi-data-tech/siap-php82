@@ -60,7 +60,8 @@
     $attrs = $attributes->whereDoesntStartWith('wire:model');
 @endphp
 
-<div
+{{-- <button role="switch">: bisa difokus dengan Tab & diubah dengan Spasi/Enter, terbaca pembaca layar sebagai sakelar. --}}
+<button type="button" role="switch" aria-checked="{{ $isOn ? 'true' : 'false' }}" @disabled($disabled)
     @if (!$disabled)
         @if ($wireModel)
             wire:click="$set('{{ $wireModel }}', {{ $encode($newValue) }})"
@@ -68,18 +69,18 @@
             wire:click="{{ $wireClick }}"
         @endif
     @endif
-    class="flex items-center space-x-2 {{ $disabled ? 'cursor-not-allowed opacity-90' : 'cursor-pointer' }}"
+    class="flex items-center space-x-2 text-left rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2 dark:focus-visible:ring-brand-lime dark:focus-visible:ring-offset-gray-900 {{ $disabled ? 'cursor-not-allowed opacity-90' : 'cursor-pointer' }}"
     {{ $attrs }}>
-    <div class="h-6 transition rounded-full w-11
+    <span class="block h-6 transition rounded-full w-11 shrink-0
         {{ $isOn ? $onColor : 'bg-gray-300' }}">
-        <div class="w-4 h-4 mt-1 transition transform bg-white rounded-full shadow
+        <span class="block w-4 h-4 mt-1 transition transform bg-white rounded-full shadow
             {{ $isOn ? 'translate-x-6 ml-1' : 'translate-x-1' }}">
-        </div>
-    </div>
+        </span>
+    </span>
 
     @if ($label)
         <span class="block text-sm font-medium text-gray-700 dark:text-gray-300 {{ $disabled ? 'opacity-90' : '' }}">{{ $label }}</span>
     @else
         <span class="block text-sm font-medium text-gray-700 dark:text-gray-300 {{ $disabled ? 'opacity-90' : '' }}">{{ $slot }}</span>
     @endif
-</div>
+</button>

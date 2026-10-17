@@ -190,7 +190,8 @@ new class extends Component {
                                     <td class="ds-c !px-1 {{ (int) $tahun === now()->year && $m === now()->month ? 'bg-sky-50/50' : '' }}">
                                         @if ($b['jadwal'] || $b['kal'])
                                             <div class="inline-flex items-center justify-center gap-0.5 min-w-[2.2rem] px-1 py-0.5 rounded font-bold text-xs {{ $warna }}">
-                                                @if ($b['jadwal'])<span title="Jatuh tempo kalibrasi">J</span>@endif
+                                                {{-- Bentuk simbol ikut membedakan status (bukan warna saja): J rencana · J! terlewat · J✓ terpenuhi --}}
+                                                @if ($b['jadwal'])<span title="{{ $labelJadwal = ['terlewat' => 'Jatuh tempo — terlewat', 'terpenuhi' => 'Jatuh tempo — sudah dikalibrasi ulang'][$b['jadwal']] ?? 'Jatuh tempo kalibrasi' }}"><span aria-hidden="true">{{ ['terlewat' => 'J!', 'terpenuhi' => 'J✓'][$b['jadwal']] ?? 'J' }}</span><span class="sr-only">{{ $labelJadwal }}</span></span>@endif
                                                 @if ($b['kal'] === 'L')<span class="text-emerald-700" title="Dikalibrasi — Laik Pakai">✓</span>@endif
                                                 @if ($b['kal'] === 'T')<span class="text-red-700" title="Dikalibrasi — Tidak Laik Pakai">✗</span>@endif
                                             </div>
@@ -217,8 +218,8 @@ new class extends Component {
             {{-- Legenda --}}
             <div class="flex flex-wrap gap-4 px-1 mt-3 text-xs text-muted dark:text-gray-400">
                 <span><b class="px-1.5 rounded bg-sky-100 text-sky-800">J</b> jatuh tempo (rencana)</span>
-                <span><b class="px-1.5 rounded bg-red-100 text-red-800">J</b> jatuh tempo terlewat / belum pernah</span>
-                <span><b class="px-1.5 rounded bg-gray-100 text-gray-500">J</b> jatuh tempo — sudah dikalibrasi ulang</span>
+                <span><b class="px-1.5 rounded bg-red-100 text-red-800">J!</b> jatuh tempo terlewat / belum pernah</span>
+                <span><b class="px-1.5 rounded bg-gray-100 text-gray-500">J✓</b> jatuh tempo — sudah dikalibrasi ulang</span>
                 <span><b class="text-emerald-700">✓</b> dikalibrasi, Laik Pakai</span>
                 <span><b class="text-red-700">✗</b> dikalibrasi, Tidak Laik Pakai</span>
             </div>

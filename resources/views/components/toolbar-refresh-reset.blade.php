@@ -24,9 +24,9 @@
             'inline-flex items-stretch overflow-hidden bg-canvas border border-hairline divide-x divide-hairline rounded-lg shadow-sm dark:bg-gray-900 dark:border-gray-600 dark:divide-gray-600',
             'mt-1' => !empty($label),
         ])>
-        <button type="button" wire:click="$refresh" title="Muat ulang data tanpa mengubah filter"
+        <button type="button" wire:click="$refresh" title="Muat ulang data tanpa mengubah filter" aria-label="Refresh"
             @class([
-                'inline-flex items-center gap-1.5 py-2.5 text-sm font-medium text-blue-600 transition-colors duration-150 hover:bg-blue-50 focus:outline-none focus:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20',
+                'inline-flex items-center gap-1.5 py-2.5 text-sm font-medium text-blue-600 transition-colors duration-150 hover:bg-blue-50 focus:outline-none focus:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-green dark:focus-visible:ring-brand-lime',
                 'px-2.5' => $iconOnly,
                 'px-4' => !$iconOnly,
             ])>
@@ -38,9 +38,9 @@
             @unless ($iconOnly) Refresh @endunless
         </button>
 
-        <button type="button" wire:click="{{ $resetAction }}" title="Kembalikan semua filter ke kondisi awal"
+        <button type="button" wire:click="{{ $resetAction }}" title="Kembalikan semua filter ke kondisi awal" aria-label="Reset filter"
             @class([
-                'inline-flex items-center gap-1.5 py-2.5 text-sm font-medium text-gray-600 transition-colors duration-150 hover:bg-gray-100 focus:outline-none focus:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800',
+                'inline-flex items-center gap-1.5 py-2.5 text-sm font-medium text-gray-600 transition-colors duration-150 hover:bg-gray-100 focus:outline-none focus:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-green dark:focus-visible:ring-brand-lime',
                 'px-2.5' => $iconOnly,
                 'px-4' => !$iconOnly,
             ])>

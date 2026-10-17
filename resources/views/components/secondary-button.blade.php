@@ -15,13 +15,13 @@
         'text-body bg-surface-elevated',
         'border border-hairline',
         'hover:bg-surface-soft hover:text-ink',
-        'focus:outline-none focus:ring-4 focus:ring-brand-green/15',
+        'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2',
 
         // dark
         'dark:bg-surface-dark-elevated dark:text-gray-200',
         'dark:border-gray-700',
         'dark:hover:bg-gray-700 dark:hover:text-white',
-        'dark:focus:ring-brand-lime/15',
+        'dark:focus-visible:ring-brand-lime dark:focus-visible:ring-offset-gray-900',
     
         // disabled
         'disabled:opacity-50',

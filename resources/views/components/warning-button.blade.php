@@ -10,15 +10,15 @@
         'text-sm font-medium',
         'transition-colors duration-150',
     
-        // light mode — yellow solid, dark text
-        'text-white bg-yellow-500',
-        'hover:bg-yellow-600',
-        'focus:outline-none focus:ring-4 focus:ring-yellow-300',
+        // light mode — kuning token warning, teks gelap (putih di atas kuning hanya 1,9:1 — gagal WCAG AA)
+        'text-gray-900 bg-warning',
+        'hover:bg-warning/90',
+        'focus:outline-none focus-visible:ring-2 focus-visible:ring-warning-deep focus-visible:ring-offset-2',
     
         // dark mode
-        'dark:bg-yellow-500',
-        'dark:hover:bg-yellow-600',
-        'dark:focus:ring-yellow-900',
+        'dark:bg-warning',
+        'dark:hover:bg-warning/90',
+        'dark:focus-visible:ring-warning dark:focus-visible:ring-offset-gray-900',
     
         // disabled
         'disabled:opacity-50',

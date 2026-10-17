@@ -204,7 +204,7 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
 
                 {{-- STEP: INPUT ID --}}
                 @if ($step === 'input')
-                    <div class="p-8 border shadow-sm bg-canvas border-hairline rounded-3xl"
+                    <div wire:key="kiosk-input" class="p-8 border shadow-sm bg-canvas border-hairline rounded-3xl"
                         x-data
                         x-init="$nextTick(() => $refs.inputId.focus())">
                         <label for="empIdInput" class="block mb-3 text-lg font-semibold text-center text-ink">
@@ -212,18 +212,28 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
                         </label>
                         <input id="empIdInput" x-ref="inputId" type="text" autocomplete="off"
                             wire:model="empIdInput" wire:keydown.enter.prevent="submitId"
+                            {{-- terkunci selama diperiksa: Enter ganda / scan kedua tidak mengirim permintaan dobel --}}
+                            wire:loading.attr="readonly" wire:target="submitId"
                             x-on:blur="setTimeout(() => $refs.inputId?.focus(), 300)"
                             class="w-full px-6 py-5 font-mono text-3xl text-center uppercase border-2 rounded-2xl border-hairline focus:border-brand-green focus:ring-brand-green"
                             placeholder="Contoh: PRW-001" />
-                        <div wire:loading wire:target="submitId" class="mt-3 text-center text-muted">Memeriksa...</div>
+                        {{-- Layar sentuh tanpa scanner: tombol besar, tidak perlu mencari Enter di keyboard layar --}}
+                        <button type="button" wire:click="submitId" wire:loading.attr="disabled" wire:target="submitId"
+                            class="w-full py-4 mt-4 text-lg font-semibold text-white transition rounded-2xl bg-brand-green hover:bg-brand-green-active focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-green/50 disabled:opacity-60 disabled:cursor-wait">
+                            <span wire:loading.remove wire:target="submitId">Absen</span>
+                            <span wire:loading wire:target="submitId">Memeriksa...</span>
+                        </button>
                     </div>
                 @endif
 
                 {{-- STEP: PILIH SHIFT --}}
                 @if ($step === 'pilih-shift' && $karyawan)
-                    <div class="p-8 border shadow-sm bg-canvas border-hairline rounded-3xl"
-                        x-data="{ sisa: 30 }"
-                        x-init="const t = setInterval(() => { if (--sisa <= 0) { clearInterval(t); $wire.resetKiosk(); } }, 1000)">
+                    {{-- Timer dibersihkan di destroy(): langkah yang ditinggalkan lewat Batal / pilih shift tidak boleh
+                         me-reset layar orang berikutnya. wire:key → tiap langkah komponen Alpine baru. --}}
+                    <div wire:key="kiosk-shift" class="p-8 border shadow-sm bg-canvas border-hairline rounded-3xl"
+                        x-data="{ sisa: 30, t: null,
+                            init() { this.t = setInterval(() => { if (--this.sisa <= 0) { clearInterval(this.t); $wire.resetKiosk(); } }, 1000) },
+                            destroy() { clearInterval(this.t) } }">
                         <p class="text-center text-muted">Absen masuk untuk</p>
                         <p class="mb-1 text-3xl font-bold text-center text-ink">{{ $karyawan['emp_name'] }}</p>
                         <p class="mb-6 font-mono text-center text-muted">{{ $karyawan['emp_id'] }}</p>
@@ -259,9 +269,10 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
                 {{-- STEP: KONFIRMASI (absen setelah separuh shift — mungkin lupa absen masuk) --}}
                 @if ($step === 'konfirmasi-masuk' && $karyawan && $this->shiftKonfirmasi)
                     @php $shift = $this->shiftKonfirmasi; @endphp
-                    <div class="p-8 border-4 shadow-sm border-amber-400 bg-amber-50 rounded-3xl"
-                        x-data="{ sisa: 30 }"
-                        x-init="const t = setInterval(() => { if (--sisa <= 0) { clearInterval(t); $wire.resetKiosk(); } }, 1000)">
+                    <div wire:key="kiosk-konfirmasi" class="p-8 border-4 shadow-sm border-amber-400 bg-amber-50 rounded-3xl"
+                        x-data="{ sisa: 30, t: null,
+                            init() { this.t = setInterval(() => { if (--this.sisa <= 0) { clearInterval(this.t); $wire.resetKiosk(); } }, 1000) },
+                            destroy() { clearInterval(this.t) } }">
                         <p class="text-3xl font-bold text-center text-ink">{{ $karyawan['emp_name'] }}</p>
                         <p class="mt-3 text-lg text-center text-body">
                             Anda <b>belum absen masuk</b> untuk {{ $shift->shift_name }}
@@ -303,9 +314,11 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
                             default  => '⛔',
                         };
                     @endphp
-                    <div class="p-10 text-center border-4 shadow-sm rounded-3xl {{ $warna }}"
-                        x-data="{ sisa: 5 }"
-                        x-init="const t = setInterval(() => { if (--sisa <= 0) { clearInterval(t); $wire.resetKiosk(); } }, 1000)"
+                    <div wire:key="kiosk-hasil" class="p-10 text-center border-4 shadow-sm rounded-3xl {{ $warna }}"
+                        role="{{ $hasil['tipe'] === 'error' ? 'alert' : 'status' }}" aria-live="assertive"
+                        x-data="{ sisa: 5, t: null,
+                            init() { this.t = setInterval(() => { if (--this.sisa <= 0) { clearInterval(this.t); $wire.resetKiosk(); } }, 1000) },
+                            destroy() { clearInterval(this.t) } }"
                         x-on:keydown.window.enter.prevent="$wire.resetKiosk()">
                         <div class="mb-3 text-6xl">{{ $ikon }}</div>
                         <p class="text-3xl font-bold text-ink">{{ $hasil['judul'] }}</p>

@@ -313,9 +313,13 @@ new class extends Component {
                                 <div class="grid grid-cols-1 gap-2 max-h-[50vh] overflow-y-auto pr-1">
                                     @foreach ($this->allPermissions as $perm)
                                         @php $isActive = in_array((int) $perm->id, $selectedPermissions, true); @endphp
-                                        <div wire:key="perm-{{ $perm->id }}"
+                                        {{-- <button role="switch">: bisa dipilih dengan Tab + Spasi, status terbaca pembaca layar --}}
+                                        <button type="button" role="switch" aria-checked="{{ $isActive ? 'true' : 'false' }}"
+                                            wire:key="perm-{{ $perm->id }}"
                                             wire:click="togglePermission({{ (int) $perm->id }})"
-                                            class="flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition
+                                            wire:loading.attr="disabled" wire:target="togglePermission({{ (int) $perm->id }})"
+                                            class="flex items-center justify-between w-full gap-3 p-3 text-left rounded-lg border cursor-pointer transition
+                                                focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green dark:focus-visible:ring-brand-lime
                                                 {{ $isActive
                                                     ? 'border-brand-green/50 bg-brand-green/5 dark:border-brand-lime/50 dark:bg-brand-lime/5'
                                                     : 'border-hairline dark:border-gray-700 hover:bg-surface-soft dark:hover:bg-gray-800/60' }}">
@@ -327,7 +331,7 @@ new class extends Component {
                                                 class="relative h-6 transition rounded-full w-11 shrink-0 {{ $isActive ? 'bg-brand-green dark:bg-brand-lime' : 'bg-gray-300 dark:bg-gray-600' }}">
                                                 <div class="absolute top-1 w-4 h-4 transition-all bg-canvas rounded-full shadow {{ $isActive ? 'left-6' : 'left-1' }}"></div>
                                             </div>
-                                        </div>
+                                        </button>
                                     @endforeach
                                 </div>
                             @endif

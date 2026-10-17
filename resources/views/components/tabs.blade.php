@@ -35,6 +35,6 @@
     ][$variant] ?? 'flex border-b border-hairline dark:border-gray-700';
 @endphp
 
-<div {{ $attributes->class([$track]) }}>
+<div role="tablist" {{ $attributes->class([$track]) }}>
     {{ $slot }}
 </div>

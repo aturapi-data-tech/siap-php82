@@ -4,7 +4,9 @@
     class="fixed top-20 left-0 z-[60] h-[calc(100vh-5rem)] w-80 max-w-[85vw] overflow-hidden flex flex-col
            bg-canvas dark:bg-gray-900 border-r border-hairline dark:border-gray-700
            transform transition-transform duration-300 ease-out"
-    :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
+    :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
+    {{-- Tertutup → inert: tautan menu tidak ikut urutan Tab & tidak terbaca pembaca layar --}}
+    :inert="!sidebarOpen" aria-label="Menu utama">
 
     {{-- Super grafis: watermark logogram besar (±35% terlihat, sangat tipis) --}}
     <img src="{{ asset('images/Logogram black solid.png') }}" alt=""
@@ -69,7 +71,7 @@
                 {{-- Group header --}}
                 <button type="button"
                     class="flex items-center justify-between w-full gap-2 px-3 py-3 transition-colors duration-150 group rounded-lg hover:bg-brand-green/10 dark:hover:bg-brand-lime/10"
-                    x-on:click="toggleMenu('{{ $key }}')">
+                    x-on:click="toggleMenu('{{ $key }}')" :aria-expanded="openMenus['{{ $key }}'] ? 'true' : 'false'">
                     <span class="text-base truncate min-w-0 {{ $isActiveGroup ? 'font-bold text-brand-green dark:text-brand-lime' : 'font-semibold text-body group-hover:text-ink dark:text-gray-300 dark:group-hover:text-white' }}">
                         {{ $groupName }}
                     </span>
@@ -86,7 +88,7 @@
                             $isActiveItem = request()->routeIs($item['route']);
                             $itemText = Str::lower(($item['title'] ?? '') . ' ' . ($item['desc'] ?? ''));
                         @endphp
-                        <a href="{{ $item['href'] }}" wire:navigate
+                        <a href="{{ $item['href'] }}" wire:navigate @if ($isActiveItem) aria-current="page" @endif
                             x-show="menuQuery === '' || @js($itemText).includes(menuQuery.toLowerCase())"
                             class="block px-3 py-2.5 rounded-lg transition-colors duration-150
                                    {{ $isActiveItem ? 'bg-brand-green shadow-sm' : 'hover:bg-brand-green/10 dark:hover:bg-brand-lime/10' }}">

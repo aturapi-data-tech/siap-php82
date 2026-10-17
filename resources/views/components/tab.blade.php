@@ -26,7 +26,8 @@
     // fallback 'underline'. ($variant ?? ...) aman walau @aware tak set (mis. <x-tab> tanpa induk <x-tabs>).
     $variant = $attributes->get('variant', $variant ?? 'underline');
 
-    $base = 'px-4 py-2 text-title-sm font-medium whitespace-nowrap transition-colors focus:outline-none cursor-pointer';
+    $base = 'px-4 py-2 text-title-sm font-medium whitespace-nowrap transition-colors focus:outline-none cursor-pointer'
+        . ' focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2 dark:focus-visible:ring-brand-lime dark:focus-visible:ring-offset-gray-900';
 
     // warna aktif (hanya underline & pill yg colorable; card/chip selalu brand)
     $palette = [
@@ -77,13 +78,14 @@
 
 @if ($activeExpr !== null)
     {{-- Alpine-reactive: kelas aktif/nonaktif di-toggle client-side --}}
-    <button x-bind:class="({{ $activeExpr }}) ? '{{ $v['active'] }}' : '{{ $v['inactive'] }}'"
+    <button role="tab" x-bind:aria-selected="({{ $activeExpr }}) ? 'true' : 'false'"
+        x-bind:class="({{ $activeExpr }}) ? '{{ $v['active'] }}' : '{{ $v['inactive'] }}'"
         {{ $attributes->except('variant')->class([$shape])->merge(['type' => 'button']) }}>
         {{ $slot }}
     </button>
 @else
     {{-- Server mode: aktif dari prop :active --}}
-    <button {{ $attributes->except('variant')->class([
+    <button role="tab" aria-selected="{{ $active ? 'true' : 'false' }}" {{ $attributes->except('variant')->class([
         $shape,
         $v['active'] => $active,
         $v['inactive'] => ! $active,

@@ -76,7 +76,7 @@
     </button>
 
     {{-- Modal Confirm (transisi DISAMAIN dengan <x-modal>) --}}
-    <div x-cloak x-show="show" class="fixed inset-0 z-[90]" aria-labelledby="{{ $confirmId }}_title" role="dialog"
+    <div x-cloak x-show="show" data-dialog-anak class="fixed inset-0 z-[90]" aria-labelledby="{{ $confirmId }}_title" role="dialog"
         aria-modal="true">
         {{-- Overlay (SAMA seperti modal) --}}
         <div class="fixed inset-0 bg-gray-900/50 dark:bg-gray-900/70" x-on:click="close()"

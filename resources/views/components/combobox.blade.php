@@ -182,7 +182,7 @@
             @if($inputId) id="{{ $inputId }}" @endif
             x-ref="cbInput"
             x-on:input="onInput()"
-            x-on:keydown.escape="open = false"
+            x-on:keydown.escape="if (open) { open = false; $event.stopPropagation() }"
             x-on:keydown.arrow-down.prevent="moveDown()"
             x-on:keydown.arrow-up.prevent="moveUp()"
             {{-- Tab TANPA .prevent: baris yang tersorot diambil, fokus tetap lanjut ke isian berikutnya. --}}

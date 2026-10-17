@@ -8,7 +8,8 @@
 ])
 
 {{-- CONTAINER UTAMA — dirty tracking pure-Alpine (no server dispatch) --}}
-<div class="{{ $wrapperClass }}"
+{{-- data-penjaga-tutup: x-modal memanggil tryClose() saat Escape / klik latar --}}
+<div class="{{ $wrapperClass }}" data-penjaga-tutup
     wire:key="{{ $wireKey }}"
     x-data="{
         dirty: false,
@@ -90,7 +91,8 @@
     {{ $slot }}
 
     {{-- KONFIRMASI TUTUP TANPA SIMPAN --}}
-    <div x-cloak x-show="showUnsavedWarning" class="fixed inset-0 z-[99]" role="dialog" aria-modal="true">
+    <div x-cloak x-show="showUnsavedWarning" class="fixed inset-0 z-[99]" role="dialog" aria-modal="true" data-dialog-anak
+        x-on:keydown.escape.window="showUnsavedWarning = false">
         <div class="fixed inset-0 bg-gray-900/50 dark:bg-gray-900/70"
             x-on:click="showUnsavedWarning = false"></div>
         <div class="fixed inset-0 flex items-center justify-center p-4">

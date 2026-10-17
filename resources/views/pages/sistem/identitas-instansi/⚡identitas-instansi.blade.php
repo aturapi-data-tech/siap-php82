@@ -257,9 +257,11 @@ new class extends Component {
                             @endif
                         </div>
                         <div class="space-y-2 text-sm">
-                            <label class="inline-flex items-center px-4 py-2 font-medium text-white rounded-lg cursor-pointer bg-brand-green hover:bg-brand-green/90">
+                            {{-- sr-only (bukan hidden): input tetap di urutan Tab, cincin fokus tampil di label --}}
+                            <label class="inline-flex items-center px-4 py-2 font-medium text-white rounded-lg cursor-pointer bg-brand-green hover:bg-brand-green/90
+                                focus-within:ring-2 focus-within:ring-brand-green focus-within:ring-offset-2 dark:focus-within:ring-brand-lime dark:focus-within:ring-offset-gray-900">
                                 Pilih logo…
-                                <input type="file" wire:model="logoBaru" accept="image/png,image/jpeg,image/webp" class="hidden">
+                                <input type="file" wire:model="logoBaru" accept="image/png,image/jpeg,image/webp" class="sr-only">
                             </label>
                             <div wire:loading wire:target="logoBaru" class="text-xs text-muted">Mengunggah…</div>
                             @if ($logoPratinjau)

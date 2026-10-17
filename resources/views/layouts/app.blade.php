@@ -39,9 +39,9 @@
                     @auth
                         {{-- Toggle Sidebar (LOGIN MODE) --}}
                         <button type="button"
-                            class="inline-flex items-center justify-center w-10 h-10 rounded-lg shrink-0 hover:bg-surface-soft dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-green/30 dark:focus:ring-brand-lime/30"
-                            x-on:click="sidebarOpen = !sidebarOpen" :aria-expanded="sidebarOpen.toString()">
-                            <span class="sr-only">Toggle sidebar</span>
+                            class="inline-flex items-center justify-center w-10 h-10 rounded-lg shrink-0 hover:bg-surface-soft dark:hover:bg-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green dark:focus-visible:ring-brand-lime"
+                            x-on:click="sidebarOpen = !sidebarOpen" :aria-expanded="sidebarOpen.toString()" aria-controls="app-sidebar">
+                            <span class="sr-only">Buka / tutup menu</span>
 
                             {{-- ICON: Open --}}
                             <svg x-show="!sidebarOpen" x-cloak class="w-6 h-6 text-muted dark:text-gray-300"

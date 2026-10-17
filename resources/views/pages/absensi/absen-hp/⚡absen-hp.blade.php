@@ -429,7 +429,12 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
                                 : 'Lokasi tidak didapat. Pastikan GPS menyala, lalu coba lagi.';
                             return;
                         }
-                        const cek = await $wire.cekLokasi(this.posisi.latitude, this.posisi.longitude, this.posisi.accuracy);
+                        let cek;
+                        try {
+                            cek = await $wire.cekLokasi(this.posisi.latitude, this.posisi.longitude, this.posisi.accuracy);
+                        } catch (galat) { cek = null; }
+                        // Sinyal putus / sesi habis → jangan tertahan di "Mencari lokasi", beri jalan Coba Lagi.
+                        if (!cek) { this.fase = 'luar'; this.pesan = 'Gagal menghubungi server. Periksa sinyal internet, lalu coba lagi.'; return; }
                         this.lokasiName = cek.lokasiName ?? ''; this.jarakLabel = cek.jarakLabel ?? '';
                         if (!cek.dalamRadius) { this.fase = 'luar'; this.pesan = cek.pesan; return; }
                         this.fase = 'foto';
@@ -458,7 +463,7 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
                             kanvas.getContext('2d').drawImage(gambar, 0, 0, kanvas.width, kanvas.height);
                             URL.revokeObjectURL(url);
                             this.foto = kanvas.toDataURL('image/jpeg', 0.75);
-                            this.fase = 'preview';
+                            this.fase = 'preview'; this.pesan = '';
                         } catch (galat) {
                             this.pesan = 'Foto tidak bisa dibaca. Coba ambil ulang.';
                         } finally {
@@ -472,7 +477,13 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
                         try {
                             if (Date.now() - this.posisiWaktu > 120000) this.posisi = await this.ambilPosisi();
                         } catch (galat) {} // gagal → pakai posisi awal; server tetap memvalidasi jaraknya
-                        await $wire.kirimAbsen(this.posisi.latitude, this.posisi.longitude, this.posisi.accuracy, this.foto);
+                        try {
+                            await $wire.kirimAbsen(this.posisi.latitude, this.posisi.longitude, this.posisi.accuracy, this.foto);
+                        } catch (galat) {} finally {
+                            // Berhasil → server pindah langkah & blok ini hilang. Masih di 'kirim' = gagal kirim:
+                            // kembali ke pratinjau supaya bisa tekan Kirim lagi (foto tidak perlu diambil ulang).
+                            if (this.fase === 'kirim') { this.fase = 'preview'; this.pesan = 'Gagal mengirim. Periksa sinyal internet, lalu tekan Kirim Absen lagi.'; }
+                        }
                     },
                 }">
 
@@ -493,7 +504,7 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
 
                 {{-- Siap / gagal --}}
                 <div x-show="aman && (fase === 'siap' || fase === 'luar')" class="mt-5">
-                    <div x-show="fase === 'luar'" class="p-3 mb-3 text-sm border rounded-xl border-amber-300 bg-amber-50 text-amber-900">
+                    <div x-show="fase === 'luar'" role="alert" class="p-3 mb-3 text-sm border rounded-xl border-amber-300 bg-amber-50 text-amber-900">
                         <p x-text="pesan"></p>
                     </div>
                     <button type="button" x-on:click="mulai()"
@@ -514,6 +525,10 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
                     <p class="mb-3 text-sm text-center text-emerald-700">
                         ✓ Di area <b x-text="lokasiName"></b> (<span x-text="jarakLabel"></span>)
                     </p>
+
+                    {{-- Pesan galat foto / kirim — sebelumnya hanya tampil di fase 'luar' sehingga tidak pernah terlihat --}}
+                    <p x-show="pesan && (fase === 'foto' || fase === 'preview')" x-text="pesan" role="alert"
+                        class="p-3 mb-3 text-sm border rounded-xl border-red-300 bg-red-50 text-red-900"></p>
 
                     <input x-ref="inputFoto" type="file" accept="image/*" capture="user" class="hidden" x-on:change="fotoDipilih($event)" />
 
@@ -609,7 +624,8 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
                     default  => '⛔',
                 };
             @endphp
-            <div wire:key="absen-hp-hasil" class="p-6 text-center border-4 shadow-sm rounded-3xl {{ $warna }}">
+            <div wire:key="absen-hp-hasil" class="p-6 text-center border-4 shadow-sm rounded-3xl {{ $warna }}"
+                role="{{ $hasil['tipe'] === 'error' ? 'alert' : 'status' }}" aria-live="assertive">
                 <div class="mb-2 text-5xl">{{ $ikon }}</div>
                 <p class="text-2xl font-bold text-ink">{{ $hasil['judul'] }}</p>
                 <p class="mt-2 text-lg text-body">{{ $hasil['pesan'] }}</p>

@@ -255,3 +255,8 @@
 .t-overline { font-family:var(--sans); font-size:12px;   font-weight:600; line-height:1.4;  letter-spacing:1px; text-transform:uppercase; color:var(--muted); }
 .t-code     { font-family:var(--mono); font-size:13px; }
 .t-num      { font-variant-numeric:tabular-nums; }
+
+/* text-muted / text-muted-soft berwarna hex statis (tailwind.config.cjs) sehingga di mode gelap hanya ±3,5:1
+   di atas gray-900. Di .dark ikut token gelap di atas (≥4,5:1) — tanpa menulis dark: di tiap elemen. */
+.dark .text-muted { color: var(--muted); }
+.dark .text-muted-soft { color: var(--muted-soft); }

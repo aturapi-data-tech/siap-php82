@@ -14,12 +14,12 @@
         // light mode
         'text-white bg-brand-green',
         'hover:bg-brand-green/90',
-        'focus:outline-none focus:ring-4 focus:ring-brand-lime/40',
+        'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-2',
     
         // dark mode
         'dark:bg-brand-lime dark:text-gray-900',
         'dark:hover:bg-brand-lime/90',
-        'dark:focus:ring-brand-green/40',
+        'dark:focus-visible:ring-brand-lime dark:focus-visible:ring-offset-gray-900',
     
         // disabled
         'disabled:opacity-50',
