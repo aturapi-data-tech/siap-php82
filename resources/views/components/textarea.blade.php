@@ -9,7 +9,10 @@
     // Latar, teks & border SENGAJA hanya di $normalClass / $errorClass (tidak di $baseClass): kalau dua kelas
     // satu jenis ikut bersamaan, urutan CSS build yang menang — bukan maksud kita.
     // Padding & ukuran font dibiarkan bawaan @tailwindcss/forms (halaman banyak menimpa lewat class="...").
-    $baseClass = 'w-full rounded-base shadow-xs disabled:text-fg-disabled disabled:cursor-not-allowed';
+    // w-full hanya bila pemakai tidak memberi lebar sendiri (class="w-28" dst.) — kalau ikut, w-full menang
+    // urutan CSS dan lebar pemakai diabaikan (input bulan jadi selebar kolom).
+    $lebarBawaan = preg_match('/(^|\s)(?:[a-z0-9]+:)*!?w-/', (string) $attributes->get('class')) ? '' : ' w-full';
+    $baseClass = 'rounded-base shadow-xs disabled:text-fg-disabled disabled:cursor-not-allowed' . $lebarBawaan;
 
     $normalClass = 'bg-neutral-secondary-medium text-heading border-default-medium placeholder:text-gray-500 dark:placeholder:text-gray-400
         focus:ring-brand focus:border-brand';

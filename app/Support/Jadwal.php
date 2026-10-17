@@ -20,21 +20,43 @@ class Jadwal
      * Warna latar bawaan per kode — disamakan dgn contoh lapangan (P kuning, S hijau, I abu).
      * Shift yang punya shift_warna memakai warnanya sendiri (diatur di Master Shift).
      */
+    /**
+     * Warna bawaan per kode — pastel cerah yang serasi dengan tema "Netral Klinis" (teks gelap, kontras ≥ 10:1).
+     * P kuning (pagi), S hijau Madinah muda (sore), M biru (malam), N toska, I abu netral, C ungu.
+     */
     public const WARNA_BAWAAN = [
-        'P' => '#ffff00', 'S' => '#00ff00', 'M' => '#2563eb', 'N' => '#5eead4',
-        'I' => '#999999', 'C' => '#c084fc',
+        'P' => '#fde68a', 'S' => '#bbe5c8', 'M' => '#93c5fd', 'N' => '#99f6e4',
+        'I' => '#e2e6e3', 'C' => '#ddd6fe',
     ];
-    public const WARNA_LAIN = '#fdba74';
+    public const WARNA_LAIN = '#fed7aa';
 
     /**
-     * Pilihan warna shift di Master Shift — terang & mudah dibedakan di grid / cetak.
-     * Sengaja tanpa hitam / warna gelap: tidak informatif dan menenggelamkan kodenya.
+     * Pilihan warna shift di Master Shift — pastel cerah, beda rona supaya mudah dibedakan di grid / cetak,
+     * teks kode selalu gelap. Sengaja tanpa warna gelap / neon.
      */
     public const PALET = [
-        '#ffff00' => 'Kuning', '#00ff00' => 'Hijau', '#7dd3fc' => 'Biru muda', '#2563eb' => 'Biru',
-        '#5eead4' => 'Toska', '#c084fc' => 'Ungu', '#f9a8d4' => 'Merah muda', '#f87171' => 'Merah',
-        '#fdba74' => 'Oranye', '#bef264' => 'Hijau muda', '#fcd34d' => 'Emas', '#a5b4fc' => 'Lavender',
+        '#fde68a' => 'Kuning', '#bbe5c8' => 'Hijau', '#bae6fd' => 'Biru muda', '#93c5fd' => 'Biru',
+        '#99f6e4' => 'Toska', '#ddd6fe' => 'Ungu', '#fbcfe8' => 'Merah muda', '#fecaca' => 'Merah',
+        '#fed7aa' => 'Oranye', '#d9f99d' => 'Hijau muda', '#fcd34d' => 'Emas', '#c7d2fe' => 'Lavender',
     ];
+
+    /** Palet lama (neon, sebelum tema Netral Klinis) → padanan pastelnya. Data shift_warna lama tidak perlu diubah. */
+    private const WARNA_LAMA = [
+        '#ffff00' => '#fde68a', '#00ff00' => '#bbe5c8', '#7dd3fc' => '#bae6fd', '#2563eb' => '#93c5fd',
+        '#5eead4' => '#99f6e4', '#c084fc' => '#ddd6fe', '#f9a8d4' => '#fbcfe8', '#f87171' => '#fecaca',
+        '#fdba74' => '#fed7aa', '#bef264' => '#d9f99d', '#a5b4fc' => '#c7d2fe', '#999999' => '#e2e6e3',
+    ];
+
+    /** Warna tersimpan → warna palet sekarang (hex lama dipetakan; null/kosong tetap null). */
+    public static function normalWarna(?string $warna): ?string
+    {
+        if (!$warna) {
+            return null;
+        }
+        $warna = mb_strtolower($warna);
+
+        return self::WARNA_LAMA[$warna] ?? $warna;
+    }
 
     /**
      * [latar, teks] untuk satu kode jadwal — dipakai layar & cetak PDF.
@@ -42,11 +64,11 @@ class Jadwal
      */
     public static function warna(string $kode, ?string $warnaShift = null): array
     {
-        $latar = $warnaShift ?: (self::WARNA_BAWAAN[$kode] ?? self::WARNA_LAIN);
+        $latar = self::normalWarna($warnaShift) ?: (self::WARNA_BAWAAN[$kode] ?? self::WARNA_LAIN);
         [$merah, $hijau, $biru] = sscanf($latar, '#%02x%02x%02x');
         $kecerahan = ($merah * 299 + $hijau * 587 + $biru * 114) / 1000;
 
-        return [$latar, $kecerahan > 150 ? '#111111' : '#ffffff'];
+        return [$latar, $kecerahan > 150 ? '#13201a' : '#ffffff'];
     }
 
     /** Atribut style sel / badge kode jadwal: "background-color:…;color:…". */

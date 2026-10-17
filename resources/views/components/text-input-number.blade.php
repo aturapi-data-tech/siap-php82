@@ -78,7 +78,10 @@
     // Border & focus-ring dipisah dari $baseClass supaya saat error tidak bentrok
     // dgn border-gray (border-gray-300 ada SETELAH border-error di CSS build → gray menang).
     // Flowbite v4 (sama dengan x-text-input): latar/teks/border hanya di kelompok normal/galat.
-    $baseClass = 'rounded-base shadow-xs disabled:text-fg-disabled disabled:cursor-not-allowed w-full input-num text-right';
+    // w-full hanya bila pemakai tidak memberi lebar sendiri (class="w-28" dst.) — kalau ikut, w-full menang
+    // urutan CSS dan lebar pemakai diabaikan (input bulan jadi selebar kolom).
+    $lebarBawaan = preg_match('/(^|\s)(?:[a-z0-9]+:)*!?w-/', (string) $attributes->get('class')) ? '' : ' w-full';
+    $baseClass = 'rounded-base shadow-xs disabled:text-fg-disabled disabled:cursor-not-allowed input-num text-right' . $lebarBawaan;
     $normalClass = 'bg-neutral-secondary-medium text-heading border-default-medium placeholder:text-gray-500 dark:placeholder:text-gray-400
         focus:ring-brand focus:border-brand';
     $errorClass = 'bg-danger-soft text-fg-danger-strong border-danger-subtle placeholder:text-fg-danger-strong

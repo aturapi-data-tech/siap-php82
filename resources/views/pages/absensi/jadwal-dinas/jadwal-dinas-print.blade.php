@@ -13,10 +13,10 @@
         table.jd { width: 100%; border-collapse: collapse; }
         table.jd { table-layout: fixed; }
         table.jd th, table.jd td { border: 1px solid #333; text-align: center; padding: 3px 1px; }
-        table.jd th { background: #ff00ff; color: #fff; font-size: 9px; }
-        table.jd th.minggu, table.jd td.minggu { background: #ff0000; color: #fff; }
-        table.jd th.nama { background: #fbcfe8; color: #111; text-align: left; padding-left: 4px; }
-        table.jd td.nama { background: #ffedd5; text-align: left; padding-left: 4px; font-weight: bold; white-space: nowrap; }
+        table.jd th { background: #e3f0e6; color: #0f5634; font-size: 9px; }
+        table.jd th.minggu, table.jd td.minggu { background: #fae7e7; color: #9c3232; }
+        table.jd th.nama { background: #eef1ee; color: #13201a; text-align: left; padding-left: 4px; }
+        table.jd td.nama { background: #ffffff; text-align: left; padding-left: 4px; font-weight: bold; white-space: nowrap; }
         .ket td { font-size: 9px; padding: 2px 6px; }
     </x-slot:gaya>
 
@@ -34,7 +34,7 @@
         <tbody>
             @foreach ($karyawan->groupBy(fn($row) => $row->unit_name ?? 'Belum ada unit') as $namaUnitKelompok => $karyawanUnit)
                 @unless ($namaUnit)
-                    <tr><td class="nama" colspan="{{ $jumlahHari + 2 }}" style="background:#eeeeee; font-weight:bold">{{ mb_strtoupper($namaUnitKelompok) }}</td></tr>
+                    <tr><td class="nama" colspan="{{ $jumlahHari + 2 }}" style="background:#f4f6f4; font-weight:bold">{{ mb_strtoupper($namaUnitKelompok) }}</td></tr>
                 @endunless
                 @foreach ($karyawanUnit as $dataKaryawan)
                 <tr>

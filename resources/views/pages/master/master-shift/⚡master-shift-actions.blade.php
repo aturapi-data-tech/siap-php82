@@ -75,7 +75,8 @@ new class extends Component {
             'jam_pulang'      => (string) $row->jam_pulang,
             'toleransi_menit' => (string) (int) $row->toleransi_menit,
             'unit_id'         => (string) ($row->unit_id ?? ''),
-            'shift_warna'     => (string) ($row->shift_warna ?? ''),
+            // hex palet lama dipetakan ke palet sekarang supaya pilihan tampil & lolos validasi saat disimpan
+            'shift_warna'     => (string) (Jadwal::normalWarna($row->shift_warna) ?? ''),
             'shift_fleksibel' => (string) ($row->shift_fleksibel ?? '0') === '1' ? '1' : '0',
             'active_status'   => (string) $row->active_status === '1' ? '1' : '0',
         ];
