@@ -1,73 +1,31 @@
-{{-- Template print: Slip Gaji Karyawan — satuan & massal (satu karyawan satu halaman).
-     Mengikuti slip gaji dokter sirus-php82 (cetak-slip-gaji-massal-print): kerangka x-pdf.layout-kwitansi
-     disalin ke sini karena komponen itu memancarkan satu dokumen <html> utuh — dipanggil berulang akan
-     menghasilkan dokumen bersarang. Kop & judul sama dengan layout-kwitansi; badan slip di partial
-     gaji-karyawan-slip-isi supaya cetak satuan, massal, dan link WhatsApp selalu identik.
+{{-- Template print: Slip Gaji Karyawan — satuan & massal, 4 slip per lembar A4 (x-pdf.layout-a4-bagi-4).
+     $potongan = true (link WhatsApp) → satu slip per halaman seukuran satu potongan, enak dibuka di HP.
+     Badan slip di partial gaji-karyawan-slip-isi supaya cetak satuan, massal, dan link WhatsApp selalu identik.
 
-     Butuh: $slipList (array ['header' => …, 'detail' => …] dari GajiKaryawan::slip()), $dicetak, $oleh. --}}
+     Butuh: $slipList (array ['header' => …, 'detail' => …] dari GajiKaryawan::slip()), $potongan. --}}
+<x-pdf.layout-a4-bagi-4 title="Slip Gaji" :items="$slipList" isi="pages.keuangan.gaji-karyawan.gaji-karyawan-slip-isi"
+    as="slip" :potongan="$potongan ?? false">
+    <x-slot:gaya>
+        table.slip-data { width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 7.5px; }
+        table.slip-data td { padding: 0.6px 0; vertical-align: top; }
+        table.slip-data td.label { width: 58px; color: #4b5563; }
+        table.slip-data td.titik { width: 6px; color: #4b5563; }
 
-@php
-    $manifestPath = public_path('build/manifest.json');
-    $pdfCss = null;
-    if (file_exists($manifestPath)) {
-        $manifest = json_decode(file_get_contents($manifestPath), true);
-        $pdfCss = $manifest['resources/css/app.css']['file'] ?? null;
-    }
-@endphp
+        table.slip-rincian { width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 7.5px; }
+        table.slip-rincian th { padding: 2px 0; font-size: 6.5px; text-transform: uppercase; letter-spacing: 0.05em; color: #4b5563; border-bottom: 0.8px solid #1f2937; }
+        table.slip-rincian td { padding: 1.2px 0; vertical-align: top; }
+        table.slip-rincian td.jumlah, table.slip-rincian th.jumlah { text-align: right; white-space: nowrap; width: 70px; }
+        table.slip-rincian tr.kelompok td { padding-top: 3px; font-weight: bold; border-bottom: 0.5px solid #d1d5db; }
+        table.slip-rincian tr.total td { font-weight: bold; border-top: 0.8px solid #1f2937; }
+        table.slip-rincian tr.diterima td { padding: 3px 0; font-size: 9px; font-weight: bold; border-top: 1.5px solid #111; border-bottom: 1.5px solid #111; }
+        .slip-ket { font-size: 6.5px; color: #6b7280; }
+        .slip-draft { font-weight: bold; color: #b91c1c; }
+        .slip-terbilang { margin-top: 3px; font-size: 6.5px; font-style: italic; color: #4b5563; }
 
-<!DOCTYPE html>
-<html lang="id">
-
-<head>
-    <meta charset="utf-8">
-    <title>Slip Gaji Karyawan</title>
-    <style>
-        @page {
-            margin: 0;
-        }
-
-        * { box-sizing: border-box; }
-
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: sans-serif;
-        }
-
-        /* Tiap slip satu halaman. page-break-after pada elemen TERAKHIR menyisakan halaman kosong,
-           jadi pemutusnya kelas terpisah yang tidak dipakai slip terakhir. */
-        .slip { padding: 8mm 10mm; }
-        .putus-halaman { page-break-after: always; }
-
-        {!! $pdfCss ? file_get_contents(public_path('build/' . $pdfCss)) : '' !!}
-    </style>
-</head>
-
-<body class="text-sm text-gray-900">
-    @foreach ($slipList as $slip)
-        @php
-            $header = $slip['header'];
-            $detail = $slip['detail'];
-        @endphp
-
-        <div class="slip {{ $loop->last ? '' : 'putus-halaman' }}">
-            {{-- Kop & judul: susunan yang sama dengan x-pdf.layout-kwitansi --}}
-            <table class="w-full border-collapse">
-                <tr>
-                    <td class="align-middle">
-                        <x-logo.identitas-horisontal :showGaris="false" />
-                    </td>
-                    <td class="align-middle text-right text-[14px] font-bold uppercase tracking-wide w-auto whitespace-nowrap text-gray-900">
-                        Slip Gaji Karyawan
-                    </td>
-                </tr>
-            </table>
-
-            <div class="mt-0.5 border-t border-gray-400"></div>
-
-            @include('pages.keuangan.gaji-karyawan.gaji-karyawan-slip-isi')
-        </div>
-    @endforeach
-</body>
-
-</html>
+        table.slip-ttd { width: 100%; margin-top: 6px; font-size: 7px; text-align: center; color: #374151; }
+        table.slip-ttd td { width: 50%; vertical-align: top; }
+        .slip-ttd-ruang { height: 26px; }
+        .slip-ttd-nama { padding-top: 1px; border-top: 0.6px solid #1f2937; }
+        .slip-rahasia { margin-top: 4px; font-size: 6px; color: #9ca3af; }
+    </x-slot:gaya>
+</x-pdf.layout-a4-bagi-4>

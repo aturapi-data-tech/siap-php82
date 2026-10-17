@@ -412,10 +412,17 @@ class GajiKaryawan
         return DB::table('siaptxn_gaji_dtls')->where('gaji_id', $gajiId)->orderBy('urutan')->orderBy('dtl_id')->get();
     }
 
-    /** PDF slip (satu atau banyak, satu karyawan satu halaman) — dipakai cetak di layar & link WA. */
-    public static function pdf(array $slipList, ?string $oleh)
+    /** Kertas seukuran satu potongan x-pdf.layout-a4-bagi-4 (105 × 148 mm, satuan pt) — slip lewat link WA. */
+    private const KERTAS_POTONGAN = [0, 0, 297.64, 419.53];
+
+    /**
+     * PDF slip — dipakai cetak di layar & link WA.
+     * $potongan = false: 4 slip per lembar A4 (dipotong); true: satu slip per halaman seukuran potongan (dibuka di HP).
+     */
+    public static function pdf(array $slipList, bool $potongan = false)
     {
-        return Pdf::loadView(self::PRINT_VIEW, ['slipList' => $slipList, 'dicetak' => now(), 'oleh' => $oleh])->setPaper('A4');
+        return Pdf::loadView(self::PRINT_VIEW, ['slipList' => $slipList, 'potongan' => $potongan])
+            ->setPaper($potongan ? self::KERTAS_POTONGAN : 'A4');
     }
 
     // ─── Kirim lewat WhatsApp (wa.me, klik-kirim oleh petugas) ────────────────

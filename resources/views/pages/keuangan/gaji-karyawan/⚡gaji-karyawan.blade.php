@@ -127,7 +127,7 @@ new class extends Component {
         return $this->unduhPdf([$slip], 'slip-gaji-' . mb_strtolower($slip['header']->emp_id) . '-' . $slip['header']->periode . '.pdf');
     }
 
-    /** Cetak semua slip yang tampil (periode + filter) — satu karyawan satu halaman. */
+    /** Cetak semua slip yang tampil (periode + filter) — 4 slip per lembar A4. */
     public function cetakMassal()
     {
         $slipList = $this->querySlip()->orderBy('gh.emp_id')->pluck('gh.gaji_id')
@@ -142,7 +142,7 @@ new class extends Component {
 
     private function unduhPdf(array $slipList, string $namaBerkas)
     {
-        $pdf = GajiKaryawan::pdf($slipList, auth()->user()?->name);
+        $pdf = GajiKaryawan::pdf($slipList);
 
         return response()->streamDownload(fn() => print $pdf->output(), $namaBerkas);
     }
@@ -274,7 +274,7 @@ new class extends Component {
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                             Final Semua
                         </x-confirm-button>
-                        <x-cetak-button wire:click="cetakMassal" label="Cetak Semua" title="Cetak semua slip yang tampil — satu karyawan satu halaman" />
+                        <x-cetak-button wire:click="cetakMassal" label="Cetak Semua" title="Cetak semua slip yang tampil — 4 slip per lembar A4" />
                         <x-toolbar-refresh-reset :label="null" />
                         <a href="{{ route('panduan.gaji') }}" wire:navigate title="Cara pakai modul gaji">
                             <x-ghost-button type="button">

@@ -190,7 +190,7 @@ new class extends Component {
                     <h2>7. Cetak &amp; kirim WhatsApp</h2>
                     <h3 class="mt-3">Cetak</h3>
                     <ul class="mt-1 text-sm">
-                        <li>Ikon printer biru di baris = slip satu karyawan. <b>Cetak Semua</b> = semua slip yang tampil (sesuai filter), satu karyawan satu halaman.</li>
+                        <li>Ikon printer biru di baris = slip satu karyawan. <b>Cetak Semua</b> = semua slip yang tampil (sesuai filter), 4 slip per lembar A4 — tinggal dipotong mengikuti garis putus-putus.</li>
                         <li>Slip memakai kop identitas instansi ({!! $tautan('sistem.identitas', 'Identitas Instansi') !!}); slip Draft bertanda <b>(DRAFT)</b>.</li>
                     </ul>
                     <h3 class="mt-4">Kirim WhatsApp</h3>

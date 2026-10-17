@@ -19,7 +19,7 @@ class SlipGajiController extends Controller
 
         $namaBerkas = 'slip-gaji-' . mb_strtolower($slip['header']->emp_id) . '-' . $slip['header']->periode . '.pdf';
 
-        return GajiKaryawan::pdf([$slip], null)->stream($namaBerkas)
+        return GajiKaryawan::pdf([$slip], potongan: true)->stream($namaBerkas)
             ->withHeaders(['Cache-Control' => 'private, no-store', 'X-Robots-Tag' => 'noindex']);
     }
 }
