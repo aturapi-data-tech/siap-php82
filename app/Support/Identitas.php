@@ -97,6 +97,21 @@ class Identitas
         return $ikon !== $logo ? self::logoUrl($ikon) : null;
     }
 
+    /**
+     * Logo untuk kop cetakan (model kop modul dokumen sirus-php82: logo persegi di kanan atas):
+     * berkas "<nama logo> persegi.<ext>" di sebelah logo bila ada, selain itu logo biasa. Path disk untuk DomPDF.
+     */
+    public static function logoKopPath(): ?string
+    {
+        $logo = self::get()->logo;
+        if (!$logo) {
+            return null;
+        }
+        $persegi = preg_replace('/(\.[a-z0-9]+)$/i', ' persegi$1', $logo);
+
+        return ($persegi !== $logo ? self::logoPath($persegi) : null) ?? self::logoPath($logo);
+    }
+
     /** Alamat lengkap satu baris: alamat, kota kode pos. */
     public static function alamatLengkap(): string
     {

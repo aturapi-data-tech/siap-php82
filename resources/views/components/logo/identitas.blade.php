@@ -1,5 +1,6 @@
 {{-- resources/views/components/logo/identitas.blade.php --}}
-{{-- Kop cetakan (DomPDF). Pemakaian: <x-logo.identitas /> atau <x-logo.identitas :showGaris="false" />
+{{-- Kop cetakan (DomPDF) — model kop modul dokumen sirus-php82: logo persegi + nama + alamat rata kanan, garis hijau ganda.
+     Pemakaian: <x-logo.identitas /> atau <x-logo.identitas :showGaris="false" />
      Isi dari menu Sistem › Identitas Instansi (App\Support\Identitas); prop tetap bisa ditimpa per pemakaian. --}}
 @props([
     'namaRs' => null,
@@ -18,35 +19,34 @@
     $fax ??= $identitas->fax;
     $website ??= $identitas->website;
     $email ??= $identitas->email;
-    $logoPath = \App\Support\Identitas::logoPath();
+    $logoPath = \App\Support\Identitas::logoKopPath();
     $kontak = collect([
         filled($telp) ? 'Telp. ' . $telp : null,
         filled($fax) ? 'Fax. ' . $fax : null,
     ])->filter()->implode('  ');
     $web = collect([$email, $website])->filter()->implode(' · ');
+    // Alamat dua baris seperti sirus: patah sebelum ", Kabupaten …" / ", Kota …"
+    $barisAlamat = preg_split('/,\s*(?=(Kabupaten|Kab\.|Kota)\s)/i', (string) $alamat, 2);
 @endphp
 
 <table style="width:100%; border-collapse:collapse; margin-bottom:0;">
     <tr>
         {{-- Kiri: kosong (area ornamen) --}}
-        <td style="width:25%; vertical-align:top;"></td>
+        <td style="width:45%; vertical-align:top;"></td>
 
         {{-- Kanan: logo + identitas instansi (right-align) --}}
-        <td style="width:75%; text-align:right; vertical-align:top;">
+        <td style="width:55%; text-align:right; vertical-align:top;">
             @if ($logoPath)
                 <img src="{{ $logoPath }}" alt="Logo {{ $namaRs }}"
-                    style="height:60px; width:auto; display:inline-block; margin-bottom:6px;">
+                    style="height:80px; width:auto; display:inline-block; margin-bottom:6px;">
             @endif
             <div style="font-size:9.5px; line-height:1.55; color:#333;">
-                @unless ($logoPath)
-                    {{-- Nama hanya bila tanpa logo — logo sudah memuat nama instansi --}}
-                    <div style="font-weight:bold; font-size:11px; color:#111;">{{ $namaRs }}</div>
-                @endunless
+                <div style="font-weight:bold; font-size:11px; color:#111;">{{ $namaRs }}</div>
                 @if (filled($alamat))
-                    <div>{{ $alamat }}</div>
+                    <div>{{ $barisAlamat[0] }}@if (isset($barisAlamat[1])),<br>{{ $barisAlamat[1] }}@endif</div>
                 @endif
                 @if ($kontak !== '')
-                    <div>{{ $kontak }}</div>
+                    <div>{!! str_replace('  ', '&nbsp;&nbsp;', e($kontak)) !!}</div>
                 @endif
                 @if ($web !== '')
                     <div>{{ $web }}</div>
