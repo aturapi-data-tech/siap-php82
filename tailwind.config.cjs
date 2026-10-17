@@ -54,7 +54,6 @@ module.exports = {
                     DEFAULT: "rgb(var(--fb-default) / <alpha-value>)",
                     medium: "rgb(var(--fb-default-medium) / <alpha-value>)",
                     light: "rgb(var(--fb-default-light) / <alpha-value>)",
-                    strong: "rgb(var(--fb-default-strong) / <alpha-value>)", // garis input aktif — sage bernuansa brand, ≥3:1
                 },
                 danger: {
                     DEFAULT: "rgb(var(--fb-danger) / <alpha-value>)",

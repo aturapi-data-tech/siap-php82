@@ -88,7 +88,6 @@
     --fb-default: 226 230 227;
     --fb-default-medium: 213 219 214;
     --fb-default-light: 236 239 236;
-    --fb-default-strong: 120 150 127; /* sage — garis input aktif, 3,25:1 vs putih */
     --fb-danger: 198 69 69;
     --fb-danger-strong: 156 50 50;
     --fb-danger-medium: 207 96 96;
@@ -128,7 +127,6 @@
     --fb-default: 38 50 43;
     --fb-default-medium: 51 64 58;
     --fb-default-light: 29 39 33;
-    --fb-default-strong: 86 116 96;
     --fb-danger: 198 69 69;
     --fb-danger-strong: 168 58 58;
     --fb-danger-medium: 224 133 133;

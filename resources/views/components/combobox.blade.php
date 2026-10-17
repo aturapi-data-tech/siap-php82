@@ -64,7 +64,7 @@
     // tidak kelihatan sama sekali.
     $borderClass = $error
         ? 'border-danger-subtle focus:border-danger focus:ring-danger'
-        : 'bg-neutral-primary text-heading border-default-strong enabled:hover:border-brand/60 focus:border-brand focus:ring-brand';
+        : 'bg-gray-50 text-heading border-gray-300 dark:border-gray-700 enabled:hover:border-brand/60 focus:border-brand focus:ring-brand/40';
 @endphp
 
 <div class="relative w-full"
@@ -196,7 +196,7 @@
                 }
             "
             {{ $attributes->merge([
-                'class' => trim($borderClass . ' dark:bg-gray-900 dark:text-gray-100 rounded-base shadow-xs disabled:bg-neutral-tertiary disabled:border-default disabled:text-body disabled:placeholder:text-gray-500 disabled:opacity-100 disabled:[-webkit-text-fill-color:currentColor] disabled:shadow-none disabled:cursor-not-allowed dark:disabled:bg-gray-700 dark:disabled:text-gray-300 w-full ' . ($disabled ? '' : 'pr-16')),
+                'class' => trim($borderClass . ' dark:bg-gray-900 dark:text-gray-100 rounded-base shadow-sm disabled:bg-neutral-tertiary disabled:border-default disabled:text-body disabled:placeholder:text-gray-500 disabled:opacity-100 disabled:[-webkit-text-fill-color:currentColor] disabled:shadow-none disabled:cursor-not-allowed dark:disabled:bg-gray-700 dark:disabled:text-gray-300 w-full ' . ($disabled ? '' : 'pr-16')),
             ]) }} />
 
         {{-- Tombol Clear (×) — hanya muncul kalau ada nilai --}}

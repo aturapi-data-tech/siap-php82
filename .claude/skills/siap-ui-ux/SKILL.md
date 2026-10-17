@@ -127,10 +127,11 @@ Label form: `<x-input-label for="x">` + `id="x"` pada input. Filter toolbar tanp
 `aria-label` atau label `sr-only`. Input file: `class="sr-only"` (bukan `hidden`) + `focus-within:ring` di label.
 
 **4.10b Status input harus terlihat beda** (sudah di `x-text-input`/`x-textarea`/`x-select-input`/`x-text-input-number`/`x-combobox`):
-aktif = latar putih + garis `border-default-strong` (sage bernuansa brand, ≥3:1), hijau brand saat disorot/fokus; nonaktif (`disabled`) = latar abu tegas
+aktif = gaya SIRUS: latar `bg-gray-50` + garis `border-gray-300` tipis (menyatu dengan latar, pilihan user — di bawah
+anjuran 3:1), hijau brand saat disorot/fokus; nonaktif (`disabled`) = latar abu tegas
 (`neutral-tertiary`), garis pudar, **teks tetap terbaca** (`text-body`, bukan pudar — Safari: `opacity-100` +
 `-webkit-text-fill-color`), kursor dilarang; read-only (form terkunci) = latar abu + garis putus-putus, teks tetap jelas.
-Jangan beri input aktif latar abu — terlihat seperti nonaktif. Form terkunci pakai `:disabled` atau `readonly`, bukan warna.
+Pembeda utama nonaktif = latar abu SOLID (lebih gelap dari gray-50), bukan teks pudar. Form terkunci pakai `:disabled` atau `readonly`, bukan warna.
 
 **4.11 Layar HP & kiosk** (Absen HP, Kiosk, halaman karyawan): target sentuh ≥44px (`py-3`/`min-h-[44px]`),
 teks ≥ `text-xs` (12px), input `text-base` (iOS tidak zoom), tombol kirim terlihat (jangan andalkan Enter).
