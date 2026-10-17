@@ -61,17 +61,17 @@
    otomatis tanpa perlu menulis dark: di tiap elemen. ── */
 .dark {
     /* hex eksak dari style guide v2 (mode gelap) */
-    --canvas: #0f1813;
-    --surface-soft: #15201a;
-    --surface-elevated: #1e2b23;
-    --surface-card: #1a271f;
+    --canvas: #161e1a;
+    --surface-soft: #0f1512;
+    --surface-elevated: #1a231e;
+    --surface-card: #161e1a;
     --surface-cream-strong: #24332a;
-    --hairline: #283a2f;
-    --hairline-soft: #1f2e25;
+    --hairline: #26322b;
+    --hairline-soft: #1d2721;
     --ink: #f6f8f5;
     --body: #b9c4bc;
     --body-strong: #dbe4dd;
-    --muted: #9aa89e;
+    --muted: #9aa59d;
     /* 4.52:1 vs kartu gelap (#1a271f). Dulu #76847b = 3.96:1, di bawah AA. */
     --muted-soft: #808e85;
     --primary-disabled: #274b38;

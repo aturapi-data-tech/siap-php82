@@ -28,6 +28,21 @@ module.exports = {
                     dark: "#f6f8f5",
                     "dark-soft": "#9aa89e",
                 },
+                // Abu-abu Tailwind diganti netral bernuansa hijau hutan (opsi A "Netral Klinis"):
+                // semua dark:bg-gray-900/800, border-gray-700, text-gray-500 … ikut brand tanpa mengubah tiap file.
+                gray: {
+                    50: "#f6f8f6",
+                    100: "#eef1ee",
+                    200: "#dfe5e0",
+                    300: "#c4cdc6",
+                    400: "#9aa59d",
+                    500: "#66716a",
+                    600: "#4b554e",
+                    700: "#26322b",
+                    800: "#161e1a",
+                    900: "#0f1512",
+                    950: "#0a0f0c",
+                },
                 // Semantic (v2: DEFAULT + -tint utk badge/alert bg + -deep utk teks) — hex eksak dari style guide v2
                 success: { DEFAULT: "#3fae6a", tint: "#e2f3e8", deep: "#23744a" },
                 warning: { DEFAULT: "#d4a017", tint: "#faf1d9", deep: "#8a6a0e" },
@@ -35,12 +50,12 @@ module.exports = {
                 info: { DEFAULT: "#2e7da6", tint: "#e3eff5", deep: "#205d7d" },
                 // ===== Design system tokens (acuan /standarisasi-ui) =====
                 // Pakai sebagai utility: bg-canvas, text-ink, border-hairline, dst.
-                canvas: "#f6f8f5", // kanvas terang halaman
+                canvas: "#ffffff", // kartu, tabel, topbar & sidebar (opsi A "Netral Klinis": kartu putih di atas latar netral)
                 surface: {
-                    soft: "#eef2ec", // pembatas band
+                    soft: "#f4f6f4", // latar halaman (wrapper page) & band — netral, sedikit hijau
                     elevated: "#ffffff", // kartu data / modal (v2: di atas canvas)
-                    card: "#e6ece4", // kartu fitur
-                    strong: "#dbe6d6", // tab terpilih / band ditekankan
+                    card: "#eef1ee", // kartu fitur / blok sekunder
+                    strong: "#e3f0e6", // tab / menu terpilih — tint hijau Madinah
                     dark: "#14201a", // panel data / footer (forest)
                     "dark-elevated": "#1e2b23", // kartu di atas dark
                     "dark-soft": "#18241d", // blok kode di dalam dark
@@ -51,14 +66,14 @@ module.exports = {
                     strong: "#233029", // paragraf lead
                 },
                 muted: {
-                    DEFAULT: "#69736b", // sub-judul
-                    soft: "#6b746c", // caption / fine-print — 4.53:1 vs kanvas (WCAG AA).
+                    DEFAULT: "#5f6961", // sub-judul — 5,4:1 di latar halaman, 5,7:1 di kartu putih
+                    soft: "#646d66", // caption / fine-print — ≥4,8:1 di latar halaman & kartu (WCAG AA).
                     // Dulu #8b948c = 3.13:1, di bawah ambang 4.5:1 sehingga teks
                     // sekunder terbaca buram. Dipakai ~382 file lewat text-muted-soft.
                 },
                 hairline: {
-                    DEFAULT: "#dde4d8", // garis 1px di permukaan terang
-                    soft: "#e7ece4", // divider sangat halus
+                    DEFAULT: "#e2e6e3", // garis 1px di permukaan terang
+                    soft: "#ecefec", // divider sangat halus
                 },
             },
             fontFamily: {

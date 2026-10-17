@@ -81,7 +81,7 @@
                     </svg>
                 </button>
 
-                {{-- Items — aktif: pil hijau primary (teks putih). Saat cari → auto-expand --}}
+                {{-- Items — aktif: tint hijau + garis kiri (opsi A "Netral Klinis"). Saat cari → auto-expand --}}
                 <div x-cloak x-show="openMenus['{{ $key }}'] || menuQuery.length > 0" x-collapse class="mt-0.5 space-y-0.5 pl-3">
                     @foreach ($items as $item)
                         @php
@@ -91,14 +91,14 @@
                         <a href="{{ $item['href'] }}" wire:navigate @if ($isActiveItem) aria-current="page" @endif
                             x-show="menuQuery === '' || @js($itemText).includes(menuQuery.toLowerCase())"
                             class="block px-3 py-2.5 rounded-lg transition-colors duration-150
-                                   {{ $isActiveItem ? 'bg-brand-green shadow-sm' : 'hover:bg-brand-green/10 dark:hover:bg-brand-lime/10' }}">
+                                   {{ $isActiveItem ? 'bg-surface-strong shadow-[inset_3px_0_0_#157547] dark:bg-brand-lime/10 dark:shadow-[inset_3px_0_0_#A1CD3A]' : 'hover:bg-brand-green/10 dark:hover:bg-brand-lime/10' }}">
                             {{-- Judul --}}
-                            <div class="text-base leading-snug {{ $isActiveItem ? 'font-bold text-white' : 'font-medium text-body group-hover:text-brand-green dark:text-gray-300 dark:group-hover:text-brand-lime' }}">
+                            <div class="text-base leading-snug {{ $isActiveItem ? 'font-bold text-brand-green-active dark:text-brand-lime' : 'font-medium text-body group-hover:text-brand-green dark:text-gray-300 dark:group-hover:text-brand-lime' }}">
                                 {{ $item['title'] }}
                             </div>
                             {{-- Deskripsi --}}
                             @if (!empty($item['desc']))
-                                <div class="text-sm leading-snug mt-0.5 line-clamp-2 {{ $isActiveItem ? 'text-white/80' : 'text-muted dark:text-gray-400' }}">
+                                <div class="text-sm leading-snug mt-0.5 line-clamp-2 {{ $isActiveItem ? 'text-body dark:text-gray-300' : 'text-muted dark:text-gray-400' }}">
                                     {{ $item['desc'] }}
                                 </div>
                             @endif

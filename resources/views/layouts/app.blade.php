@@ -30,7 +30,7 @@
 
         {{-- TOP BAR (harus paling atas) --}}
         <header
-            class="fixed inset-x-0 top-0 z-50 bg-surface-soft border-b border-hairline dark:bg-gray-800 dark:border-gray-700">
+            class="fixed inset-x-0 top-0 z-50 bg-canvas border-b border-hairline dark:bg-gray-900 dark:border-gray-700">
             {{-- Padding kiri-kanan disamakan dgn konten halaman (px-6) supaya tepi topbar & isi sejajar --}}
             <div class="flex items-center justify-between h-20 gap-4 px-4 lg:px-6">
 
