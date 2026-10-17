@@ -236,18 +236,18 @@ new class extends Component {
                                     @php
                                         $hariTerjadwal = (int) $row->hari_terjadwal;
                                         $persen = $hariTerjadwal > 0 ? round((int) $row->hadir_terjadwal / $hariTerjadwal * 100) : null;
-                                        $warnaPersen = $persen === null ? 'text-muted-soft' : ($persen >= 95 ? 'bg-emerald-100 text-emerald-800' : ($persen >= 85 ? 'bg-amber-100 text-amber-800' : 'bg-red-100 text-red-800'));
+                                        $warnaPersen = $persen === null ? 'text-muted-soft' : ($persen >= 95 ? 'bg-success-soft text-fg-success-strong' : ($persen >= 85 ? 'bg-warning-soft text-fg-warning' : 'bg-danger-soft text-fg-danger-strong'));
                                     @endphp
                                     <td class="ds-c">
                                         <div class="font-mono font-semibold">{{ $hariTerjadwal }}</div>
                                         @if ((int) $row->terjadwal_sebulan !== $hariTerjadwal)
-                                            <div class="text-[10px] text-muted-soft">dari {{ (int) $row->terjadwal_sebulan }} sebulan</div>
+                                            <div class="text-xs text-muted-soft">dari {{ (int) $row->terjadwal_sebulan }} sebulan</div>
                                         @endif
                                     </td>
                                     <td class="ds-c">
                                         @if ($persen !== null)
                                             <span class="inline-block px-2 py-0.5 rounded font-mono font-bold text-sm {{ $warnaPersen }}">{{ $persen }}%</span>
-                                            <div class="text-[10px] text-muted-soft">{{ (int) $row->hadir_terjadwal }}/{{ $hariTerjadwal }} hari</div>
+                                            <div class="text-xs text-muted-soft">{{ (int) $row->hadir_terjadwal }}/{{ $hariTerjadwal }} hari</div>
                                         @else
                                             <span class="text-muted-soft" title="Belum ada hari terjadwal yang lewat">—</span>
                                         @endif
@@ -265,10 +265,10 @@ new class extends Component {
                                     <td class="font-mono ds-c">
                                         {{ \App\Support\Absensi::labelTerlambat((int) $row->total_terlambat) ?: '—' }}
                                         @if ((int) $row->jml_pulang_cepat > 0)
-                                            <div class="text-[11px] text-red-700">pulang cepat {{ (int) $row->jml_pulang_cepat }}× · {{ \App\Support\Absensi::labelMenit((int) $row->total_pulang_cepat) }}</div>
+                                            <div class="text-xs text-fg-danger-strong">pulang cepat {{ (int) $row->jml_pulang_cepat }}× · {{ \App\Support\Absensi::labelMenit((int) $row->total_pulang_cepat) }}</div>
                                         @endif
                                         @if ((int) $row->jml_lupa_masuk > 0 || (int) $row->jml_tanpa_pulang > 0)
-                                            <button type="button" wire:click="openDetail('{{ $row->emp_id }}')" class="block mx-auto text-[11px] text-red-700 hover:underline" wire:loading.attr="disabled" wire:target="openDetail('{{ $row->emp_id }}')">
+                                            <button type="button" wire:click="openDetail('{{ $row->emp_id }}')" class="block mx-auto text-xs text-fg-danger-strong hover:underline" wire:loading.attr="disabled" wire:target="openDetail('{{ $row->emp_id }}')">
                                                 {{ collect([(int) $row->jml_lupa_masuk > 0 ? 'lupa masuk ' . (int) $row->jml_lupa_masuk . '×' : null,
                                                     (int) $row->jml_tanpa_pulang > 0 ? 'tanpa pulang ' . (int) $row->jml_tanpa_pulang . '×' : null])->filter()->implode(' · ') }}
                                             <x-loading wire:loading.delay wire:target="openDetail('{{ $row->emp_id }}')" class="ml-1 align-middle" /></button>
@@ -276,8 +276,8 @@ new class extends Component {
                                     </td>
                                     <td class="font-mono ds-c">
                                         @if ((int) $row->total_lembur > 0)
-                                            <span class="text-indigo-700">{{ \App\Support\Absensi::labelMenit((int) $row->total_lembur) }}</span>
-                                            <div class="text-[11px] text-muted-soft">
+                                            <span class="text-info-deep dark:text-sky-300">{{ \App\Support\Absensi::labelMenit((int) $row->total_lembur) }}</span>
+                                            <div class="text-xs text-muted-soft">
                                                 {{ (int) $row->hari_lembur }} hari{{ (int) $row->jml_dobel_shift > 0 ? ' · ' . (int) $row->jml_dobel_shift . '× dobel shift' : '' }}
                                             </div>
                                         @else
@@ -285,8 +285,8 @@ new class extends Component {
                                         @endif
                                         @if ((int) $row->lembur_menunggu > 0)
                                             <button type="button" wire:click="openDetail('{{ $row->emp_id }}')"
-                                                class="text-[11px] text-amber-700 hover:underline" wire:loading.attr="disabled" wire:target="openDetail('{{ $row->emp_id }}')">
-                                                ⏳ + {{ \App\Support\Absensi::labelMenit((int) $row->lembur_menunggu) }} menunggu — nilai
+                                                class="text-xs text-fg-warning hover:underline" wire:loading.attr="disabled" wire:target="openDetail('{{ $row->emp_id }}')">
+                                                <span class="inline-flex items-center gap-1"><svg class="inline w-3.5 h-3.5 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> + {{ \App\Support\Absensi::labelMenit((int) $row->lembur_menunggu) }} menunggu — nilai</span>
                                             <x-loading wire:loading.delay wire:target="openDetail('{{ $row->emp_id }}')" class="ml-1 align-middle" /></button>
                                         @endif
                                     </td>

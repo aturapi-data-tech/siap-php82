@@ -36,7 +36,7 @@
      Slot bawaan = deskripsi (boleh HTML); lebih dari 90 karakter otomatis diringkas dengan
      tombol "Selengkapnya". Slot "badge" = badge khusus modul (mis. Mode Lihat/Edit, transit).
      Tombol tutup = anak terakhir baris flex dengan ml-auto (aturan §2a). --}}
-<div {{ $attributes->merge(['class' => 'px-6 py-2.5 border-b shrink-0 bg-surface-soft border-hairline dark:border-gray-700']) }}>
+<div {{ $attributes->merge(['class' => 'px-6 py-2.5 border-b shrink-0 bg-surface-soft border-hairline dark:bg-gray-900 dark:border-gray-700']) }}>
     <div class="flex items-center min-w-0 gap-3">
         <div class="flex items-center justify-center w-7 h-7 rounded-lg shrink-0 bg-brand-green/10 dark:bg-brand-lime/15">
             <svg class="w-4 h-4 text-brand-green dark:text-brand-lime" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">

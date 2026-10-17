@@ -163,7 +163,7 @@ new class extends Component {
                 ikon="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z">
                 <span class="font-mono">{{ $empId }}</span> · {{ $bulan }} · nilai lembur: <b>Hitung</b> masuk total, <b>Tidak</b> diabaikan.
             </x-modul-dokumen.header>
-            <div class="px-6 py-3 border-b shrink-0 bg-surface-soft border-hairline dark:border-gray-700">
+            <div class="px-6 py-3 border-b shrink-0 bg-surface-soft border-hairline text-heading dark:bg-gray-900 dark:border-gray-700">
                 {{-- Ringkasan --}}
                 @if ($empId !== '')
                     @php $ringkasan = $this->ringkasan; @endphp
@@ -173,14 +173,14 @@ new class extends Component {
                         @endforeach
                         <span class="mx-1 text-hairline">|</span>
                         <span class="text-sm">Terjadwal <b class="font-mono">{{ $ringkasan['terjadwal'] }}</b> hari ·
-                            Kehadiran <b class="font-mono {{ $ringkasan['persen'] === null ? '' : ($ringkasan['persen'] >= 95 ? 'text-emerald-700' : ($ringkasan['persen'] >= 85 ? 'text-amber-700' : 'text-red-700')) }}">{{ $ringkasan['persen'] === null ? '—' : $ringkasan['persen'] . '%' }}</b>
+                            Kehadiran <b class="font-mono {{ $ringkasan['persen'] === null ? '' : ($ringkasan['persen'] >= 95 ? 'text-fg-success-strong' : ($ringkasan['persen'] >= 85 ? 'text-fg-warning' : 'text-fg-danger-strong')) }}">{{ $ringkasan['persen'] === null ? '—' : $ringkasan['persen'] . '%' }}</b>
                             <span class="text-xs text-muted">({{ $ringkasan['hadir_terjadwal'] }}/{{ $ringkasan['terjadwal'] }})</span></span>
                         <span class="text-sm">Terlambat <b class="font-mono">{{ \App\Support\Absensi::labelMenit($ringkasan['terlambat']) ?: '0' }}</b></span>
-                        <span class="text-sm text-indigo-700">Lembur dihitung <b class="font-mono">{{ \App\Support\Absensi::labelMenit($ringkasan['lembur_y']) ?: '0' }}</b></span>
+                        <span class="text-sm text-info-deep dark:text-sky-300">Lembur dihitung <b class="font-mono">{{ \App\Support\Absensi::labelMenit($ringkasan['lembur_y']) ?: '0' }}</b></span>
                         @if ($ringkasan['jml_p'] > 0)
-                            <span class="text-sm text-amber-700">⏳ {{ $ringkasan['jml_p'] }} lembur menunggu ({{ \App\Support\Absensi::labelMenit($ringkasan['lembur_p']) }})</span>
-                            <x-primary-button type="button" wire:click="hitungSemuaMenunggu" wire:loading.attr="disabled" class="!px-3 !py-1.5 text-xs">
-                                ✓ Hitung semua yang menunggu
+                            <span class="inline-flex items-center gap-1 text-sm text-fg-warning"><svg class="inline w-3.5 h-3.5 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> {{ $ringkasan['jml_p'] }} lembur menunggu ({{ \App\Support\Absensi::labelMenit($ringkasan['lembur_p']) }})</span>
+                            <x-primary-button type="button" wire:click="hitungSemuaMenunggu" wire:loading.attr="disabled" wire:target="hitungSemuaMenunggu" class="!px-3 !py-1.5 text-xs">
+                                <svg class="inline w-3.5 h-3.5 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg> Hitung semua yang menunggu
                             </x-primary-button>
                         @endif
                     </div>
@@ -188,7 +188,7 @@ new class extends Component {
             </div>
 
             {{-- BODY: semua tanggal dalam bulan --}}
-            <div class="flex-1 px-4 py-4 bg-surface-soft dark:bg-gray-950/20">
+            <div class="flex-1 px-4 py-4 bg-surface-soft dark:bg-gray-900">
                 <div class="overflow-hidden border shadow-sm bg-canvas border-hairline rounded-2xl dark:border-gray-700 dark:bg-gray-900">
                     <table class="ds-table">
                         <thead>
@@ -210,21 +210,21 @@ new class extends Component {
                                     $absensi = $hari['abs'];
                                     $libur = $tanggal->isSunday();
                                 @endphp
-                                <tr wire:key="hari-{{ $tanggal->format('Ymd') }}" class="{{ $absensi ? '' : 'opacity-50' }} {{ $absensi && $absensi->lembur_status === 'P' ? 'bg-amber-50/60' : '' }}">
+                                <tr wire:key="hari-{{ $tanggal->format('Ymd') }}" class="{{ $absensi ? '' : 'opacity-50' }} {{ $absensi && $absensi->lembur_status === 'P' ? 'bg-warning-soft/60' : '' }}">
                                     <td class="whitespace-nowrap">
                                         <span class="font-mono">{{ \App\Support\Format::tanggal($tanggal) }}</span>
-                                        <span class="text-xs {{ $libur ? 'text-red-600' : 'text-muted' }}">{{ \App\Support\Format::hari($tanggal) }}</span>
+                                        <span class="text-xs {{ $libur ? 'text-fg-danger-strong' : 'text-muted' }}">{{ \App\Support\Format::hari($tanggal) }}</span>
                                     </td>
                                     @php $jadwalHari = $hari['jadwal']; $kodeJadwal = $jadwalHari ? \App\Support\Jadwal::kode($jadwalHari) : ''; @endphp
                                     <td class="ds-c">
                                         @if ($kodeJadwal)
                                             <span class="inline-block w-7 py-0.5 text-xs font-bold rounded" style="{{ \App\Support\Jadwal::gaya($kodeJadwal, $jadwalHari->shift_warna ?? null) }}">{{ $kodeJadwal }}</span>
                                         @else
-                                            <span class="text-[10px] text-muted-soft">libur</span>
+                                            <span class="text-xs text-muted-soft">libur</span>
                                         @endif
                                     </td>
                                     @if (!$absensi)
-                                        <td colspan="6" class="text-xs italic {{ $jadwalHari && $jadwalHari->jdw_jenis === 'K' && $tanggal->lt(now()->startOfDay()) ? 'text-red-600 font-semibold not-italic' : 'text-muted-soft' }}">
+                                        <td colspan="6" class="text-xs italic {{ $jadwalHari && $jadwalHari->jdw_jenis === 'K' && $tanggal->lt(now()->startOfDay()) ? 'text-fg-danger-strong font-semibold not-italic' : 'text-muted-soft' }}">
                                             {{ $jadwalHari && $jadwalHari->jdw_jenis === 'K' && $tanggal->lt(now()->startOfDay()) ? 'terjadwal tapi tanpa catatan — isi/Generate di Rekap Harian' : 'tanpa catatan' }}
                                         </td>
                                     @else
@@ -232,7 +232,7 @@ new class extends Component {
                                         <td class="font-mono">
                                             {{ $absensi->jam_masuk ? \Carbon\Carbon::parse($absensi->jam_masuk)->format('H:i') : '—' }}
                                             @if ((int) $absensi->terlambat_menit > 0)
-                                                <div class="text-[11px] text-amber-700">+{{ \App\Support\Absensi::labelMenit((int) $absensi->terlambat_menit) }}</div>
+                                                <div class="text-xs text-fg-warning">+{{ \App\Support\Absensi::labelMenit((int) $absensi->terlambat_menit) }}</div>
                                             @endif
                                             @if (\App\Support\Absensi::lupaAbsenMasuk($absensi))
                                                 <div class="font-sans"><x-badge variant="danger">lupa absen masuk</x-badge></div>
@@ -242,13 +242,13 @@ new class extends Component {
                                             @if ($absensi->jam_pulang)
                                                 {{ \Carbon\Carbon::parse($absensi->jam_pulang)->format('H:i') }}
                                                 @unless (\Carbon\Carbon::parse($absensi->jam_pulang)->isSameDay(\Carbon\Carbon::parse($absensi->jam_masuk ?? $absensi->abs_date)))
-                                                    <span class="text-[10px] text-muted-soft">(+1)</span>
+                                                    <span class="text-xs text-muted-soft">(+1)</span>
                                                 @endunless
                                                 @if ($absensi->shift_jam_pulang)
-                                                    <div class="text-[10px] text-muted-soft">jadwal {{ $absensi->shift_jam_pulang }}</div>
+                                                    <div class="text-xs text-muted-soft">jadwal {{ $absensi->shift_jam_pulang }}</div>
                                                 @endif
                                                 @if ((int) $absensi->pulang_cepat_menit > 0)
-                                                    <div class="font-sans text-[11px] text-red-700">pulang cepat {{ \App\Support\Absensi::labelMenit((int) $absensi->pulang_cepat_menit) }}</div>
+                                                    <div class="font-sans text-xs text-fg-danger-strong">pulang cepat {{ \App\Support\Absensi::labelMenit((int) $absensi->pulang_cepat_menit) }}</div>
                                                 @endif
                                             @elseif ($absensi->jam_masuk && \App\Support\Absensi::tanpaAbsenPulang($absensi))
                                                 <span class="font-sans"><x-badge variant="danger">tanpa absen pulang</x-badge></span>
@@ -265,23 +265,23 @@ new class extends Component {
                                             @if ((int) $absensi->lembur_menit > 0)
                                                 @php $statusLembur = $absensi->lembur_status ?: 'P'; @endphp
                                                 <div class="flex flex-wrap items-center gap-1.5">
-                                                    <span class="font-mono text-sm font-semibold {{ $statusLembur === 'N' ? 'line-through text-muted-soft' : 'text-indigo-700' }}">
+                                                    <span class="font-mono text-sm font-semibold {{ $statusLembur === 'N' ? 'line-through text-muted-soft' : 'text-info-deep dark:text-sky-300' }}">
                                                         {{ \App\Support\Absensi::labelMenit((int) $absensi->lembur_menit) }}
                                                     </span>
                                                     @if ($statusLembur === 'P')
                                                         {{-- Belum dinilai → pilih; setelah dipilih label "Menunggu" hilang --}}
                                                         <button type="button" wire:click="nilaiLembur({{ $absensi->abs_id }}, 'Y')"
-                                                            class="px-2 py-0.5 text-[11px] font-semibold rounded bg-emerald-600 text-white hover:bg-emerald-700" wire:loading.attr="disabled" wire:target="nilaiLembur({{ $absensi->abs_id }}, 'Y')">✓ Hitung<x-loading wire:loading.delay wire:target="nilaiLembur({{ $absensi->abs_id }}, 'Y')" class="ml-1 align-middle" /></button>
+                                                            class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-base bg-brand hover:bg-brand-strong focus:outline-none focus:ring-4 focus:ring-brand-medium disabled:opacity-60" wire:loading.attr="disabled" wire:target="nilaiLembur({{ $absensi->abs_id }}, 'Y')"><svg class="inline w-3.5 h-3.5 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg> Hitung<x-loading wire:loading.delay wire:target="nilaiLembur({{ $absensi->abs_id }}, 'Y')" class="ml-1 align-middle" /></button>
                                                         <button type="button" wire:click="nilaiLembur({{ $absensi->abs_id }}, 'N')"
-                                                            class="px-2 py-0.5 text-[11px] font-semibold rounded border border-gray-300 text-gray-700 hover:bg-gray-100" wire:loading.attr="disabled" wire:target="nilaiLembur({{ $absensi->abs_id }}, 'N')">✗ Tidak<x-loading wire:loading.delay wire:target="nilaiLembur({{ $absensi->abs_id }}, 'N')" class="ml-1 align-middle" /></button>
+                                                            class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold border rounded-base border-default-medium text-heading bg-neutral-primary hover:bg-neutral-secondary-medium focus:outline-none focus:ring-4 focus:ring-brand-medium disabled:opacity-60" wire:loading.attr="disabled" wire:target="nilaiLembur({{ $absensi->abs_id }}, 'N')"><svg class="inline w-3.5 h-3.5 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg> Tidak<x-loading wire:loading.delay wire:target="nilaiLembur({{ $absensi->abs_id }}, 'N')" class="ml-1 align-middle" /></button>
                                                     @else
                                                         <x-badge :variant="\App\Support\Absensi::LEMBUR_BADGE[$statusLembur]">{{ \App\Support\Absensi::LEMBUR_STATUS[$statusLembur] }}</x-badge>
                                                         <button type="button" wire:click="nilaiLembur({{ $absensi->abs_id }}, 'P')"
-                                                            class="text-[11px] text-muted-soft hover:underline" title="Batalkan penilaian" wire:loading.attr="disabled" wire:target="nilaiLembur({{ $absensi->abs_id }}, 'P')">ubah<x-loading wire:loading.delay wire:target="nilaiLembur({{ $absensi->abs_id }}, 'P')" class="ml-1 align-middle" /></button>
+                                                            class="text-xs text-muted-soft hover:underline" title="Batalkan penilaian" wire:loading.attr="disabled" wire:target="nilaiLembur({{ $absensi->abs_id }}, 'P')">ubah<x-loading wire:loading.delay wire:target="nilaiLembur({{ $absensi->abs_id }}, 'P')" class="ml-1 align-middle" /></button>
                                                     @endif
                                                 </div>
                                                 @if ($statusLembur !== 'P' && $absensi->lembur_penilai)
-                                                    <div class="mt-0.5 text-[10px] text-muted-soft">
+                                                    <div class="mt-0.5 text-xs text-muted-soft">
                                                         oleh {{ $absensi->lembur_penilai }}{{ $absensi->lembur_dinilai_at ? ', ' . \App\Support\Format::waktu($absensi->lembur_dinilai_at) : '' }}
                                                     </div>
                                                 @endif
