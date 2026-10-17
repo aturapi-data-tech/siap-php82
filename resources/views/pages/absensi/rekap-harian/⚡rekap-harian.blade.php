@@ -357,9 +357,19 @@ new class extends Component {
                                     </td>
                                     <td class="text-sm text-muted">{{ $row->keterangan }}</td>
                                     <td class="ds-c">
-                                        <x-secondary-button type="button" wire:click="openInput('{{ $row->emp_id }}')" class="!px-2.5 !py-1 text-xs">
-                                            {{ $row->abs_id ? 'Koreksi' : 'Isi' }}
-                                        </x-secondary-button>
+                                        {{-- Sudah ada absen → Koreksi (x-action-edit, ikon pensil); belum → Isi (outline, ikon tambah) --}}
+                                        @if ($row->abs_id)
+                                            <x-action-edit wire:click="openInput('{{ $row->emp_id }}')" wire:loading.attr="disabled" wire:target="openInput('{{ $row->emp_id }}')"
+                                                aria-label="Koreksi absen {{ $row->emp_name }}">Koreksi</x-action-edit>
+                                        @else
+                                            <x-outline-button wire:click="openInput('{{ $row->emp_id }}')" wire:loading.attr="disabled" wire:target="openInput('{{ $row->emp_id }}')"
+                                                class="px-2.5 py-1.5 text-sm" aria-label="Isi absen {{ $row->emp_name }}">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                                </svg>
+                                                Isi
+                                            </x-outline-button>
+                                        @endif
                                     </td>
                                 </tr>
                             @empty
