@@ -45,7 +45,7 @@
                     Masuk
                 </x-primary-button>
 
-                <x-secondary-button type="button" onclick="location.href='#tentang'">
+                <x-secondary-button type="button" x-on:click="$dispatch('open-modal', { name: 'tentang' })">
                     Bantuan
                 </x-secondary-button>
             @endif
