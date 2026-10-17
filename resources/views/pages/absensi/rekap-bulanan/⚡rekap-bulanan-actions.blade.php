@@ -271,13 +271,13 @@ new class extends Component {
                                                     @if ($statusLembur === 'P')
                                                         {{-- Belum dinilai → pilih; setelah dipilih label "Menunggu" hilang --}}
                                                         <button type="button" wire:click="nilaiLembur({{ $absensi->abs_id }}, 'Y')"
-                                                            class="px-2 py-0.5 text-[11px] font-semibold rounded bg-emerald-600 text-white hover:bg-emerald-700">✓ Hitung</button>
+                                                            class="px-2 py-0.5 text-[11px] font-semibold rounded bg-emerald-600 text-white hover:bg-emerald-700" wire:loading.attr="disabled" wire:target="nilaiLembur({{ $absensi->abs_id }}, 'Y')">✓ Hitung<x-loading wire:loading.delay wire:target="nilaiLembur({{ $absensi->abs_id }}, 'Y')" class="ml-1 align-middle" /></button>
                                                         <button type="button" wire:click="nilaiLembur({{ $absensi->abs_id }}, 'N')"
-                                                            class="px-2 py-0.5 text-[11px] font-semibold rounded border border-gray-300 text-gray-700 hover:bg-gray-100">✗ Tidak</button>
+                                                            class="px-2 py-0.5 text-[11px] font-semibold rounded border border-gray-300 text-gray-700 hover:bg-gray-100" wire:loading.attr="disabled" wire:target="nilaiLembur({{ $absensi->abs_id }}, 'N')">✗ Tidak<x-loading wire:loading.delay wire:target="nilaiLembur({{ $absensi->abs_id }}, 'N')" class="ml-1 align-middle" /></button>
                                                     @else
                                                         <x-badge :variant="\App\Support\Absensi::LEMBUR_BADGE[$statusLembur]">{{ \App\Support\Absensi::LEMBUR_STATUS[$statusLembur] }}</x-badge>
                                                         <button type="button" wire:click="nilaiLembur({{ $absensi->abs_id }}, 'P')"
-                                                            class="text-[11px] text-muted-soft hover:underline" title="Batalkan penilaian">ubah</button>
+                                                            class="text-[11px] text-muted-soft hover:underline" title="Batalkan penilaian" wire:loading.attr="disabled" wire:target="nilaiLembur({{ $absensi->abs_id }}, 'P')">ubah<x-loading wire:loading.delay wire:target="nilaiLembur({{ $absensi->abs_id }}, 'P')" class="ml-1 align-middle" /></button>
                                                     @endif
                                                 </div>
                                                 @if ($statusLembur !== 'P' && $absensi->lembur_penilai)

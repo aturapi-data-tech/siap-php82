@@ -297,7 +297,7 @@ new class extends Component {
                                                                 wire:click="toggleRole({{ $row->id }}, @js($role))"
                                                                 @click="open = false"
                                                                 class="flex items-center w-full gap-2 px-3 py-1.5 text-sm transition hover:bg-surface-soft dark:hover:bg-gray-800
-                                                                    {{ $active ? 'font-semibold ' . \App\Support\RoleBadge::activeText($role) : 'text-muted dark:text-gray-400' }}">
+                                                                    {{ $active ? 'font-semibold ' . \App\Support\RoleBadge::activeText($role) : 'text-muted dark:text-gray-400' }}" wire:loading.attr="disabled" wire:target="toggleRole({{ $row->id }}, @js($role))">
                                                                 @if ($active)
                                                                     <span class="{{ \App\Support\RoleBadge::badge($role) }} !px-1.5 !py-0 text-[10px]">✓</span>
                                                                 @else
@@ -306,7 +306,7 @@ new class extends Component {
                                                                     </span>
                                                                 @endif
                                                                 {{ $role }}
-                                                            </button>
+                                                            <x-loading wire:loading.delay wire:target="toggleRole({{ $row->id }}, @js($role))" class="ml-1 align-middle" /></button>
                                                         </li>
                                                     @empty
                                                         <li class="px-3 py-2 text-xs text-muted-soft">Belum ada role — buat di Role Control.</li>

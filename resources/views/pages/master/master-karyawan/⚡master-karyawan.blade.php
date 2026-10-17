@@ -283,9 +283,9 @@ new class extends Component {
                                         <div class="mt-1">
                                         @if ($row->str_sip)
                                             {{-- Klik badge = buka STR/SIP karyawan ini --}}
-                                            <button type="button" wire:click="openStrSip('{{ $row->emp_id }}')" title="Kelola STR/SIP">
+                                            <button type="button" wire:click="openStrSip('{{ $row->emp_id }}')" title="Kelola STR/SIP" wire:loading.attr="disabled" wire:target="openStrSip('{{ $row->emp_id }}')">
                                                 <x-badge :variant="$row->str_sip[1]">{{ $row->str_sip[0] }}</x-badge>
-                                            </button>
+                                            <x-loading wire:loading.delay wire:target="openStrSip('{{ $row->emp_id }}')" class="ml-1 align-middle" /></button>
                                         @else
                                             <span class="text-xs text-muted-soft">Bukan nakes</span>
                                         @endif

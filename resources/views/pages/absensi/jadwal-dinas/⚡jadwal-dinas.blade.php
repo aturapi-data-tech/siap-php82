@@ -490,9 +490,9 @@ new class extends Component {
                                     @if ($this->bisaIsi())
                                     <button type="button" wire:click="isiHariKerja(@js($karyawan->emp_id))"
                                         class="text-xs font-semibold whitespace-nowrap text-fg-brand hover:underline"
-                                        title="Isi Senin–Sabtu bulan ini dengan shift default {{ $karyawan->shift_default_kode ?: '(belum ada — pakai kuas)' }}">
+                                        title="Isi Senin–Sabtu bulan ini dengan shift default {{ $karyawan->shift_default_kode ?: '(belum ada — pakai kuas)' }}" wire:loading.attr="disabled" wire:target="isiHariKerja(@js($karyawan->emp_id))">
                                         Isi Sen–Sab{{ $karyawan->shift_default_kode ? ' (' . $karyawan->shift_default_kode . ')' : '' }}
-                                    </button>
+                                    <x-loading wire:loading.delay wire:target="isiHariKerja(@js($karyawan->emp_id))" class="ml-1 align-middle" /></button>
                                     @endif
                                 </td>
                             </tr>

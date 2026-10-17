@@ -171,9 +171,9 @@ new class extends Component {
                             <tr wire:key="jadwal-{{ $a->asset_id }}">
                                 <td>
                                     <button type="button" wire:click="openKalibrasi(@js($a->asset_id))"
-                                        class="font-semibold text-left text-brand-green hover:underline dark:text-brand-lime">
+                                        class="font-semibold text-left text-brand-green hover:underline dark:text-brand-lime" wire:loading.attr="disabled" wire:target="openKalibrasi(@js($a->asset_id))">
                                         {{ $a->asset_name }}
-                                    </button>
+                                    <x-loading wire:loading.delay wire:target="openKalibrasi(@js($a->asset_id))" class="ml-1 align-middle" /></button>
                                     <div class="font-mono text-xs text-muted">{{ $a->asset_id }}</div>
                                     <div class="text-[11px] text-muted-soft">{{ $a->merk }} {{ $a->tipe_model }}{{ $a->no_seri ? ' · SN ' . $a->no_seri : '' }}</div>
                                 </td>

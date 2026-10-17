@@ -228,9 +228,9 @@ new class extends Component {
                                 <tr wire:key="bulanan-{{ $row->emp_id }}">
                                     <td>
                                         <button type="button" wire:click="openDetail('{{ $row->emp_id }}')"
-                                            class="block font-semibold text-left text-brand-green hover:underline dark:text-brand-lime">
+                                            class="block font-semibold text-left text-brand-green hover:underline dark:text-brand-lime" wire:loading.attr="disabled" wire:target="openDetail('{{ $row->emp_id }}')">
                                             {{ $row->emp_name }}
-                                        </button>
+                                        <x-loading wire:loading.delay wire:target="openDetail('{{ $row->emp_id }}')" class="ml-1 align-middle" /></button>
                                         <span class="font-mono text-xs text-muted dark:text-gray-400">{{ $row->emp_id }}</span>
                                     </td>
                                     @php
@@ -268,10 +268,10 @@ new class extends Component {
                                             <div class="text-[11px] text-red-700">pulang cepat {{ (int) $row->jml_pulang_cepat }}× · {{ \App\Support\Absensi::labelMenit((int) $row->total_pulang_cepat) }}</div>
                                         @endif
                                         @if ((int) $row->jml_lupa_masuk > 0 || (int) $row->jml_tanpa_pulang > 0)
-                                            <button type="button" wire:click="openDetail('{{ $row->emp_id }}')" class="block mx-auto text-[11px] text-red-700 hover:underline">
+                                            <button type="button" wire:click="openDetail('{{ $row->emp_id }}')" class="block mx-auto text-[11px] text-red-700 hover:underline" wire:loading.attr="disabled" wire:target="openDetail('{{ $row->emp_id }}')">
                                                 {{ collect([(int) $row->jml_lupa_masuk > 0 ? 'lupa masuk ' . (int) $row->jml_lupa_masuk . '×' : null,
                                                     (int) $row->jml_tanpa_pulang > 0 ? 'tanpa pulang ' . (int) $row->jml_tanpa_pulang . '×' : null])->filter()->implode(' · ') }}
-                                            </button>
+                                            <x-loading wire:loading.delay wire:target="openDetail('{{ $row->emp_id }}')" class="ml-1 align-middle" /></button>
                                         @endif
                                     </td>
                                     <td class="font-mono ds-c">
@@ -285,9 +285,9 @@ new class extends Component {
                                         @endif
                                         @if ((int) $row->lembur_menunggu > 0)
                                             <button type="button" wire:click="openDetail('{{ $row->emp_id }}')"
-                                                class="text-[11px] text-amber-700 hover:underline">
+                                                class="text-[11px] text-amber-700 hover:underline" wire:loading.attr="disabled" wire:target="openDetail('{{ $row->emp_id }}')">
                                                 ⏳ + {{ \App\Support\Absensi::labelMenit((int) $row->lembur_menunggu) }} menunggu — nilai
-                                            </button>
+                                            <x-loading wire:loading.delay wire:target="openDetail('{{ $row->emp_id }}')" class="ml-1 align-middle" /></button>
                                         @endif
                                     </td>
                                     <td class="ds-c text-muted">{{ max(0, $this->hariBerjalan - (int) $row->jml_catatan) }}</td>

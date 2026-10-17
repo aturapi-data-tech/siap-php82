@@ -608,7 +608,7 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
                                 </span>
                                 <span class="block font-mono text-muted">{{ $shift->jam_masuk }} – {{ $shift->jam_pulang }}</span>
                             </span>
-                        </button>
+                        <x-loading wire:loading.delay wire:target="pilihShift('{{ $shift->shift_id }}')" class="ml-1 align-middle" /></button>
                     @endforeach
                 </div>
                 <button type="button" wire:click="batalPilihShift" class="w-full inline-flex items-center justify-center min-h-[44px] mt-3 text-sm font-semibold rounded-xl text-muted hover:text-ink hover:bg-surface-card focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green">Batal</button>
@@ -630,13 +630,13 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
                         <x-absensi.ikon nama="masuk" class="w-6 h-6 mt-0.5 text-fg-brand" />
                         <span><span class="block text-lg font-semibold text-ink">Saya baru datang</span>
                             <span class="block text-sm text-muted">Catat MASUK sekarang (terlambat)</span></span>
-                    </button>
+                    <x-loading wire:loading.delay wire:target="konfirmasiMasuk('masuk')" class="ml-1 align-middle" /></button>
                     <button type="button" wire:click="konfirmasiMasuk('pulang')" wire:loading.attr="disabled" wire:target="konfirmasiMasuk"
                         class="w-full flex items-start gap-3 px-4 py-4 text-left border-2 rounded-2xl transition focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-medium border-default-medium hover:border-brand">
                         <x-absensi.ikon nama="pulang" class="w-6 h-6 mt-0.5 text-fg-brand" />
                         <span><span class="block text-lg font-semibold text-ink">Saya lupa absen masuk, mau pulang</span>
                             <span class="block text-sm text-muted">Catat PULANG — jam masuk dilengkapi HRD</span></span>
-                    </button>
+                    <x-loading wire:loading.delay wire:target="konfirmasiMasuk('pulang')" class="ml-1 align-middle" /></button>
                 </div>
                 <button type="button" wire:click="batalPilihShift" class="w-full inline-flex items-center justify-center min-h-[44px] mt-3 text-sm font-semibold rounded-xl text-muted hover:text-ink hover:bg-surface-card focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green">Batal</button>
             </div>

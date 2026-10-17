@@ -239,9 +239,9 @@ new class extends Component {
                                     </td>
                                     <td>
                                         @if ($row->kal_status)
-                                            <button type="button" wire:click="openKalibrasi(@js($row->asset_id))" title="Riwayat & input kalibrasi">
+                                            <button type="button" wire:click="openKalibrasi(@js($row->asset_id))" title="Riwayat & input kalibrasi" wire:loading.attr="disabled" wire:target="openKalibrasi(@js($row->asset_id))">
                                                 <x-badge :variant="$row->kal_status[2]">{{ $row->kal_status[1] }}</x-badge>
-                                            </button>
+                                            <x-loading wire:loading.delay wire:target="openKalibrasi(@js($row->asset_id))" class="ml-1 align-middle" /></button>
                                             @if ($row->kal_terakhir)
                                                 <div class="mt-0.5 text-[11px] text-muted">
                                                     {{ \App\Support\Format::tanggal($row->kal_terakhir->kal_tanggal) }}

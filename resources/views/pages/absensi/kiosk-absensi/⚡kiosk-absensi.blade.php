@@ -259,13 +259,13 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
                                     wire:loading.attr="disabled"
                                     @if ($disarankan) x-init="$nextTick(() => $el.focus())" @endif
                                     class="relative px-5 py-4 text-left transition border-2 rounded-2xl focus:outline-none focus:ring-4 focus:ring-brand-medium
-                                        {{ $disarankan ? 'border-brand bg-brand-softer' : 'border-default-medium hover:border-brand' }}">
+                                        {{ $disarankan ? 'border-brand bg-brand-softer' : 'border-default-medium hover:border-brand' }}" wire:target="pilihShift('{{ $shift->shift_id }}')">
                                     @if ($disarankan)
                                         <span class="absolute px-2 py-0.5 text-xs font-semibold text-white rounded-full -top-3 right-3 bg-brand">Disarankan</span>
                                     @endif
                                     <div class="text-lg font-semibold text-ink">{{ $shift->shift_name }}</div>
                                     <div class="font-mono text-muted">{{ $shift->jam_masuk }} – {{ $shift->jam_pulang }}</div>
-                                </button>
+                                <x-loading wire:loading.delay wire:target="pilihShift('{{ $shift->shift_id }}')" class="absolute right-3 bottom-3" /></button>
                             @endforeach
                         </div>
 
@@ -291,15 +291,15 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
                         <p class="mb-6 text-center text-body">Absen ini untuk apa?</p>
                         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <button type="button" wire:click="konfirmasiMasuk('masuk')" wire:loading.attr="disabled"
-                                class="px-5 py-4 text-left transition border-2 rounded-2xl border-default-medium bg-canvas hover:border-brand focus:outline-none focus:ring-4 focus:ring-brand-medium">
+                                class="px-5 py-4 text-left transition border-2 rounded-2xl border-default-medium bg-canvas hover:border-brand focus:outline-none focus:ring-4 focus:ring-brand-medium" wire:target="konfirmasiMasuk('masuk')">
                                 <div class="flex items-center gap-2 text-lg font-semibold text-ink"><x-absensi.ikon nama="masuk" class="w-6 h-6 text-fg-brand" /> Saya baru datang</div>
                                 <div class="text-sm text-muted">Catat MASUK sekarang (terlambat)</div>
-                            </button>
+                            <x-loading wire:loading.delay wire:target="konfirmasiMasuk('masuk')" class="ml-1 align-middle" /></button>
                             <button type="button" wire:click="konfirmasiMasuk('pulang')" wire:loading.attr="disabled"
-                                class="px-5 py-4 text-left transition border-2 rounded-2xl border-default-medium bg-canvas hover:border-brand focus:outline-none focus:ring-4 focus:ring-brand-medium">
+                                class="px-5 py-4 text-left transition border-2 rounded-2xl border-default-medium bg-canvas hover:border-brand focus:outline-none focus:ring-4 focus:ring-brand-medium" wire:target="konfirmasiMasuk('pulang')">
                                 <div class="flex items-center gap-2 text-lg font-semibold text-ink"><x-absensi.ikon nama="pulang" class="w-6 h-6 text-fg-brand" /> Saya lupa absen masuk, mau pulang</div>
                                 <div class="text-sm text-muted">Catat PULANG — jam masuk dilengkapi HRD</div>
-                            </button>
+                            <x-loading wire:loading.delay wire:target="konfirmasiMasuk('pulang')" class="ml-1 align-middle" /></button>
                         </div>
                         <div class="flex items-center justify-between mt-6 text-sm text-muted">
                             <span>Kembali otomatis dalam <b x-text="sisa"></b> detik</span>

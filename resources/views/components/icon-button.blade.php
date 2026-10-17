@@ -18,9 +18,16 @@
         'gray' =>
             'text-gray-500 border-gray-300 hover:bg-gray-100 focus:ring-gray-200 dark:text-gray-400 dark:border-gray-600 dark:hover:bg-gray-700 dark:focus:ring-gray-700',
     ];
+    // Loading otomatis: tombol ber-wire:click → nonaktif + spinner x-loading selama AKSI ITU berjalan.
+    // Dilewati bila pemakai sudah mengatur wire:loading sendiri (atribut / isi slot) — tidak ada indikator ganda.
+    $aksiServer = $attributes->whereStartsWith('wire:click')->first();
+    $targetLoading = $attributes->get('wire:target') ?? $aksiServer;
+    $pasangNonaktif = $aksiServer && $attributes->whereStartsWith('wire:loading')->isEmpty();
+    $pasangSpinner = $aksiServer && !str_contains((string) $slot, 'wire:loading');
 @endphp
 
 <button type="{{ $type }}" {{ $disabled ? 'disabled' : '' }}
+    @if ($pasangNonaktif) wire:loading.attr="disabled" @unless ($attributes->has('wire:target')) wire:target="{{ $targetLoading }}" @endunless @endif
     {{ $attributes->class([
         // square — p-2 biar icon pas di tengah
         'inline-flex items-center justify-center',
@@ -40,5 +47,10 @@
         'disabled:cursor-not-allowed',
         'disabled:pointer-events-none',
     ]) }}>
-    {{ $slot }}
+    @if ($pasangSpinner)
+        <span wire:loading.remove wire:target="{{ $targetLoading }}" class="inline-flex">{{ $slot }}</span>
+        <x-loading wire:loading wire:target="{{ $targetLoading }}" />
+    @else
+        {{ $slot }}
+    @endif
 </button>

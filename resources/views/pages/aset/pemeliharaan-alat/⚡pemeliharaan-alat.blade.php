@@ -313,10 +313,10 @@ new class extends Component {
                                     <td class="text-sm text-muted whitespace-nowrap">{{ $row->petugas_name ?: '—' }}</td>
                                     <td class="whitespace-nowrap">
                                         @if ($row->perbaikan)
-                                            <button type="button" wire:click="bukaPerbaikan({{ $row->perbaikan->pb_id }})" class="text-left">
+                                            <button type="button" wire:click="bukaPerbaikan({{ $row->perbaikan->pb_id }})" class="text-left" wire:loading.attr="disabled" wire:target="bukaPerbaikan({{ $row->perbaikan->pb_id }})">
                                                 <div class="font-mono text-xs text-brand-green hover:underline">{{ $row->perbaikan->pb_no }}</div>
                                                 <x-badge :variant="\App\Support\Perbaikan::STATUS[$row->perbaikan->pb_status][1]">{{ \App\Support\Perbaikan::STATUS[$row->perbaikan->pb_status][0] }}</x-badge>
-                                            </button>
+                                            <x-loading wire:loading.delay wire:target="bukaPerbaikan({{ $row->perbaikan->pb_id }})" class="ml-1 align-middle" /></button>
                                         @elseif (in_array($row->pm_hasil, ['P', 'R'], true))
                                             <x-secondary-button type="button" wire:click="laporkanPerbaikan({{ $row->pm_id }})" class="!px-2.5 !py-1 text-xs">
                                                 Lapor perbaikan

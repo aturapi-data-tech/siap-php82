@@ -228,18 +228,18 @@ new class extends Component {
                     <div>
                         <x-input-label value="Bulan Kerja" />
                         <div class="flex items-center gap-1 mt-1">
-                            <x-secondary-button type="button" wire:click="geserBulan(-1)" class="!px-3" title="Bulan sebelumnya">‹</x-secondary-button>
+                            <x-secondary-button type="button" wire:click="geserBulan(-1)" class="!px-3" title="Bulan sebelumnya" aria-label="Bulan sebelumnya">‹</x-secondary-button>
                             <div class="w-28">
                                 <x-text-input wire:model.live.debounce.600ms="bulan" x-mask="99/9999" placeholder="mm/yyyy" class="w-full text-center font-mono" />
                             </div>
-                            <x-secondary-button type="button" wire:click="geserBulan(1)" class="!px-3" title="Bulan berikutnya">›</x-secondary-button>
+                            <x-secondary-button type="button" wire:click="geserBulan(1)" class="!px-3" title="Bulan berikutnya" aria-label="Bulan berikutnya">›</x-secondary-button>
                         </div>
                     </div>
-                    <div class="w-48">
+                    <div class="w-44">
                         <x-input-label value="Cari Karyawan" />
                         <x-text-input type="text" wire:model.live.debounce.300ms="searchKeyword" placeholder="ID / nama" class="block w-full mt-1" />
                     </div>
-                    <div class="w-56">
+                    <div class="w-48">
                         <x-input-label value="Unit" />
                         <div class="mt-1">
                             <x-select-input wire:model.live="filterUnit">
@@ -276,11 +276,10 @@ new class extends Component {
                         </x-confirm-button>
                         <x-cetak-button wire:click="cetakMassal" label="Cetak Semua" title="Cetak semua slip yang tampil — 4 slip per lembar A4" />
                         <x-toolbar-refresh-reset :label="null" />
-                        <a href="{{ route('panduan.gaji') }}" wire:navigate title="Cara pakai modul gaji">
-                            <x-ghost-button type="button">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                Panduan
-                            </x-ghost-button>
+                        {{-- Panduan ikon saja (hemat tempat → aksi muat satu baris dengan saringan); tautan bergaya tombol, bukan <button> di dalam <a> --}}
+                        <a href="{{ route('panduan.gaji') }}" wire:navigate title="Panduan: cara pakai modul gaji" aria-label="Panduan modul gaji"
+                            class="inline-flex items-center justify-center w-[42px] h-[42px] rounded-base text-heading hover:bg-neutral-secondary-medium focus:outline-none focus:ring-4 focus:ring-brand-medium">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         </a>
                     </div>
                 </div>
@@ -317,7 +316,7 @@ new class extends Component {
                                 @php $final = $row->gaji_status === \App\Support\GajiKaryawan::STATUS_FINAL; @endphp
                                 <tr wire:key="slip-{{ $row->gaji_id }}">
                                     <td>
-                                        <button type="button" wire:click="openRincian({{ $row->gaji_id }})" class="block font-semibold text-left text-brand-green hover:underline">{{ $row->emp_name }}</button>
+                                        <button type="button" wire:click="openRincian({{ $row->gaji_id }})" class="block font-semibold text-left text-brand-green hover:underline" wire:loading.attr="disabled" wire:target="openRincian({{ $row->gaji_id }})">{{ $row->emp_name }}<x-loading wire:loading.delay wire:target="openRincian({{ $row->gaji_id }})" class="ml-1 align-middle" /></button>
                                         <span class="font-mono text-xs text-muted">{{ $row->emp_id }}{{ $row->unit_name ? ' · ' . $row->unit_name : '' }}</span>
                                     </td>
                                     <td class="font-mono ds-c">{{ (int) $row->hari_hadir }}</td>
