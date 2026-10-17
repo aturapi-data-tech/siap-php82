@@ -352,62 +352,76 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
 };
 ?>
 
-<div class="min-h-screen px-4 py-6 bg-surface-soft"
+{{-- Absen HP — tampilan cerah & sederhana: kepala logo RS, jam, kartu langkah (ID → Lokasi → Selfie), kartu hasil.
+     Logika GPS / selfie / kirim tetap di Alpine blok "mulai" (tidak berubah). --}}
+<div class="min-h-dvh px-4 pt-5 pb-8 bg-surface-soft"
     x-data="{
-        jam: '', tanggal: '',
+        jam: '', tanggal: '', t: null,
         tick() {
             const d = new Date();
             const dua = (n) => String(n).padStart(2, '0');
             this.jam = dua(d.getHours()) + ':' + dua(d.getMinutes());
             this.tanggal = d.toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
         },
+        init() { this.tick(); this.t = setInterval(() => this.tick(), 1000) },
+        destroy() { clearInterval(this.t) },
     }"
-    x-init="tick(); setInterval(() => tick(), 1000)"
     x-on:absen-hp-ingat-id.window="try { localStorage.setItem('absenHpEmpId', $event.detail.empId) } catch (galat) {}">
 
-    <div class="w-full max-w-md mx-auto">
+    <div class="w-full max-w-md mx-auto space-y-4">
 
-        {{-- Kepala --}}
-        <div class="flex items-center gap-2 mb-5">
-            <img src="{{ asset('images/Logogram black solid.png') }}" alt="Logo" class="w-8 h-8" />
-            <span class="text-lg font-bold tracking-tight text-brand-green">SIAP · Absen HP</span>
-        </div>
-        <div class="mb-5 text-center">
+        {{-- Kepala: logo RS + nama layar --}}
+        @php $logoRs = \App\Support\Identitas::logoUrl(); @endphp
+        <header class="flex items-center justify-between gap-3">
+            @if ($logoRs)
+                <img src="{{ $logoRs }}" alt="{{ \App\Support\Identitas::get()->nama }}" class="object-contain w-auto h-11 max-w-[60%]">
+            @else
+                <span class="text-lg font-bold text-brand-green">{{ \App\Support\Identitas::namaPendek() }}</span>
+            @endif
+            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide rounded-full bg-brand-softer text-fg-brand-strong">
+                <x-absensi.ikon nama="lokasi" class="w-4 h-4" /> Absen HP
+            </span>
+        </header>
+
+        {{-- Jam (waktu HP — yang dicatat tetap jam server) --}}
+        <div class="px-5 py-4 text-center border shadow-sm bg-canvas border-hairline rounded-3xl">
             <div class="font-mono text-5xl font-bold tracking-tight text-ink tabular-nums" x-text="jam"></div>
             <div class="mt-1 text-muted" x-text="tanggal"></div>
         </div>
 
         @if (!\App\Support\PengaturanAbsensi::absenHpAktif())
-            <div class="p-6 text-center border-2 border-amber-300 bg-amber-50 rounded-3xl">
-                <div class="mb-2 text-4xl">⏸️</div>
+            <div class="p-6 text-center border border-t-4 shadow-sm bg-canvas border-hairline border-t-warning rounded-3xl" role="status">
+                <span class="grid mx-auto mb-3 rounded-full w-14 h-14 place-items-center bg-warning-soft text-fg-warning">
+                    <x-absensi.ikon nama="jeda" class="w-7 h-7" />
+                </span>
                 <p class="font-semibold text-ink">Absen HP sedang dinonaktifkan</p>
                 <p class="mt-1 text-sm text-body">Silakan absen di kiosk, atau hubungi HRD.</p>
             </div>
         @endif
 
-        {{-- STEP: INPUT ID --}}
+        {{-- STEP 1: INPUT ID --}}
         @if ($step === 'input-id' && \App\Support\PengaturanAbsensi::absenHpAktif())
             <form wire:key="absen-hp-input-id" wire:submit="pilihKaryawan"
                 class="p-5 border shadow-sm bg-canvas border-hairline rounded-3xl"
                 x-data
                 x-init="try { const tersimpan = localStorage.getItem('absenHpEmpId'); if (tersimpan && !$wire.empIdInput) $wire.empIdInput = tersimpan; } catch (galat) {}">
-                <label for="empIdInput" class="block mb-3 font-semibold text-center text-ink">ID Karyawan</label>
-                <input id="empIdInput" type="text" autocomplete="off" autocapitalize="characters"
-                    wire:model="empIdInput"
-                    class="w-full px-4 py-4 font-mono text-2xl text-center uppercase border-2 rounded-2xl border-hairline focus:border-brand-green focus:ring-brand-green"
+                <x-absensi.langkah :aktif="1" />
+                <label for="empIdInput" class="block mt-5 mb-2 text-sm font-semibold text-heading">ID Karyawan</label>
+                <input id="empIdInput" type="text" autocomplete="off" autocapitalize="characters" enterkeyhint="go" spellcheck="false"
+                    wire:model="empIdInput" wire:loading.attr="readonly" wire:target="pilihKaryawan"
+                    class="w-full px-4 py-4 font-mono text-2xl text-center uppercase border-2 rounded-2xl bg-neutral-secondary-medium border-default-medium text-heading placeholder:normal-case placeholder:text-base placeholder:font-sans placeholder:text-gray-500 focus:border-brand focus:ring-brand"
                     placeholder="Contoh: PRW-001" />
                 @error('empIdInput')
-                    <p class="mt-2 text-sm text-center text-red-600">{{ $message }}</p>
+                    <p class="mt-2 text-sm text-center text-fg-danger-strong" role="alert">{{ $message }}</p>
                 @enderror
-                <button type="submit" wire:loading.attr="disabled"
-                    class="w-full py-4 mt-4 text-lg font-semibold text-white rounded-2xl bg-brand-green active:scale-[.98] transition">
-                    <span wire:loading.remove wire:target="pilihKaryawan">Lanjut</span>
+                <button type="submit" wire:loading.attr="disabled" wire:target="pilihKaryawan" class="mt-4 w-full inline-flex items-center justify-center gap-2 py-4 text-lg font-semibold text-white rounded-2xl bg-brand hover:bg-brand-strong focus:outline-none focus:ring-4 focus:ring-brand-medium active:scale-[.98] transition motion-reduce:transition-none disabled:opacity-60 disabled:cursor-wait">
+                    <span wire:loading.remove wire:target="pilihKaryawan" class="inline-flex items-center gap-2">Lanjut <x-absensi.ikon nama="panah" class="w-5 h-5" /></span>
                     <span wire:loading wire:target="pilihKaryawan">Memeriksa...</span>
                 </button>
             </form>
         @endif
 
-        {{-- STEP: MULAI (GPS → foto → kirim, dikendalikan Alpine) --}}
+        {{-- STEP 2–3: LOKASI → SELFIE → KIRIM (dikendalikan Alpine) --}}
         @if ($step === 'mulai' && $this->karyawan)
             <div wire:key="absen-hp-mulai-{{ $empId }}" class="p-5 border shadow-sm bg-canvas border-hairline rounded-3xl"
                 x-data="{
@@ -433,7 +447,7 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
                         try {
                             cek = await $wire.cekLokasi(this.posisi.latitude, this.posisi.longitude, this.posisi.accuracy);
                         } catch (galat) { cek = null; }
-                        // Sinyal putus / sesi habis → jangan tertahan di "Mencari lokasi", beri jalan Coba Lagi.
+                        // Sinyal putus / sesi habis → jangan tertahan di layar mencari lokasi, beri jalan Coba Lagi.
                         if (!cek) { this.fase = 'luar'; this.pesan = 'Gagal menghubungi server. Periksa sinyal internet, lalu coba lagi.'; return; }
                         this.lokasiName = cek.lokasiName ?? ''; this.jarakLabel = cek.jarakLabel ?? '';
                         if (!cek.dalamRadius) { this.fase = 'luar'; this.pesan = cek.pesan; return; }
@@ -487,72 +501,86 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
                     },
                 }">
 
-                <p class="text-sm text-center text-muted">Absen sebagai</p>
-                <p class="text-2xl font-bold text-center text-ink">{{ $this->karyawan->emp_name }}</p>
-                <p class="font-mono text-sm text-center text-muted">{{ $this->karyawan->emp_id }}</p>
-                <p class="mt-1 text-xs text-center text-muted">
-                    Lokasi kerja: <b>{{ $this->karyawan->lokasi_name ?? 'semua titik RS/klinik aktif' }}</b>
-                </p>
-                <p class="p-2 mt-3 text-sm text-center border rounded-xl border-hairline bg-surface-soft text-body">{{ $this->statusHariIni }}</p>
+                <x-absensi.langkah aktif-expr="['foto', 'preview', 'kirim'].includes(fase) ? 3 : 2" />
+
+                {{-- Identitas karyawan --}}
+                <div class="flex items-center gap-3 p-3 mt-5 rounded-2xl bg-surface-soft">
+                    <span class="grid w-12 h-12 rounded-full place-items-center bg-brand-softer text-fg-brand-strong shrink-0">
+                        <x-absensi.ikon nama="orang" class="w-6 h-6" />
+                    </span>
+                    <div class="min-w-0">
+                        <p class="text-lg font-bold leading-tight truncate text-ink">{{ $this->karyawan->emp_name }}</p>
+                        <p class="font-mono text-sm text-muted">{{ $this->karyawan->emp_id }}</p>
+                        <p class="text-xs text-muted">Lokasi kerja: <b>{{ $this->karyawan->lokasi_name ?? 'semua titik RS/klinik aktif' }}</b></p>
+                    </div>
+                </div>
+                <p class="mt-3 text-sm text-center text-body">{{ $this->statusHariIni }}</p>
 
                 {{-- Bukan HTTPS --}}
                 <template x-if="!aman">
-                    <p class="p-3 mt-4 text-sm border rounded-xl border-red-300 bg-red-50 text-red-900">
+                    <p class="p-3 mt-4 text-sm border rounded-xl border-danger-subtle bg-danger-soft text-fg-danger-strong" role="alert">
                         Halaman ini harus dibuka lewat <b>HTTPS</b> agar GPS bisa dipakai. Hubungi admin.
                     </p>
                 </template>
 
                 {{-- Siap / gagal --}}
                 <div x-show="aman && (fase === 'siap' || fase === 'luar')" class="mt-5">
-                    <div x-show="fase === 'luar'" role="alert" class="p-3 mb-3 text-sm border rounded-xl border-amber-300 bg-amber-50 text-amber-900">
+                    <div x-show="fase === 'luar'" role="alert" class="flex gap-2 p-3 mb-3 text-sm border rounded-xl border-warning-subtle bg-warning-soft text-fg-warning">
+                        <x-absensi.ikon nama="peringatan" class="w-5 h-5" />
                         <p x-text="pesan"></p>
                     </div>
-                    <button type="button" x-on:click="mulai()"
-                        class="w-full py-4 text-lg font-semibold text-white rounded-2xl bg-brand-green active:scale-[.98] transition">
-                        <span x-text="fase === 'luar' ? '↻ Coba Lagi' : '📍 Mulai Absen'"></span>
+                    <button type="button" x-on:click="mulai()" class="w-full inline-flex items-center justify-center gap-2 py-4 text-lg font-semibold text-white rounded-2xl bg-brand hover:bg-brand-strong focus:outline-none focus:ring-4 focus:ring-brand-medium active:scale-[.98] transition motion-reduce:transition-none disabled:opacity-60 disabled:cursor-wait">
+                        <span x-show="fase !== 'luar'" class="inline-flex items-center gap-2"><x-absensi.ikon nama="lokasi" class="w-5 h-5" /> Mulai Absen</span>
+                        <span x-show="fase === 'luar'" x-cloak class="inline-flex items-center gap-2"><x-absensi.ikon nama="ulang" class="w-5 h-5" /> Coba Lagi</span>
                     </button>
                     <p class="mt-2 text-xs text-center text-muted">Nyalakan GPS. Anda akan diminta izin lokasi.</p>
                 </div>
 
                 {{-- Mengambil lokasi --}}
-                <div x-show="fase === 'gps'" class="py-8 text-center text-muted">
-                    <div class="mb-2 text-3xl animate-pulse">📍</div>
+                <div x-show="fase === 'gps'" x-cloak class="flex flex-col items-center gap-3 py-8 text-center text-muted" role="status">
+                    <span class="grid w-14 h-14 rounded-full place-items-center bg-brand-softer text-fg-brand-strong animate-pulse motion-reduce:animate-none">
+                        <x-absensi.ikon nama="lokasi" class="w-7 h-7" />
+                    </span>
                     Mencari lokasi Anda...
                 </div>
 
                 {{-- Foto --}}
-                <div x-show="fase === 'foto' || fase === 'preview' || fase === 'kirim'" class="mt-4">
-                    <p class="mb-3 text-sm text-center text-emerald-700">
-                        ✓ Di area <b x-text="lokasiName"></b> (<span x-text="jarakLabel"></span>)
+                <div x-show="fase === 'foto' || fase === 'preview' || fase === 'kirim'" x-cloak class="mt-5">
+                    <p class="flex items-center justify-center gap-1.5 mb-3 text-sm text-center text-fg-success-strong">
+                        <x-absensi.ikon nama="cek" class="w-5 h-5" />
+                        <span>Di area <b x-text="lokasiName"></b> (<span x-text="jarakLabel"></span>)</span>
                     </p>
 
-                    {{-- Pesan galat foto / kirim — sebelumnya hanya tampil di fase 'luar' sehingga tidak pernah terlihat --}}
+                    {{-- Pesan galat foto / kirim --}}
                     <p x-show="pesan && (fase === 'foto' || fase === 'preview')" x-text="pesan" role="alert"
-                        class="p-3 mb-3 text-sm border rounded-xl border-red-300 bg-red-50 text-red-900"></p>
+                        class="p-3 mb-3 text-sm border rounded-xl border-danger-subtle bg-danger-soft text-fg-danger-strong"></p>
 
                     <input x-ref="inputFoto" type="file" accept="image/*" capture="user" class="hidden" x-on:change="fotoDipilih($event)" />
 
-                    <div x-show="fase !== 'foto'" class="overflow-hidden bg-black aspect-square rounded-2xl">
-                        <img :src="foto" alt="Selfie" class="object-cover w-full h-full" />
+                    <div x-show="fase !== 'foto'" class="overflow-hidden bg-gray-900 aspect-square rounded-2xl">
+                        <img :src="foto" alt="Pratinjau selfie" class="object-cover w-full h-full" />
                     </div>
 
-                    <button type="button" x-show="fase === 'foto'" x-on:click="$refs.inputFoto.click()" :disabled="prosesFoto"
-                        class="w-full py-4 text-lg font-semibold text-white rounded-2xl bg-brand-green">
-                        <span x-text="prosesFoto ? 'Memproses foto...' : '📸 Ambil / Upload Selfie'"></span>
+                    <button type="button" x-show="fase === 'foto'" x-on:click="$refs.inputFoto.click()" :disabled="prosesFoto" class="w-full inline-flex items-center justify-center gap-2 py-4 text-lg font-semibold text-white rounded-2xl bg-brand hover:bg-brand-strong focus:outline-none focus:ring-4 focus:ring-brand-medium active:scale-[.98] transition motion-reduce:transition-none disabled:opacity-60 disabled:cursor-wait">
+                        <x-absensi.ikon nama="kamera" class="w-5 h-5" />
+                        <span x-text="prosesFoto ? 'Memproses foto...' : 'Ambil Selfie'"></span>
                     </button>
 
                     <div x-show="fase === 'preview'" class="grid grid-cols-2 gap-3 mt-4">
                         <button type="button" x-on:click="$refs.inputFoto.click()"
-                            class="py-4 font-semibold border-2 rounded-2xl border-hairline text-ink">Ganti Foto</button>
+                            class="inline-flex items-center justify-center gap-2 py-4 font-semibold border-2 rounded-2xl border-default-medium text-heading hover:bg-surface-card focus:outline-none focus:ring-4 focus:ring-brand-medium">
+                            <x-absensi.ikon nama="ulang" class="w-5 h-5" /> Ulang Foto
+                        </button>
                         <button type="button" x-on:click="kirim()"
-                            class="py-4 font-semibold text-white rounded-2xl bg-brand-green">Kirim Absen</button>
+                            class="inline-flex items-center justify-center gap-2 py-4 font-semibold text-white rounded-2xl bg-brand hover:bg-brand-strong focus:outline-none focus:ring-4 focus:ring-brand-medium">
+                            Kirim <x-absensi.ikon nama="panah" class="w-5 h-5" />
+                        </button>
                     </div>
 
-                    <p x-show="fase === 'kirim'" class="py-4 text-center text-muted">Mengirim absen...</p>
+                    <p x-show="fase === 'kirim'" class="py-4 text-center text-muted" role="status">Mengirim absen...</p>
                 </div>
 
-                <button type="button" wire:click="gantiId" x-show="fase !== 'kirim'"
-                    class="w-full mt-5 text-sm font-semibold underline text-muted">Bukan saya — ganti ID</button>
+                <button type="button" wire:click="gantiId" x-show="fase !== 'kirim'" class="w-full inline-flex items-center justify-center min-h-[44px] mt-3 text-sm font-semibold rounded-xl text-muted hover:text-ink hover:bg-surface-card focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green">Bukan saya — ganti ID</button>
             </div>
         @endif
 
@@ -562,80 +590,68 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
                 <p class="text-sm text-center text-muted">Absen masuk untuk</p>
                 <p class="mb-4 text-2xl font-bold text-center text-ink">{{ $this->karyawan->emp_name }}</p>
                 @if ($catatanJadwal)
-                    <p class="p-3 mb-4 text-sm text-center border rounded-xl border-amber-300 bg-amber-50 text-amber-900">{{ $catatanJadwal }}</p>
+                    <p class="p-3 mb-4 text-sm text-center border rounded-xl border-warning-subtle bg-warning-soft text-fg-warning">{{ $catatanJadwal }}</p>
                 @endif
                 <p class="mb-3 font-semibold text-center text-ink">Pilih shift Anda:</p>
                 <div class="grid grid-cols-1 gap-3">
                     @foreach ($this->shiftPilihan as $shift)
                         @php $disarankan = $shift->shift_id === $saranShiftId; @endphp
-                        <button type="button" wire:click="pilihShift('{{ $shift->shift_id }}')" wire:loading.attr="disabled"
-                            class="relative px-5 py-4 text-left border-2 rounded-2xl
-                                {{ $disarankan ? 'border-brand-green bg-brand-green/10' : 'border-hairline' }}">
-                            @if ($disarankan)
-                                <span class="absolute px-2 py-0.5 text-[11px] font-semibold text-white rounded-full -top-2.5 right-3 bg-brand-green">Disarankan</span>
-                            @endif
-                            <div class="text-lg font-semibold text-ink">{{ $shift->shift_name }}</div>
-                            <div class="font-mono text-muted">{{ $shift->jam_masuk }} – {{ $shift->jam_pulang }}</div>
+                        <button type="button" wire:click="pilihShift('{{ $shift->shift_id }}')" wire:loading.attr="disabled" wire:target="pilihShift"
+                            class="w-full flex items-start gap-3 px-4 py-4 text-left border-2 rounded-2xl transition focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-medium {{ $disarankan ? 'border-brand bg-brand-softer' : 'border-default-medium hover:border-brand' }}">
+                            <x-absensi.ikon nama="jam" class="w-6 h-6 mt-0.5 text-fg-brand" />
+                            <span class="flex-1">
+                                <span class="flex items-center gap-2">
+                                    <span class="text-lg font-semibold text-ink">{{ $shift->shift_name }}</span>
+                                    @if ($disarankan)
+                                        <span class="px-2 py-0.5 text-xs font-semibold text-white rounded-full bg-brand">Disarankan</span>
+                                    @endif
+                                </span>
+                                <span class="block font-mono text-muted">{{ $shift->jam_masuk }} – {{ $shift->jam_pulang }}</span>
+                            </span>
                         </button>
                     @endforeach
                 </div>
-                <button type="button" wire:click="batalPilihShift" class="w-full mt-5 text-sm font-semibold underline text-muted">Batal</button>
+                <button type="button" wire:click="batalPilihShift" class="w-full inline-flex items-center justify-center min-h-[44px] mt-3 text-sm font-semibold rounded-xl text-muted hover:text-ink hover:bg-surface-card focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green">Batal</button>
             </div>
         @endif
 
         {{-- STEP: KONFIRMASI (absen setelah separuh shift — mungkin lupa absen masuk) --}}
         @if ($step === 'konfirmasi-masuk' && $this->karyawan && $this->shiftKonfirmasi)
             @php $shift = $this->shiftKonfirmasi; @endphp
-            <div wire:key="absen-hp-konfirmasi" class="p-5 border-4 shadow-sm border-amber-400 bg-amber-50 rounded-3xl">
+            <div wire:key="absen-hp-konfirmasi" class="p-5 border border-t-4 shadow-sm bg-canvas border-hairline border-t-warning rounded-3xl">
                 <p class="text-2xl font-bold text-center text-ink">{{ $this->karyawan->emp_name }}</p>
                 <p class="mt-2 text-center text-body">
                     Anda <b>belum absen masuk</b> untuk {{ $shift->shift_name }}
                     <span class="font-mono">({{ $shift->jam_masuk }}–{{ $shift->jam_pulang }})</span>. Absen ini untuk apa?
                 </p>
                 <div class="grid grid-cols-1 gap-3 mt-4">
-                    <button type="button" wire:click="konfirmasiMasuk('masuk')" wire:loading.attr="disabled"
-                        class="px-5 py-4 text-left border-2 rounded-2xl border-hairline bg-canvas">
-                        <div class="text-lg font-semibold text-ink">✅ Saya baru datang</div>
-                        <div class="text-sm text-muted">Catat MASUK sekarang (terlambat)</div>
+                    <button type="button" wire:click="konfirmasiMasuk('masuk')" wire:loading.attr="disabled" wire:target="konfirmasiMasuk"
+                        class="w-full flex items-start gap-3 px-4 py-4 text-left border-2 rounded-2xl transition focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-medium border-default-medium hover:border-brand">
+                        <x-absensi.ikon nama="masuk" class="w-6 h-6 mt-0.5 text-fg-brand" />
+                        <span><span class="block text-lg font-semibold text-ink">Saya baru datang</span>
+                            <span class="block text-sm text-muted">Catat MASUK sekarang (terlambat)</span></span>
                     </button>
-                    <button type="button" wire:click="konfirmasiMasuk('pulang')" wire:loading.attr="disabled"
-                        class="px-5 py-4 text-left border-2 rounded-2xl border-hairline bg-canvas">
-                        <div class="text-lg font-semibold text-ink">👋 Saya lupa absen masuk, mau pulang</div>
-                        <div class="text-sm text-muted">Catat PULANG — jam masuk dilengkapi HRD</div>
+                    <button type="button" wire:click="konfirmasiMasuk('pulang')" wire:loading.attr="disabled" wire:target="konfirmasiMasuk"
+                        class="w-full flex items-start gap-3 px-4 py-4 text-left border-2 rounded-2xl transition focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-medium border-default-medium hover:border-brand">
+                        <x-absensi.ikon nama="pulang" class="w-6 h-6 mt-0.5 text-fg-brand" />
+                        <span><span class="block text-lg font-semibold text-ink">Saya lupa absen masuk, mau pulang</span>
+                            <span class="block text-sm text-muted">Catat PULANG — jam masuk dilengkapi HRD</span></span>
                     </button>
                 </div>
-                <button type="button" wire:click="batalPilihShift" class="w-full mt-5 text-sm font-semibold underline text-muted">Batal</button>
+                <button type="button" wire:click="batalPilihShift" class="w-full inline-flex items-center justify-center min-h-[44px] mt-3 text-sm font-semibold rounded-xl text-muted hover:text-ink hover:bg-surface-card focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green">Batal</button>
             </div>
         @endif
 
         {{-- STEP: HASIL --}}
         @if ($step === 'hasil' && $hasil)
-            @php
-                $warna = match ($hasil['tipe']) {
-                    'masuk'  => $hasil['status'] === 'T' ? 'border-amber-400 bg-amber-50' : 'border-emerald-400 bg-emerald-50',
-                    'pulang' => 'border-sky-400 bg-sky-50',
-                    'info'   => 'border-slate-300 bg-white',
-                    default  => 'border-red-400 bg-red-50',
-                };
-                $ikon = match ($hasil['tipe']) {
-                    'masuk'  => $hasil['status'] === 'T' ? '⏰' : '✅',
-                    'pulang' => '👋',
-                    'info'   => 'ℹ️',
-                    default  => '⛔',
-                };
-            @endphp
-            <div wire:key="absen-hp-hasil" class="p-6 text-center border-4 shadow-sm rounded-3xl {{ $warna }}"
-                role="{{ $hasil['tipe'] === 'error' ? 'alert' : 'status' }}" aria-live="assertive">
-                <div class="mb-2 text-5xl">{{ $ikon }}</div>
-                <p class="text-2xl font-bold text-ink">{{ $hasil['judul'] }}</p>
-                <p class="mt-2 text-lg text-body">{{ $hasil['pesan'] }}</p>
+            <x-absensi.kartu-hasil wire:key="absen-hp-hasil" :hasil="$hasil">
                 <button type="button" wire:click="selesai"
-                    class="w-full py-3 mt-6 font-semibold border-2 rounded-2xl border-hairline bg-canvas text-ink">Selesai</button>
-            </div>
+                    class="w-full py-3 mt-6 font-semibold border-2 rounded-2xl border-default-medium text-heading hover:bg-surface-card focus:outline-none focus:ring-4 focus:ring-brand-medium">Selesai</button>
+            </x-absensi.kartu-hasil>
         @endif
 
         @if (in_array($step, ['input-id', 'mulai'], true) && \App\Support\PengaturanAbsensi::absenHpAktif())
-            <x-absensi.cara-absen mode="hp" class="mt-4" />
+            <x-absensi.cara-absen mode="hp" />
         @endif
     </div>
 </div>

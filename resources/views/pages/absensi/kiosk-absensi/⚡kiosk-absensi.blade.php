@@ -175,29 +175,39 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
 
 <div class="min-h-screen bg-surface-soft dark:bg-gray-900"
     x-data="{
-        jam: '', tanggal: '',
+        jam: '', tanggal: '', t: null,
         tick() {
             const d = new Date();
             this.jam = [d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => String(n).padStart(2, '0')).join(':');
             const dua = (n) => String(n).padStart(2, '0');
             this.tanggal = d.toLocaleDateString('id-ID', { weekday: 'long' }) + ', ' + dua(d.getDate()) + '/' + dua(d.getMonth() + 1) + '/' + d.getFullYear();
         },
-    }"
-    x-init="tick(); setInterval(() => tick(), 1000)">
+        init() { this.tick(); this.t = setInterval(() => this.tick(), 1000) },
+        destroy() { clearInterval(this.t) },
+    }">
 
     <div class="grid min-h-screen grid-cols-1 lg:grid-cols-3">
 
         {{-- PANEL UTAMA --}}
         <div class="flex flex-col items-center justify-center px-6 py-10 lg:col-span-2">
 
-            {{-- Jam --}}
-            <div class="mb-10 text-center">
-                <div class="flex items-center justify-center gap-3 mb-4">
-                    <img src="{{ asset('images/Logogram black solid.png') }}" alt="Logo" class="w-10 h-10" />
-                    <span class="text-2xl font-bold tracking-tight text-brand-green">SIAP · Absensi</span>
+            {{-- Kepala: logo RS + label, lalu jam besar (sama dengan Absen HP) --}}
+            @php $logoRs = \App\Support\Identitas::logoUrl(); @endphp
+            <div class="w-full max-w-xl mb-6">
+                <div class="flex items-center justify-between gap-3 mb-5">
+                    @if ($logoRs)
+                        <img src="{{ $logoRs }}" alt="{{ \App\Support\Identitas::get()->nama }}" class="object-contain w-auto h-14">
+                    @else
+                        <span class="text-2xl font-bold text-brand-green">{{ \App\Support\Identitas::namaPendek() }}</span>
+                    @endif
+                    <span class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold tracking-wide uppercase rounded-full bg-brand-softer text-fg-brand-strong">
+                        <x-absensi.ikon nama="jam" class="w-5 h-5" /> Kiosk Absensi
+                    </span>
                 </div>
-                <div class="font-mono font-bold tracking-tight text-7xl text-ink tabular-nums" x-text="jam"></div>
-                <div class="mt-2 text-xl text-muted" x-text="tanggal"></div>
+                <div class="px-6 py-6 text-center border shadow-sm bg-canvas border-hairline rounded-3xl">
+                    <div class="font-mono font-bold tracking-tight text-7xl text-ink tabular-nums" x-text="jam"></div>
+                    <div class="mt-2 text-xl text-muted" x-text="tanggal"></div>
+                </div>
             </div>
 
             <div class="w-full max-w-xl">
@@ -215,12 +225,12 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
                             {{-- terkunci selama diperiksa: Enter ganda / scan kedua tidak mengirim permintaan dobel --}}
                             wire:loading.attr="readonly" wire:target="submitId"
                             x-on:blur="setTimeout(() => $refs.inputId?.focus(), 300)"
-                            class="w-full px-6 py-5 font-mono text-3xl text-center uppercase border-2 rounded-2xl border-hairline focus:border-brand-green focus:ring-brand-green"
+                            class="w-full px-6 py-5 font-mono text-3xl text-center uppercase border-2 rounded-2xl bg-neutral-secondary-medium border-default-medium text-heading placeholder:normal-case placeholder:text-xl placeholder:font-sans placeholder:text-gray-500 focus:border-brand focus:ring-brand"
                             placeholder="Contoh: PRW-001" />
                         {{-- Layar sentuh tanpa scanner: tombol besar, tidak perlu mencari Enter di keyboard layar --}}
                         <button type="button" wire:click="submitId" wire:loading.attr="disabled" wire:target="submitId"
-                            class="w-full py-4 mt-4 text-lg font-semibold text-white transition rounded-2xl bg-brand-green hover:bg-brand-green-active focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-green/50 disabled:opacity-60 disabled:cursor-wait">
-                            <span wire:loading.remove wire:target="submitId">Absen</span>
+                            class="inline-flex items-center justify-center w-full gap-2 py-4 mt-4 text-lg font-semibold text-white transition rounded-2xl bg-brand hover:bg-brand-strong focus:outline-none focus:ring-4 focus:ring-brand-medium disabled:opacity-60 disabled:cursor-wait">
+                            <span wire:loading.remove wire:target="submitId" class="inline-flex items-center gap-2">Absen <x-absensi.ikon nama="panah" class="w-5 h-5" /></span>
                             <span wire:loading wire:target="submitId">Memeriksa...</span>
                         </button>
                     </div>
@@ -248,10 +258,10 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
                                 <button type="button" wire:click="pilihShift('{{ $shift->shift_id }}')"
                                     wire:loading.attr="disabled"
                                     @if ($disarankan) x-init="$nextTick(() => $el.focus())" @endif
-                                    class="relative px-5 py-4 text-left transition border-2 rounded-2xl focus:outline-none focus:ring-4 focus:ring-brand-green/30
-                                        {{ $disarankan ? 'border-brand-green bg-brand-green/10' : 'border-hairline hover:border-brand-green/60' }}">
+                                    class="relative px-5 py-4 text-left transition border-2 rounded-2xl focus:outline-none focus:ring-4 focus:ring-brand-medium
+                                        {{ $disarankan ? 'border-brand bg-brand-softer' : 'border-default-medium hover:border-brand' }}">
                                     @if ($disarankan)
-                                        <span class="absolute px-2 py-0.5 text-[11px] font-semibold text-white rounded-full -top-2.5 right-3 bg-brand-green">Disarankan</span>
+                                        <span class="absolute px-2 py-0.5 text-xs font-semibold text-white rounded-full -top-3 right-3 bg-brand">Disarankan</span>
                                     @endif
                                     <div class="text-lg font-semibold text-ink">{{ $shift->shift_name }}</div>
                                     <div class="font-mono text-muted">{{ $shift->jam_masuk }} – {{ $shift->jam_pulang }}</div>
@@ -261,7 +271,7 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
 
                         <div class="flex items-center justify-between mt-6 text-sm text-muted">
                             <span>Kembali otomatis dalam <b x-text="sisa"></b> detik</span>
-                            <button type="button" wire:click="resetKiosk" class="font-semibold underline">Batal</button>
+                            <button type="button" wire:click="resetKiosk" class="inline-flex items-center px-4 font-semibold rounded-xl min-h-[44px] text-heading hover:bg-surface-card focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green">Batal</button>
                         </div>
                     </div>
                 @endif
@@ -269,7 +279,7 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
                 {{-- STEP: KONFIRMASI (absen setelah separuh shift — mungkin lupa absen masuk) --}}
                 @if ($step === 'konfirmasi-masuk' && $karyawan && $this->shiftKonfirmasi)
                     @php $shift = $this->shiftKonfirmasi; @endphp
-                    <div wire:key="kiosk-konfirmasi" class="p-8 border-4 shadow-sm border-amber-400 bg-amber-50 rounded-3xl"
+                    <div wire:key="kiosk-konfirmasi" class="p-8 border border-t-4 shadow-sm bg-canvas border-hairline border-t-warning rounded-3xl"
                         x-data="{ sisa: 30, t: null,
                             init() { this.t = setInterval(() => { if (--this.sisa <= 0) { clearInterval(this.t); $wire.resetKiosk(); } }, 1000) },
                             destroy() { clearInterval(this.t) } }">
@@ -281,50 +291,33 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
                         <p class="mb-6 text-center text-body">Absen ini untuk apa?</p>
                         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <button type="button" wire:click="konfirmasiMasuk('masuk')" wire:loading.attr="disabled"
-                                class="px-5 py-4 text-left transition border-2 rounded-2xl border-hairline bg-canvas hover:border-brand-green focus:outline-none focus:ring-4 focus:ring-brand-green/30">
-                                <div class="text-lg font-semibold text-ink">✅ Saya baru datang</div>
+                                class="px-5 py-4 text-left transition border-2 rounded-2xl border-default-medium bg-canvas hover:border-brand focus:outline-none focus:ring-4 focus:ring-brand-medium">
+                                <div class="flex items-center gap-2 text-lg font-semibold text-ink"><x-absensi.ikon nama="masuk" class="w-6 h-6 text-fg-brand" /> Saya baru datang</div>
                                 <div class="text-sm text-muted">Catat MASUK sekarang (terlambat)</div>
                             </button>
                             <button type="button" wire:click="konfirmasiMasuk('pulang')" wire:loading.attr="disabled"
-                                class="px-5 py-4 text-left transition border-2 rounded-2xl border-hairline bg-canvas hover:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-300">
-                                <div class="text-lg font-semibold text-ink">👋 Saya lupa absen masuk, mau pulang</div>
+                                class="px-5 py-4 text-left transition border-2 rounded-2xl border-default-medium bg-canvas hover:border-brand focus:outline-none focus:ring-4 focus:ring-brand-medium">
+                                <div class="flex items-center gap-2 text-lg font-semibold text-ink"><x-absensi.ikon nama="pulang" class="w-6 h-6 text-fg-brand" /> Saya lupa absen masuk, mau pulang</div>
                                 <div class="text-sm text-muted">Catat PULANG — jam masuk dilengkapi HRD</div>
                             </button>
                         </div>
                         <div class="flex items-center justify-between mt-6 text-sm text-muted">
                             <span>Kembali otomatis dalam <b x-text="sisa"></b> detik</span>
-                            <button type="button" wire:click="resetKiosk" class="font-semibold underline">Batal</button>
+                            <button type="button" wire:click="resetKiosk" class="inline-flex items-center px-4 font-semibold rounded-xl min-h-[44px] text-heading hover:bg-surface-card focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green">Batal</button>
                         </div>
                     </div>
                 @endif
 
                 {{-- STEP: HASIL --}}
                 @if ($step === 'hasil' && $hasil)
-                    @php
-                        $warna = match ($hasil['tipe']) {
-                            'masuk'  => $hasil['status'] === 'T' ? 'border-amber-400 bg-amber-50' : 'border-emerald-400 bg-emerald-50',
-                            'pulang' => 'border-sky-400 bg-sky-50',
-                            'info'   => 'border-slate-300 bg-white',
-                            default  => 'border-red-400 bg-red-50',
-                        };
-                        $ikon = match ($hasil['tipe']) {
-                            'masuk'  => $hasil['status'] === 'T' ? '⏰' : '✅',
-                            'pulang' => '👋',
-                            'info'   => 'ℹ️',
-                            default  => '⛔',
-                        };
-                    @endphp
-                    <div wire:key="kiosk-hasil" class="p-10 text-center border-4 shadow-sm rounded-3xl {{ $warna }}"
-                        role="{{ $hasil['tipe'] === 'error' ? 'alert' : 'status' }}" aria-live="assertive"
+                    {{-- Kartu hasil bersama (sama dengan Absen HP); timer 5 detik dibersihkan di destroy() --}}
+                    <x-absensi.kartu-hasil :hasil="$hasil" wire:key="kiosk-hasil" class="p-10"
                         x-data="{ sisa: 5, t: null,
                             init() { this.t = setInterval(() => { if (--this.sisa <= 0) { clearInterval(this.t); $wire.resetKiosk(); } }, 1000) },
                             destroy() { clearInterval(this.t) } }"
                         x-on:keydown.window.enter.prevent="$wire.resetKiosk()">
-                        <div class="mb-3 text-6xl">{{ $ikon }}</div>
-                        <p class="text-3xl font-bold text-ink">{{ $hasil['judul'] }}</p>
-                        <p class="mt-3 text-xl text-body">{{ $hasil['pesan'] }}</p>
                         <p class="mt-6 text-sm text-muted">Kembali dalam <b x-text="sisa"></b> detik · tekan Enter untuk lanjut</p>
-                    </div>
+                    </x-absensi.kartu-hasil>
                 @endif
 
                 @if ($step === 'input')
@@ -347,7 +340,7 @@ new #[Layout('layouts.app-fullscreen')] class extends Component {
                             @if ($row->jam_pulang)
                                 <div class="text-sm font-semibold text-sky-700">Pulang {{ \Carbon\Carbon::parse($row->jam_pulang)->format('H:i') }}</div>
                                 @if ((int) $row->lembur_menit > 0)
-                                    <div class="text-[11px] text-indigo-700">lembur {{ \App\Support\Absensi::labelMenit((int) $row->lembur_menit) }}</div>
+                                    <div class="text-xs text-indigo-700">lembur {{ \App\Support\Absensi::labelMenit((int) $row->lembur_menit) }}</div>
                                 @endif
                             @else
                                 <div class="text-sm font-semibold {{ $row->abs_status === 'T' ? 'text-amber-700' : 'text-emerald-700' }}">

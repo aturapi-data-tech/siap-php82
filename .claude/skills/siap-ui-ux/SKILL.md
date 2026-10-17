@@ -107,6 +107,11 @@ try { await $wire.kirimAbsen(...) } catch (e) {} finally {
 ```
 Pesan galat harus tampil di fase tempat user berada (bukan hanya di satu blok `x-show`), dengan `role="alert"`.
 
+**4.6b Tidak ada tanda kutip ganda `"` di dalam `x-data="…"`** — termasuk di komentar JS (`// … "teks" …`).
+Kutip ganda menutup atribut HTML, sisa skrip tampil sebagai teks dan seluruh logika Alpine mati (kasus nyata:
+langkah Mulai Absen di Absen HP rusak). Di dalam atribut pakai `'…'` saja. Cek: render HTML lalu pastikan
+setiap nilai `x-data` yang diawali `{` juga diakhiri `}` (parse dengan `html.parser`).
+
 **4.7 Hasil aksi diumumkan.** Kartu hasil/galat: `role="status"` (atau `alert` untuk galat) + `aria-live`.
 Toastr sudah punya `aria-live`.
 

@@ -8,9 +8,11 @@
 @endphp
 
 <details {{ $attributes->merge(['class' => 'group border shadow-sm bg-canvas border-hairline rounded-3xl']) }}>
-    <summary class="flex items-center justify-between gap-3 px-5 py-4 font-semibold list-none cursor-pointer select-none text-ink">
-        <span>ℹ️ Cara absen, dobel shift &amp; Poli</span>
-        <span class="text-sm font-normal transition text-muted group-open:rotate-180">▼</span>
+    <summary class="flex items-center justify-between gap-3 px-5 py-4 font-semibold list-none cursor-pointer select-none rounded-3xl text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green">
+        <span class="inline-flex items-center gap-2"><x-absensi.ikon nama="info" class="w-5 h-5 text-fg-brand" /> Cara absen, dobel shift &amp; Poli</span>
+        <svg class="w-4 h-4 transition-transform text-muted group-open:rotate-180 motion-reduce:transition-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+        </svg>
     </summary>
 
     <div class="px-5 pb-5 space-y-4 text-sm leading-relaxed text-body">
