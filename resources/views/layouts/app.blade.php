@@ -72,8 +72,9 @@
                                 <img src="{{ $logoIkon }}" alt="{{ \App\Support\Identitas::get()->nama }}"
                                     class="object-contain w-auto h-[25px] rounded sm:hidden dark:bg-white/90">
                             @endif
+                            {{-- Tamu (halaman depan): logo besar seperti SIRUS; sesudah login tetap ringkas di samping judul halaman --}}
                             <img src="{{ $logoTopbar }}" alt="{{ \App\Support\Identitas::get()->nama }}"
-                                class="{{ $logoIkon ? 'hidden sm:block' : 'max-w-[40vw] sm:max-w-none' }} object-contain w-auto h-[25px] rounded dark:bg-white/90">
+                                class="{{ $logoIkon ? 'hidden sm:block' : 'max-w-[40vw] sm:max-w-none' }} object-contain w-auto {{ auth()->check() ? 'h-[25px]' : 'h-12' }} rounded dark:bg-white/90">
                         @else
                             {{-- Nama hanya tampil bila belum ada logo (logo sudah memuat nama) --}}
                             <span class="hidden text-base font-bold leading-tight sm:block text-brand-green dark:text-brand-lime max-w-[12rem]">

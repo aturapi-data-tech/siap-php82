@@ -37,7 +37,7 @@ new class extends Component {
         <section class="relative z-20 flex flex-col min-h-[calc(100vh-5rem)]">
             {{-- HERO --}}
             <div class="flex-1">
-                <div class="grid items-center grid-cols-1 gap-10 px-6 py-12 mx-auto max-w-7xl lg:grid-cols-2 lg:py-20">
+                <div class="grid items-center grid-cols-1 gap-10 px-6 py-10 mx-auto max-w-7xl lg:grid-cols-2 lg:py-14">
                     {{-- LEFT --}}
                     <div>
                         <p
@@ -74,7 +74,7 @@ new class extends Component {
                             </x-secondary-button>
                         </div>
 
-                        {{-- Modul SIAP --}}
+                        {{-- Akses cepat: Absen HP publik, sisanya lewat login --}}
                         <div class="mt-8">
                             <div class="flex items-center gap-2 mb-3">
                                 <span class="inline-block w-2 h-2 rounded-full bg-brand-lime"></span>
@@ -84,41 +84,28 @@ new class extends Component {
                             </div>
                             @php
                                 $modules = [
-                                    ['label' => 'Absensi', 'desc' => 'Absen HP — GPS & selfie', 'href' => route('absensi.hp'), 'icon' => 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z'],
-                                    ['label' => 'Kepegawaian', 'desc' => 'Data karyawan & STR/SIP', 'icon' => 'M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z'],
-                                    ['label' => 'Manajemen Aset', 'desc' => 'Inventaris & sarana RS', 'icon' => 'M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z'],
+                                    ['label' => 'Absen HP', 'href' => route('absensi.hp'), 'icon' => 'M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3'],
+                                    ['label' => 'Absensi & Jadwal Dinas', 'href' => route('login'), 'icon' => 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z'],
+                                    ['label' => 'Kepegawaian & Gaji', 'href' => route('login'), 'icon' => 'M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z'],
+                                    ['label' => 'Manajemen Aset', 'href' => route('login'), 'icon' => 'M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z'],
                                 ];
                             @endphp
-                            <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
                                 @foreach ($modules as $modul)
-                                    {{-- Modul ber-href (Absensi → Absen HP, publik) bisa diklik tanpa login. --}}
-                                    <a @isset($modul['href']) href="{{ $modul['href'] }}" @endisset
-                                        class="flex items-start gap-2.5 px-3.5 py-3 rounded-xl bg-surface-card ring-1 ring-hairline dark:bg-white/5 dark:ring-white/10
-                                            {{ isset($modul['href']) ? 'transition hover:ring-2 hover:ring-brand-green dark:hover:ring-brand-lime' : '' }}">
-                                        <svg class="w-5 h-5 mt-0.5 text-brand-green shrink-0 dark:text-brand-lime"
+                                    <a href="{{ $modul['href'] }}"
+                                        class="flex items-center gap-3 px-4 py-3 transition rounded-xl bg-surface-card ring-1 ring-hairline hover:ring-2 hover:ring-brand-green
+                                            dark:bg-white/5 dark:ring-white/10 dark:hover:ring-brand-lime">
+                                        <svg class="w-5 h-5 text-brand-green shrink-0 dark:text-brand-lime"
                                             fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="{{ $modul['icon'] }}" />
                                         </svg>
-                                        <div>
-                                            <p class="text-sm font-semibold text-ink dark:text-slate-100">{{ $modul['label'] }}</p>
-                                            <p class="text-xs text-muted dark:text-gray-400">{{ $modul['desc'] }}</p>
-                                            @isset($modul['href'])
-                                                <p class="mt-1 text-xs font-semibold text-brand-green dark:text-brand-lime">Absen sekarang →</p>
-                                            @endisset
-                                        </div>
+                                        <span class="flex-1 text-sm font-semibold text-ink dark:text-slate-100">{{ $modul['label'] }}</span>
+                                        <svg class="w-4 h-4 text-muted shrink-0 dark:text-gray-400" fill="none" stroke="currentColor"
+                                            viewBox="0 0 24 24" stroke-width="2">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                                        </svg>
                                     </a>
                                 @endforeach
-                            </div>
-                        </div>
-
-                        {{-- Partner --}}
-                        <div class="pt-6 mt-10 border-t border-hairline dark:border-white/10">
-                            <div class="flex items-center gap-4 mt-3">
-                                <p class="text-caption font-semibold text-muted dark:text-gray-400">
-                                    Powered by Aturapi Data Technology
-                                </p>
-                                <span class="w-px h-6 bg-hairline dark:bg-white/10"></span>
-                                <div class="w-16 h-1 rounded-full bg-brand-lime"></div>
                             </div>
                         </div>
                     </div>
@@ -200,7 +187,7 @@ new class extends Component {
             {{-- FOOTER --}}
             <footer class="py-6 border-t border-hairline dark:border-white/10">
                 <p class="text-center text-caption text-muted dark:text-gray-400">
-                    © {{ date('Y') }} SIAP — {{ $identitas->nama }}
+                    © {{ date('Y') }} SIAP — {{ $identitas->nama }} · Powered by Aturapi Data Technology
                 </p>
             </footer>
         </section>

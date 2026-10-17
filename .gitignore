@@ -25,3 +25,4 @@ Thumbs.db
 graphify-out/
 public/graphify-out
 database/sql/00_create_user_siap.sql
+database/sql/produksi/
