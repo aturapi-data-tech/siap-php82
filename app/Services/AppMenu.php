@@ -113,6 +113,7 @@ class AppMenu
 
             // ── Keuangan (data gaji = rahasia; selaras AksiRole::GAJI_KELOLA) ──
             $entry(['group' => 'Keuangan', 'groupOrder' => 4, 'order' => 1, 'route' => 'keuangan.gaji-karyawan', 'title' => 'Gaji Karyawan', 'desc' => 'Slip gaji bulanan: generate dari parameter, hari kerja & rincian, final, cetak', 'roles' => ['admin', 'keuangan'], 'badge' => 'GJI']),
+            $entry(['group' => 'Keuangan', 'groupOrder' => 4, 'order' => 2, 'route' => 'keuangan.pembagian-jm', 'title' => 'Pembagian Jasa Medik', 'desc' => 'Nilai dasar per pos + poin karyawan → JM per orang, terapkan ke slip gaji', 'roles' => ['admin', 'keuangan'], 'badge' => 'JM']),
 
             // ── Panduan (semua user) ───────────────────────────────────
             $entry(['group' => 'Panduan', 'groupOrder' => 90, 'order' => 1, 'route' => 'panduan.absensi', 'title' => 'Panduan Absensi', 'desc' => 'Cara pakai jadwal dinas, kiosk, rekap & lembur', 'roles' => [self::SEMUA_ROLE], 'badge' => '?']),

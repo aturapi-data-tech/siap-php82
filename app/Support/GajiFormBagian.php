@@ -405,9 +405,11 @@ class GajiFormBagian
                 return ['kasbon' => $jumlah('KASBON')];
             case 'jasa_medik':
                 return [
-                    'jm_inap' => $jumlah('JASA_MEDIK', fn($row) => $row->keterangan === self::JM_INAP),
-                    'jm_rj'   => $jumlah('JASA_MEDIK', fn($row) => $row->keterangan === self::JM_RJ),
-                    'jm_lain' => $jumlah('JASA_MEDIK', fn($row) => !in_array($row->keterangan, [self::JM_INAP, self::JM_RJ], true)),
+                    // str_starts_with: baris dari menu Pembagian JM berketerangan "Rawat Inap (3 poin)".
+                    'jm_inap' => $jumlah('JASA_MEDIK', fn($row) => str_starts_with((string) $row->keterangan, self::JM_INAP)),
+                    'jm_rj'   => $jumlah('JASA_MEDIK', fn($row) => str_starts_with((string) $row->keterangan, self::JM_RJ)),
+                    'jm_lain' => $jumlah('JASA_MEDIK', fn($row) => !str_starts_with((string) $row->keterangan, self::JM_INAP)
+                        && !str_starts_with((string) $row->keterangan, self::JM_RJ)),
                 ];
             case 'koperasi':
                 return ['angs_lain' => $jumlah('ANGSURAN'), 'iuran' => $jumlah('KOPERASI'), 'angsuran' => $jumlah('ANGS_KOP')];
