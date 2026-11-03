@@ -16,6 +16,9 @@ use Illuminate\Support\Facades\DB;
  * Contoh Sep 2026 (Excel): Rawat Inap 238.509.413 × 50 % = 119.254.706 ÷ 172 poin = 693.341 / poin;
  * Laborat = 3,9 % × pendapatan lab 329.101.550 = 12.834.960 (100 % pegawai).
  *
+ * Poin: MASTER per karyawan (Master Karyawan → Gaji) → "Generate Poin" menyalin ke bulan berjalan;
+ * poin yang disesuaikan di layar bulan itu dipertahankan saat generate ulang.
+ *
  * "Terapkan ke slip" mengganti SEMUA baris JASA_MEDIK slip Draft karyawan yang punya poin bulan itu
  * (satu baris per pos, keterangan = nama pos). Karyawan tanpa poin & slip Final tidak disentuh.
  */
@@ -88,6 +91,7 @@ class JasaMedik
         return $hasil;
     }
 
+    /** Poin bulan ini diubah di layar → manual = 1 (tidak ditimpa Generate ulang). */
     public static function ubahPoin(string $periode, string $empId, string $kode, float $poin, ?int $userId): bool
     {
         if (!isset(self::POS[$kode]) || $poin < 0 || $poin > 999) {
@@ -96,44 +100,89 @@ class JasaMedik
         $kunci = ['periode' => $periode, 'emp_id' => $empId, 'pos_kode' => $kode];
         $ada = DB::table('siaptxn_jm_poins')->where($kunci)->exists();
         if ($ada) {
-            DB::table('siaptxn_jm_poins')->where($kunci)->update(['poin' => round($poin, 2), 'updated_by' => $userId, 'updated_at' => now()]);
+            DB::table('siaptxn_jm_poins')->where($kunci)->update(['poin' => round($poin, 2), 'manual' => '1', 'updated_by' => $userId, 'updated_at' => now()]);
         } else {
-            DB::table('siaptxn_jm_poins')->insert([...$kunci, 'poin' => round($poin, 2), 'updated_by' => $userId, 'created_at' => now(), 'updated_at' => now()]);
+            DB::table('siaptxn_jm_poins')->insert([...$kunci, 'poin' => round($poin, 2), 'manual' => '1', 'updated_by' => $userId, 'created_at' => now(), 'updated_at' => now()]);
         }
 
         return true;
     }
 
-    /** Bulan terakhir sebelum $periode yang punya poin (sumber "Salin poin"). */
-    public static function periodePoinSebelumnya(string $periode): ?string
+    // ─── Master poin (Master Karyawan → Gaji) ─────────────────────────────────
+
+    /** @return array<string, float> pos => poin master satu karyawan (semua pos, 0 bila belum diisi). */
+    public static function masterPoin(string $empId): array
     {
-        return DB::table('siaptxn_jm_poins')->where('periode', '<', $periode)->max('periode');
+        $tersimpan = DB::table('siapmst_jm_poins')->where('emp_id', $empId)->pluck('poin', 'pos_kode');
+
+        return array_map(fn($kode) => (float) ($tersimpan[$kode] ?? 0), array_combine(array_keys(self::POS), array_keys(self::POS)));
     }
 
-    /** Salin poin bulan sebelumnya — hanya karyawan yang belum punya poin bulan ini. @return int jumlah karyawan disalin */
-    public static function salinPoin(string $periode, ?int $userId): int
+    /** Simpan master poin satu karyawan; poin 0 = baris dihapus. */
+    public static function simpanMasterPoin(string $empId, array $poin, ?int $userId): void
     {
-        $sumber = self::periodePoinSebelumnya($periode);
-        if (!$sumber) {
-            return 0;
-        }
-        $sudahAda = DB::table('siaptxn_jm_poins')->where('periode', $periode)->distinct()->pluck('emp_id')->all();
-        $aktif = DB::table('siapmst_employers')->where('active_status', '1')->pluck('emp_id')->all();
-        $baris = DB::table('siaptxn_jm_poins')->where('periode', $sumber)
-            // Oracle: '' = NULL → NOT IN ('') selalu kosong; saring hanya bila memang ada.
-            ->when($sudahAda !== [], fn($query) => $query->whereNotIn('emp_id', $sudahAda))
-            ->whereIn('emp_id', $aktif ?: [''])->get();
+        DB::transaction(function () use ($empId, $poin, $userId) {
+            DB::table('siapmst_jm_poins')->where('emp_id', $empId)->delete();
+            foreach (array_keys(self::POS) as $kode) {
+                $nilai = round(max(0, min(999, (float) ($poin[$kode] ?? 0))), 2);
+                if ($nilai > 0) {
+                    DB::table('siapmst_jm_poins')->insert(['emp_id' => $empId, 'pos_kode' => $kode, 'poin' => $nilai,
+                        'updated_by' => $userId, 'created_at' => now(), 'updated_at' => now()]);
+                }
+            }
+        });
+    }
 
-        DB::transaction(function () use ($baris, $periode, $userId) {
-            foreach ($baris as $row) {
-                DB::table('siaptxn_jm_poins')->insert([
-                    'periode' => $periode, 'emp_id' => $row->emp_id, 'pos_kode' => $row->pos_kode, 'poin' => $row->poin,
-                    'updated_by' => $userId, 'created_at' => now(), 'updated_at' => now(),
-                ]);
+    /**
+     * Generate poin bulan ini dari master (pola generate slip gaji):
+     *  - karyawan aktif yang punya master poin → poin bulan = poin master;
+     *  - poin yang DIUBAH di layar bulan itu (manual = 1) dipertahankan;
+     *  - poin hasil generate lama yang tidak ada lagi di master (karyawan keluar / poin dihapus) dibuang.
+     * @return array{karyawan: int, dipertahankan: int, dibuang: int}
+     */
+    public static function generatePoin(string $periode, ?int $userId): array
+    {
+        $master = DB::table('siapmst_jm_poins as mp')->join('siapmst_employers as em', 'em.emp_id', '=', 'mp.emp_id')
+            ->where('em.active_status', '1')->where('mp.poin', '>', 0)->get(['mp.emp_id', 'mp.pos_kode', 'mp.poin']);
+        $lama = DB::table('siaptxn_jm_poins')->where('periode', $periode)->get()
+            ->keyBy(fn($row) => $row->emp_id . '|' . $row->pos_kode);
+        $hasil = ['karyawan' => $master->pluck('emp_id')->unique()->count(), 'dipertahankan' => 0, 'dibuang' => 0];
+
+        DB::transaction(function () use ($periode, $userId, $master, $lama, &$hasil) {
+            $kunciMaster = [];
+            foreach ($master as $row) {
+                $kunci = $row->emp_id . '|' . $row->pos_kode;
+                $kunciMaster[$kunci] = true;
+                $ada = $lama[$kunci] ?? null;
+                if ($ada?->manual === '1') {
+                    $hasil['dipertahankan']++;
+                    continue;
+                }
+                $data = ['poin' => $row->poin, 'manual' => '0', 'updated_by' => $userId, 'updated_at' => now()];
+                $ada
+                    ? DB::table('siaptxn_jm_poins')->where(['periode' => $periode, 'emp_id' => $row->emp_id, 'pos_kode' => $row->pos_kode])->update($data)
+                    : DB::table('siaptxn_jm_poins')->insert([...$data, 'periode' => $periode, 'emp_id' => $row->emp_id, 'pos_kode' => $row->pos_kode, 'created_at' => now()]);
+            }
+            foreach ($lama as $kunci => $row) {
+                if (!isset($kunciMaster[$kunci]) && $row->manual !== '1') {
+                    DB::table('siaptxn_jm_poins')->where(['periode' => $periode, 'emp_id' => $row->emp_id, 'pos_kode' => $row->pos_kode])->delete();
+                    $hasil['dibuang']++;
+                }
             }
         });
 
-        return $baris->pluck('emp_id')->unique()->count();
+        return $hasil;
+    }
+
+    /** @return array<string, array<string, true>> emp_id => [pos => true] poin yang diubah manual bulan ini. */
+    public static function poinManual(string $periode): array
+    {
+        $hasil = [];
+        foreach (DB::table('siaptxn_jm_poins')->where('periode', $periode)->where('manual', '1')->get(['emp_id', 'pos_kode']) as $row) {
+            $hasil[$row->emp_id][$row->pos_kode] = true;
+        }
+
+        return $hasil;
     }
 
     /**

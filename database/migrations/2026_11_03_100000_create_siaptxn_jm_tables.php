@@ -10,7 +10,10 @@ use Illuminate\Support\Facades\Schema;
  *
  * - siaptxn_jm_pos   : per bulan per pos — nilai dasar (perolehan JM / pendapatan), % JM dari dasar,
  *                      % bagian pegawai (sisanya bagian RS / BPI).
- * - siaptxn_jm_poins : poin karyawan per bulan per pos. JM = poin × (bagian pegawai ÷ total poin pos).
+ * - siapmst_jm_poins : MASTER poin karyawan per pos (diisi di Master Karyawan → Gaji) — sumber Generate.
+ * - siaptxn_jm_poins : poin karyawan per bulan per pos (hasil Generate dari master, bisa disesuaikan).
+ *                      JM = poin × (bagian pegawai ÷ total poin pos).
+ *                      manual '1' = diubah di layar bulan itu → dipertahankan saat Generate ulang.
  * - siaptxn_jm_hdrs  : jejak "Terapkan ke slip" per bulan.
  */
 return new class extends Migration {
@@ -28,11 +31,23 @@ return new class extends Migration {
             $table->primary(['periode', 'pos_kode'], 'pk_siaptxn_jm_pos');
         });
 
+        Schema::create('siapmst_jm_poins', function (Blueprint $table) {
+            $table->string('emp_id', 20);
+            $table->string('pos_kode', 10);
+            $table->decimal('poin', 8, 2)->default(0);
+            $table->unsignedBigInteger('updated_by')->nullable();
+            $table->timestamps();
+
+            $table->primary(['emp_id', 'pos_kode'], 'pk_siapmst_jm_poins');
+            $table->foreign('emp_id', 'fk_siapmst_jm_poins_emp')->references('emp_id')->on('siapmst_employers');
+        });
+
         Schema::create('siaptxn_jm_poins', function (Blueprint $table) {
             $table->string('periode', 7);
             $table->string('emp_id', 20);
             $table->string('pos_kode', 10);
             $table->decimal('poin', 8, 2)->default(0);
+            $table->string('manual', 1)->default('0');
             $table->unsignedBigInteger('updated_by')->nullable();
             $table->timestamps();
 
@@ -52,6 +67,7 @@ return new class extends Migration {
     {
         Schema::dropIfExists('siaptxn_jm_hdrs');
         Schema::dropIfExists('siaptxn_jm_poins');
+        Schema::dropIfExists('siapmst_jm_poins');
         Schema::dropIfExists('siaptxn_jm_pos');
     }
 };

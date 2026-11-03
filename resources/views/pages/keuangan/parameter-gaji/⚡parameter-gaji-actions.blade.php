@@ -4,6 +4,7 @@ use Livewire\Component;
 use Livewire\Attributes\On;
 use Illuminate\Support\Facades\DB;
 use App\Support\GajiKaryawan;
+use App\Support\JasaMedik;
 use App\Http\Traits\Concerns\WithRenderVersioningTrait;
 
 /** Modal parameter gaji satu karyawan (upsert siapmst_gaji_karyawans) — dibuka dari Master Karyawan (tombol Gaji, role gaji.kelola). */
@@ -17,6 +18,9 @@ new class extends Component {
     protected array $renderAreas  = ['modal'];
 
     public array $form = [];
+
+    /** Master poin Jasa Medik per pos (siapmst_jm_poins) — sumber "Generate Poin" di menu Pembagian JM. */
+    public array $poinJm = [];
 
     public function boot(): void
     {
@@ -54,6 +58,8 @@ new class extends Component {
             $this->form['no_rekening']  = (string) ($parameter->no_rekening ?? '');
         }
 
+        $this->poinJm = JasaMedik::masterPoin($this->empId);
+
         $this->incrementVersion('modal');
         $this->dispatch('open-modal', name: 'parameter-gaji-actions');
     }
@@ -63,6 +69,10 @@ new class extends Component {
         $rules = [];
         foreach (GajiKaryawan::KOLOM_NOMINAL as $kolom) {
             $rules["form.{$kolom}"] = 'required|numeric|min:0|max:999999999';
+        }
+
+        foreach (array_keys(JasaMedik::POS) as $kode) {
+            $rules["poinJm.{$kode}"] = 'nullable|numeric|min:0|max:999';
         }
 
         return [...$rules,
@@ -90,6 +100,7 @@ new class extends Component {
             'form.tunjangan_struktural' => 'Tunjangan Struktural', 'form.tunjangan_profesi' => 'Tunjangan Profesi',
             'form.potongan_asuransi' => 'Asuransi', 'form.potongan_organisasi' => 'Iuran Organisasi', 'form.potongan_arisan' => 'Arisan',
             'form.potongan_koperasi' => 'Koperasi', 'form.potongan_infaq' => 'Infaq', 'form.potongan_bpjs' => 'BPJS',
+            ...collect(JasaMedik::POS)->mapWithKeys(fn($pos, $kode) => ["poinJm.{$kode}" => 'Poin JM ' . $pos['nama']])->all(),
             'form.pph21_persen' => 'PPh 21', 'form.hari_kerja_default' => 'Hari Kerja Default', 'form.nama_bank' => 'Bank', 'form.no_rekening' => 'No. Rekening',
         ];
     }
@@ -110,6 +121,7 @@ new class extends Component {
         } else {
             DB::table('siapmst_gaji_karyawans')->insert([...$payload, 'emp_id' => $this->empId, 'created_at' => now()]);
         }
+        JasaMedik::simpanMasterPoin($this->empId, $this->poinJm, auth()->id());
 
         $this->dispatch('toast', type: 'success', message: 'Parameter gaji ' . $this->empName . ' disimpan. Berlaku untuk slip yang di-generate berikutnya.');
         $this->closeModal();
@@ -126,6 +138,7 @@ new class extends Component {
     private function resetForm(): void
     {
         $this->form = array_fill_keys(GajiKaryawan::KOLOM_NOMINAL, 0) + ['pph21_persen' => 0, 'hari_kerja_default' => 25, 'nama_bank' => '', 'no_rekening' => ''];
+        $this->poinJm = array_fill_keys(array_keys(JasaMedik::POS), 0);
         $this->sudahAda = false;
         $this->resetValidation();
     }
@@ -172,7 +185,7 @@ new class extends Component {
                             </div>
                         </div>
                         <p class="mt-3 text-xs text-muted">Tunjangan makan &amp; transport = tarif × hari kerja. Slip baru memakai hari kerja default ini;
-                            di rincian slip bisa diubah bila ada cuti / izin. Jasa medik, upah lembur, bonus &amp; rapel diisi di rincian slip setiap bulan.</p>
+                            di rincian slip bisa diubah bila ada cuti / izin. Jasa medik dihitung di menu Pembagian Jasa Medik (dari poin di bawah); upah lembur, bonus &amp; rapel diisi di rincian slip / form bagian setiap bulan.</p>
                     </x-border-form>
 
                     <x-border-form title="Potongan Rutin (per bulan)">
@@ -193,6 +206,20 @@ new class extends Component {
                             @endforeach
                         </div>
                         <p class="mt-3 text-xs text-muted">Kasbon &amp; angsuran diisi di rincian slip setiap bulan.</p>
+                    </x-border-form>
+
+                    <x-border-form title="Poin Jasa Medik (master)" class="lg:col-span-2">
+                        <div class="grid grid-cols-2 gap-4 sm:grid-cols-5">
+                            @foreach (\App\Support\JasaMedik::POS as $kode => $pos)
+                                <div wire:key="poin-jm-{{ $kode }}">
+                                    <x-input-label :value="$pos['nama']" />
+                                    <x-text-input-number wire:model="poinJm.{{ $kode }}" :decimals="2" :error="$errors->has('poinJm.' . $kode)" class="w-full mt-1" />
+                                    <x-input-error :messages="$errors->get('poinJm.' . $kode)" class="mt-1" />
+                                </div>
+                            @endforeach
+                        </div>
+                        <p class="mt-3 text-xs text-muted">Poin bagian jasa medik per pos (boleh desimal, mis. 1,25; kosong = tidak ikut pos itu).
+                            Dipakai tombol <b>Generate Poin dari Master</b> di menu Pembagian Jasa Medik setiap bulan; poin bulan berjalan masih bisa disesuaikan di sana.</p>
                     </x-border-form>
 
                     <x-border-form title="Pajak & Rekening" class="lg:col-span-2">

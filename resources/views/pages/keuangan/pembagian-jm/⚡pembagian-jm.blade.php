@@ -14,8 +14,8 @@ use App\Support\UnitKerja;
 /**
  * PEMBAGIAN JASA MEDIK — pengganti sheet "JaMed" workbook gaji lama.
  *
- * Alur per bulan kerja: isi nilai dasar tiap pos (perolehan JM / pendapatan) & persen →
- *   isi / salin poin karyawan per pos → nilai per poin & JM per orang dihitung otomatis →
+ * Alur per bulan kerja: isi nilai dasar tiap pos (perolehan JM / pendapatan) & persen → Generate poin dari master
+ *   (Master Karyawan → Gaji), sesuaikan bila perlu → nilai per poin & JM per orang dihitung otomatis →
  *   "Terapkan ke Slip" menulis baris Jasa Medik ke slip Draft (Gaji Karyawan).
  * Setiap angka disimpan saat kotak ditinggalkan (blur). Hanya role gaji.kelola.
  */
@@ -98,7 +98,7 @@ new class extends Component {
 
     private function segarkan(): void
     {
-        unset($this->ringkasan, $this->karyawan, $this->diterapkan, $this->rows, $this->sumberSalin);
+        unset($this->ringkasan, $this->karyawan, $this->diterapkan, $this->rows, $this->poinManual);
     }
 
     // ─── Simpan saat blur ─────────────────────────────────────────────────────
@@ -134,15 +134,23 @@ new class extends Component {
     }
 
     // ─── Aksi ─────────────────────────────────────────────────────────────────
-    public function salinPoin(): void
+    public function generatePoin(): void
     {
-        $jumlah = JasaMedik::salinPoin($this->periode(), auth()->id());
-        $sumber = JasaMedik::periodePoinSebelumnya($this->periode());
+        $hasil = JasaMedik::generatePoin($this->periode(), auth()->id());
         $this->poinInput = JasaMedik::poin($this->periode());
         $this->segarkan();
-        $this->dispatch('toast', type: $jumlah > 0 ? 'success' : 'info', message: $jumlah > 0
-            ? "Poin {$jumlah} karyawan disalin dari " . Format::bulan(GajiKaryawan::awalPeriode($sumber)) . '.'
-            : 'Tidak ada poin yang perlu disalin (semua karyawan sudah berpoin, atau belum ada bulan sebelumnya).');
+        if ($hasil['karyawan'] === 0) {
+            $this->dispatch('toast', type: 'warning', message: 'Belum ada master poin JM. Isi di Master Karyawan → tombol Gaji → Poin Jasa Medik.');
+            return;
+        }
+        $pesan = "Poin {$this->bulan} di-generate dari master untuk {$hasil['karyawan']} karyawan.";
+        if ($hasil['dipertahankan'] > 0) {
+            $pesan .= " {$hasil['dipertahankan']} poin yang diubah manual bulan ini dipertahankan.";
+        }
+        if ($hasil['dibuang'] > 0) {
+            $pesan .= " {$hasil['dibuang']} poin lama yang tidak ada lagi di master dihapus.";
+        }
+        $this->dispatch('toast', type: 'success', message: $pesan);
     }
 
     public function terapkan(): void
@@ -195,15 +203,15 @@ new class extends Component {
     }
 
     #[Computed]
-    public function sumberSalin(): ?string
+    public function poinManual(): array
     {
-        return JasaMedik::periodePoinSebelumnya($this->periode());
+        return JasaMedik::poinManual($this->periode());
     }
 };
 ?>
 
 <div>
-    @php $rows = $this->rows; $sumberSalin = $this->sumberSalin; $adaPoin = $poinInput !== []; @endphp
+    @php $rows = $this->rows; $poinManual = $this->poinManual; $adaPoin = $poinInput !== []; @endphp
     <x-page-title title="Pembagian Jasa Medik"
         subtitle="Hitung JM karyawan per bulan: nilai dasar per pos → poin per karyawan → JM per orang → terapkan ke slip gaji" />
 
@@ -240,13 +248,11 @@ new class extends Component {
                     </div>
 
                     <div class="flex flex-wrap items-end gap-2 ml-auto">
-                        @if ($sumberSalin)
-                            <x-confirm-button variant="secondary" action="salinPoin()" title="Salin Poin"
-                                message="Salin poin dari {{ \App\Support\Format::bulan(\App\Support\GajiKaryawan::awalPeriode($sumberSalin)) }} untuk karyawan yang belum punya poin di {{ $bulan }}? Poin yang sudah diisi tidak diubah." confirmText="Ya, salin" cancelText="Batal">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                                Salin Poin Bulan Lalu
-                            </x-confirm-button>
-                        @endif
+                        <x-confirm-button variant="secondary" action="generatePoin()" title="Generate Poin dari Master"
+                            message="Isi poin {{ $bulan }} dari master poin JM (Master Karyawan → Gaji)? Poin yang sudah diubah manual di bulan ini tetap; poin karyawan yang tidak lagi di master dihapus." confirmText="Ya, generate" cancelText="Batal">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                            Generate Poin dari Master
+                        </x-confirm-button>
                         <x-confirm-button variant="primary" action="terapkan()" title="Terapkan JM ke Slip"
                             message="Tulis JM {{ $bulan }} ke slip Draft karyawan yang berpoin? Semua baris Jasa Medik di slip mereka DIGANTI hasil hitung ini (termasuk yang diisi lewat form Excel JM). Slip Final dilewati." confirmText="Ya, terapkan" cancelText="Batal">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
@@ -322,7 +328,7 @@ new class extends Component {
                 <div class="flex flex-wrap items-end justify-between gap-2 px-4 pt-3">
                     <div>
                         <h2 class="font-semibold text-ink dark:text-gray-100">2. Poin karyawan</h2>
-                        <p class="text-xs text-muted">Isi poin tiap pos (boleh desimal, mis. 1,25). Kosong = 0. Angka kecil di bawah kotak = JM pos itu.</p>
+                        <p class="text-xs text-muted">Poin diambil dari master lewat <b>Generate Poin dari Master</b>; sesuaikan di sini bila bulan ini berbeda (tanda <b>✎</b> = diubah manual, tetap saat generate ulang). Boleh desimal, kosong = 0. Angka kecil di bawah kotak = JM pos itu.</p>
                     </div>
                     <x-badge variant="gray">{{ $rows->total() }} karyawan</x-badge>
                 </div>
@@ -350,7 +356,7 @@ new class extends Component {
                                         <td class="w-24 ds-c">
                                             <x-text-input-number wire:model="poinInput.{{ $row->emp_id }}.{{ $kode }}" :decimals="2" class="w-20"
                                                 aria-label="Poin {{ $pos['nama'] }} {{ $row->emp_name }}" />
-                                            <span class="block mt-0.5 font-mono text-[11px] text-muted">{{ $jm[$kode] > 0 ? $rp($jm[$kode]) : '–' }}</span>
+                                            <span class="block mt-0.5 font-mono text-[11px] text-muted">{{ $jm[$kode] > 0 ? $rp($jm[$kode]) : '–' }}@if (isset($poinManual[$row->emp_id][$kode]))<span class="ml-1 font-sans text-warning-deep dark:text-warning" title="Diubah manual bulan ini — tidak ditimpa Generate ulang">✎<span class="sr-only"> diubah manual</span></span>@endif</span>
                                         </td>
                                     @endforeach
                                     <td class="font-mono font-bold text-right">{{ $rp(array_sum($jm)) }}</td>
@@ -378,7 +384,7 @@ new class extends Component {
                 </div>
                 @if (!$adaPoin && $rows->total() > 0)
                     <p class="px-4 py-3 text-sm border-t text-body border-hairline dark:border-gray-700">
-                        Belum ada poin di {{ $bulan }}. {{ $sumberSalin ? 'Klik "Salin Poin Bulan Lalu" untuk memakai poin bulan sebelumnya, atau isi' : 'Isi' }} poin langsung di tabel.
+                        Belum ada poin di {{ $bulan }}. Klik <b>Generate Poin dari Master</b> — master poin diisi di Master Karyawan → tombol <b>Gaji</b> → Poin Jasa Medik.
                     </p>
                 @endif
                 <div class="px-4 py-3 border-t border-hairline dark:border-gray-700">
