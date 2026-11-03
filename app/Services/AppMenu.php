@@ -98,6 +98,10 @@ class AppMenu
             $entry(['group' => 'Aset', 'groupOrder' => 3, 'order' => 3, 'route' => 'aset.pemeliharaan-alat', 'title' => 'Pemeliharaan Alat', 'desc' => 'Entry & riwayat pemeriksaan alat harian / mingguan (B / P / R) + cetak checklist', 'roles' => ['admin', 'ipsrs', 'kepala ruang'], 'badge' => 'PM']),
             $entry(['group' => 'Aset', 'groupOrder' => 3, 'order' => 4, 'route' => 'aset.perbaikan-alat', 'title' => 'Perbaikan Alat', 'desc' => 'Lapor kerusakan & proses perbaikan (teknisi / vendor) + laporan', 'roles' => ['admin', 'ipsrs', 'kepala ruang'], 'badge' => 'PBK']),
 
+            // ── Mutu (kepala ruang mengisi unitnya; admin & Komite Mutu semua unit) ──
+            $entry(['group' => 'Mutu', 'groupOrder' => 3.5, 'order' => 1, 'route' => 'mutu.kertas-kerja', 'title' => 'Kertas Kerja Indikator', 'desc' => 'Catat pengamatan indikator mutu per unit — capaian dihitung otomatis', 'roles' => ['admin', 'komite mutu', 'kepala ruang'], 'badge' => 'IMT']),
+            $entry(['group' => 'Mutu', 'groupOrder' => 3.5, 'order' => 2, 'route' => 'mutu.rekap-capaian', 'title' => 'Rekap Capaian Mutu', 'desc' => 'Capaian bulanan / triwulan vs target + run chart + cetak PDF', 'roles' => ['admin', 'komite mutu', 'kepala ruang'], 'badge' => 'RCM']),
+
             // ── Absensi ────────────────────────────────────────────────
             $entry(['group' => 'Absensi', 'groupOrder' => 2, 'order' => 0, 'route' => 'absensi.jadwal-dinas', 'title' => 'Jadwal Dinas', 'desc' => 'Jadwal masuk kerja bulanan (P / S / M / I / C) + cetak', 'roles' => ['admin', 'hrd', 'kepala ruang'], 'badge' => 'JDW']),
             $entry(['group' => 'Absensi', 'groupOrder' => 2, 'order' => 1, 'route' => 'absensi.kiosk', 'title' => 'Kiosk Absensi', 'desc' => 'Layar absen masuk/pulang — ketik/scan ID karyawan', 'roles' => ['admin', 'hrd', 'kiosk'], 'badge' => 'ABS']),

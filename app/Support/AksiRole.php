@@ -37,6 +37,11 @@ class AksiRole
     /** Role yang boleh membuka & mengelola gaji karyawan (parameter, slip, cetak). Data gaji = rahasia. */
     public const GAJI_KELOLA = ['Admin', 'Keuangan'];
 
+    /* ─────────────── MUTU ─────────────── */
+
+    /** Role yang boleh mengunci / membuka kunci kertas kerja indikator mutu satu bulan (validasi Komite Mutu). */
+    public const MUTU_KUNCI = ['Admin', 'Komite Mutu'];
+
     /* ─────────────── SISTEM ─────────────── */
 
     /** Role yang boleh membuka Panduan Struktur Database & mengunduh SQL struktur (detail teknis skema). */

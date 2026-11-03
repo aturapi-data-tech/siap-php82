@@ -37,6 +37,7 @@ class AppServiceProvider extends ServiceProvider
         // Contoh:
         // Gate::define('dokumen.hapus', fn ($user) => $user->hasAnyRole(AksiRole::DOKUMEN_HAPUS));
         Gate::define('gaji.kelola', fn ($user) => $user->hasAnyRole(AksiRole::GAJI_KELOLA));
+        Gate::define('mutu.kunci', fn ($user) => $user->hasAnyRole(AksiRole::MUTU_KUNCI));
         Gate::define('sistem.strukturDb', fn ($user) => $user->hasAnyRole(AksiRole::STRUKTUR_DB));
 
         // Blade directive untuk render path TTD user (dua format kolom

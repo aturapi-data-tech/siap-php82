@@ -50,6 +50,12 @@ Route::middleware(['auth'])->group(function () {
     Route::livewire('/aset/perbaikan-alat', 'pages::aset.perbaikan-alat.perbaikan-alat')
         ->name('aset.perbaikan-alat');
 
+    // ── MUTU ──
+    Route::livewire('/mutu/kertas-kerja', 'pages::mutu.kertas-kerja.kertas-kerja')
+        ->name('mutu.kertas-kerja');
+    Route::livewire('/mutu/rekap-capaian', 'pages::mutu.rekap-capaian.rekap-capaian')
+        ->name('mutu.rekap-capaian');
+
     // ── ABSENSI ──
     Route::livewire('/absensi/jadwal-dinas', 'pages::absensi.jadwal-dinas.jadwal-dinas')
         ->name('absensi.jadwal-dinas');
