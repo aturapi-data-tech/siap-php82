@@ -63,14 +63,17 @@ class GajiKaryawan
         'KOPERASI'   => 'Koperasi / Iuran',
         'INFAQ'      => 'Infaq',
         'BPJS'       => 'BPJS',
+        'BPJS_TK'    => 'BPJS Ketenagakerjaan',
         'ANGSURAN'   => 'Angsuran',
+        'ANGS_KOP'   => 'Angsuran Koperasi',
+        'ANGS_BANK'  => 'Angsuran Bank',
         'KASBON'     => 'Kasbon / Telah Diambil',
         'PPH21'      => 'PPh 21',
         'LAIN'       => 'Potongan Lain',
     ];
 
     /** Kolom parameter → kode baris tetap per bulan. */
-    private const PENDAPATAN_RUTIN = [
+    public const PENDAPATAN_RUTIN = [
         'gaji_pokok'           => 'POKOK',
         'tunjangan_struktural' => 'STRUKTURAL',
         'tunjangan_profesi'    => 'PROFESI',
@@ -82,7 +85,7 @@ class GajiKaryawan
         'tarif_transport' => 'TRANSPORT',
     ];
 
-    private const POTONGAN_RUTIN = [
+    public const POTONGAN_RUTIN = [
         'potongan_asuransi'   => 'ASURANSI',
         'potongan_organisasi' => 'ORGANISASI',
         'potongan_arisan'     => 'ARISAN',
@@ -101,8 +104,8 @@ class GajiKaryawan
     private const URUTAN = [
         'POKOK' => 1, 'MAKAN' => 2, 'TRANSPORT' => 3, 'STRUKTURAL' => 4, 'PROFESI' => 5, 'JASA_MEDIK' => 6,
         'LEMBUR' => 7, 'BONUS' => 8, 'RAPEL' => 9, 'KOREKSI' => 10,
-        'ASURANSI' => 21, 'ORGANISASI' => 22, 'ARISAN' => 23, 'KOPERASI' => 24, 'INFAQ' => 25, 'BPJS' => 26,
-        'ANGSURAN' => 27, 'KASBON' => 28, 'PPH21' => 99,
+        'ASURANSI' => 21, 'ORGANISASI' => 22, 'ARISAN' => 23, 'KOPERASI' => 24, 'INFAQ' => 25, 'BPJS' => 26, 'BPJS_TK' => 27,
+        'ANGSURAN' => 28, 'ANGS_KOP' => 29, 'ANGS_BANK' => 30, 'KASBON' => 31, 'PPH21' => 99,
     ];
 
     public static function label(string $jenis, string $kode): string

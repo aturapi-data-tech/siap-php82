@@ -106,6 +106,12 @@ new class extends Component {
         unset($this->ringkasan);
     }
 
+    /** Modal ekspor / impor form Excel per bagian (bulan & unit mengikuti toolbar). */
+    public function openFormBagian(): void
+    {
+        $this->dispatch('keuangan.gaji-karyawan.openFormBagian', periode: $this->periode(), unitId: $this->filterUnit !== '' ? $this->filterUnit : null);
+    }
+
     public function openRincian(int $gajiId): void
     {
         $this->dispatch('keuangan.gaji-karyawan.openRincian', gajiId: $gajiId);
@@ -274,6 +280,11 @@ new class extends Component {
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                             Final Semua
                         </x-confirm-button>
+                        <x-secondary-button type="button" wire:click="openFormBagian" wire:loading.attr="disabled" wire:target="openFormBagian"
+                            title="Ekspor / impor form Excel per bagian: hari kerja, lembur, bon, jasa medik, kenaikan gaji, koperasi, pinjaman bank, BPJS">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 14h18M10 3v18M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" /></svg>
+                            Form Bagian
+                        </x-secondary-button>
                         <x-cetak-button wire:click="cetakMassal" label="Cetak Semua" title="Cetak semua slip yang tampil — 4 slip per lembar A4" />
                         <x-toolbar-refresh-reset :label="null" />
                         {{-- Panduan ikon saja (hemat tempat → aksi muat satu baris dengan saringan); tautan bergaya tombol, bukan <button> di dalam <a> --}}
@@ -365,6 +376,7 @@ new class extends Component {
             </div>
 
             <livewire:pages::keuangan.gaji-karyawan.gaji-karyawan-rincian wire:key="gaji-karyawan-rincian" />
+            <livewire:pages::keuangan.gaji-karyawan.gaji-karyawan-form-bagian wire:key="gaji-karyawan-form-bagian" />
         </div>
     </div>
 </div>

@@ -80,6 +80,9 @@ return [
 
     'locale' => env('APP_LOCALE', 'en'),
 
+    // Sandi proteksi form Excel per bagian modul gaji (App\Support\GajiFormBagian).
+    'gaji_form_sandi' => env('GAJI_FORM_SANDI', 'siap-gaji'),
+
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 
     'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),
