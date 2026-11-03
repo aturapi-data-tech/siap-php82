@@ -16,7 +16,9 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 /**
  * Form Excel per BAGIAN untuk slip gaji — pengganti sheet-sheet terpisah di workbook gaji lama
- * (lembur, JaMed, angsuran, peg/BON, BPJS, …) yang dulu dirangkum sheet "gaji" lewat SUMIF nama.
+ * (lembur, angsuran, peg/BON, BPJS, …) yang dulu dirangkum sheet "gaji" lewat SUMIF nama.
+ * Jasa Medik TIDAK lewat form ini — dihitung & diterapkan di menu Pembagian Jasa Medik (App\Support\JasaMedik),
+ * supaya baris Jasa Medik slip hanya punya satu sumber.
  *
  * Alur: keuangan EKSPOR form satu bagian (berisi daftar slip periode + nilai saat ini) → dikirim ke
  * bagian terkait → bagian mengisi kolom KUNING → keuangan IMPOR → slip Draft diperbarui.
@@ -39,9 +41,6 @@ class GajiFormBagian
 
     /** Komponen yang menjadi dasar upah lembur. */
     private const KODE_DASAR_LEMBUR = ['POKOK', 'JASA_MEDIK', 'MAKAN', 'TRANSPORT'];
-
-    private const JM_INAP = 'Rawat Inap';
-    private const JM_RJ   = 'Rawat Jalan / UGD';
 
     private const BARIS_PETUNJUK = 4;
     private const BARIS_HEADER   = 5;
@@ -86,15 +85,6 @@ class GajiFormBagian
                 'keterangan' => 'Total bon yang telah diambil bulan ini — dipotong dari gaji.',
                 'kolom' => [
                     ['key' => 'kasbon', 'label' => 'Bon (telah diambil)', 'tipe' => 'rupiah', 'isi' => true, 'contoh' => 250000, 'petunjuk' => 'Total bon sebulan, angka saja'],
-                ],
-            ],
-            'jasa_medik' => [
-                'judul' => 'Jasa Medik', 'petugas' => 'Bagian Jasa Medik',
-                'keterangan' => 'Pembagian jasa medik per karyawan, dipisah sumbernya.',
-                'kolom' => [
-                    ['key' => 'jm_inap', 'label' => 'JM ' . self::JM_INAP, 'tipe' => 'rupiah', 'isi' => true, 'contoh' => 750000, 'petunjuk' => 'Angka saja, tanpa titik / Rp'],
-                    ['key' => 'jm_rj', 'label' => 'JM ' . self::JM_RJ, 'tipe' => 'rupiah', 'isi' => true, 'contoh' => 300000, 'petunjuk' => 'Angka saja'],
-                    ['key' => 'jm_lain', 'label' => 'JM Lain', 'tipe' => 'rupiah', 'isi' => true, 'contoh' => null, 'petunjuk' => 'Kosongkan bila tidak ada'],
                 ],
             ],
             'kenaikan_gaji' => [
@@ -403,14 +393,6 @@ class GajiFormBagian
                 ];
             case 'bon':
                 return ['kasbon' => $jumlah('KASBON')];
-            case 'jasa_medik':
-                return [
-                    // str_starts_with: baris dari menu Pembagian JM berketerangan "Rawat Inap (3 poin)".
-                    'jm_inap' => $jumlah('JASA_MEDIK', fn($row) => str_starts_with((string) $row->keterangan, self::JM_INAP)),
-                    'jm_rj'   => $jumlah('JASA_MEDIK', fn($row) => str_starts_with((string) $row->keterangan, self::JM_RJ)),
-                    'jm_lain' => $jumlah('JASA_MEDIK', fn($row) => !str_starts_with((string) $row->keterangan, self::JM_INAP)
-                        && !str_starts_with((string) $row->keterangan, self::JM_RJ)),
-                ];
             case 'koperasi':
                 return ['angs_lain' => $jumlah('ANGSURAN'), 'iuran' => $jumlah('KOPERASI'), 'angsuran' => $jumlah('ANGS_KOP')];
             case 'bank':
@@ -626,13 +608,6 @@ class GajiFormBagian
                 break;
             case 'bon':
                 self::gantiManual($gajiId, 'P', 'KASBON', [['nilai' => $nilai['kasbon']]]);
-                break;
-            case 'jasa_medik':
-                self::gantiManual($gajiId, 'D', 'JASA_MEDIK', [
-                    ['nilai' => $nilai['jm_inap'], 'keterangan' => self::JM_INAP],
-                    ['nilai' => $nilai['jm_rj'], 'keterangan' => self::JM_RJ],
-                    ['nilai' => $nilai['jm_lain']],
-                ]);
                 break;
             case 'koperasi':
                 self::timpaRutin($gajiId, 'P', 'KOPERASI', $nilai['iuran']);

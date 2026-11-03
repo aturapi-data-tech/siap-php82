@@ -14,7 +14,7 @@ use App\Support\UnitKerja;
  * GAJI KARYAWAN — slip per karyawan per bulan (pola gaji dokter sirus-php82).
  *
  * Alur: atur parameter gaji (Master Karyawan → tombol Gaji) → Generate (Draft, dari parameter + hari hadir absensi)
- *   → Rincian: sesuaikan hari kerja (cuti / izin), isi jasa medik, upah lembur, bonus, kasbon, angsuran … → Final (terkunci) → Cetak slip.
+ *   → Rincian: sesuaikan hari kerja (cuti / izin), jasa medik dari menu Pembagian Jasa Medik, upah lembur, bonus, kasbon, angsuran … → Final (terkunci) → Cetak slip.
  * Generate ulang aman: slip Final dilewati, baris yang diisi / ditimpa petugas dipertahankan.
  * Hanya role gaji.kelola (AksiRole::GAJI_KELOLA) — dicek di boot(), berlaku untuk setiap aksi.
  */
@@ -281,7 +281,7 @@ new class extends Component {
                             Final Semua
                         </x-confirm-button>
                         <x-secondary-button type="button" wire:click="openFormBagian" wire:loading.attr="disabled" wire:target="openFormBagian"
-                            title="Ekspor / impor form Excel per bagian: hari kerja, lembur, bon, jasa medik, kenaikan gaji, koperasi, pinjaman bank, BPJS">
+                            title="Ekspor / impor form Excel per bagian: hari kerja, lembur, bon, kenaikan gaji, koperasi, pinjaman bank, BPJS">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 14h18M10 3v18M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" /></svg>
                             Form Bagian
                         </x-secondary-button>

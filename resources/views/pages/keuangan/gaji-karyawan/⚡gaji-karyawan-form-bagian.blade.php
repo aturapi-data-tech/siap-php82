@@ -10,8 +10,8 @@ use App\Support\GajiFormBagian;
 use App\Support\GajiKaryawan;
 
 /**
- * Modal "Form Bagian": ekspor form Excel per bagian (hari kerja, lembur, bon, jasa medik, kenaikan gaji,
- * koperasi, pinjaman bank, BPJS) untuk diisi bagian terkait, lalu impor kembali → slip Draft diperbarui.
+ * Modal "Form Bagian": ekspor form Excel per bagian (hari kerja, lembur, bon, kenaikan gaji,
+ * koperasi, pinjaman bank, BPJS). Jasa Medik lewat menu Pembagian Jasa Medik (kartu penunjuk di akhir grid) untuk diisi bagian terkait, lalu impor kembali → slip Draft diperbarui.
  * Logika ekspor/impor di App\Support\GajiFormBagian. Bulan & unit mengikuti toolbar halaman gaji.
  */
 new class extends Component {
@@ -161,6 +161,19 @@ new class extends Component {
                             @endif
                         </div>
                     @endforeach
+
+                    {{-- Jasa Medik bukan form Excel: dihitung dari poin di menu Pembagian Jasa Medik (satu sumber JM slip). --}}
+                    <div class="flex flex-col p-4 border border-dashed shadow-sm bg-canvas border-hairline rounded-2xl dark:bg-gray-800 dark:border-gray-700">
+                        <div class="flex items-start justify-between gap-2">
+                            <h3 class="font-semibold text-ink dark:text-gray-100">Jasa Medik</h3>
+                            <x-badge variant="info" class="shrink-0">Menu sendiri</x-badge>
+                        </div>
+                        <p class="mt-1 text-xs text-muted">Tidak lewat Excel. JM dihitung dari nilai dasar per pos &amp; poin karyawan (master), lalu diterapkan ke slip di menu Pembagian Jasa Medik.</p>
+                        <a href="{{ route('keuangan.pembagian-jm', ['bulan' => $periode !== '' ? \App\Support\GajiKaryawan::awalPeriode($periode)->format('m/Y') : null]) }}" wire:navigate
+                            class="inline-flex items-center justify-center w-full gap-2 px-5 py-2.5 mt-auto text-sm font-medium border rounded-lg text-brand-green border-brand-green/30 bg-brand-green/10 hover:bg-brand-green hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green dark:text-brand-lime dark:border-brand-lime/30 dark:bg-brand-lime/10 dark:hover:bg-brand-lime dark:hover:text-gray-900">
+                            Buka Pembagian Jasa Medik →
+                        </a>
+                    </div>
                 </div>
             </div>
 

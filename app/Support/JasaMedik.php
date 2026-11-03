@@ -21,12 +21,12 @@ use Illuminate\Support\Facades\DB;
  *
  * "Terapkan ke slip" mengganti SEMUA baris JASA_MEDIK slip Draft karyawan yang punya poin bulan itu
  * (satu baris per pos, keterangan = nama pos). Karyawan tanpa poin & slip Final tidak disentuh.
+ * Satu-satunya sumber JM slip — Form Bagian (Excel) sengaja tidak punya form Jasa Medik.
  */
 class JasaMedik
 {
     /**
-     * Pos JM. keterangan = keterangan baris slip (Rawat Inap & "Rawat Jalan / UGD" selaras kolom form JM
-     * di GajiFormBagian). persen_jm / persen_pegawai = bawaan bulan pertama; bulan berikutnya menyalin bulan lalu.
+     * Pos JM. keterangan = keterangan baris slip. persen_jm / persen_pegawai = bawaan bulan pertama; bulan berikutnya menyalin bulan lalu.
      */
     public const POS = [
         'RI'    => ['nama' => 'Rawat Inap', 'singkat' => 'R. Inap', 'dasar' => 'Perolehan JM rawat inap (bangsal, transfer UGD, OK, rawat jalan)', 'persen_jm' => 100, 'persen_pegawai' => 50, 'keterangan' => 'Rawat Inap'],
