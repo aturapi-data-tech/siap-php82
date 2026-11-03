@@ -98,7 +98,7 @@ new class extends Component {
 
     private function segarkan(): void
     {
-        unset($this->ringkasan, $this->karyawan, $this->diterapkan, $this->rows, $this->poinManual);
+        unset($this->ringkasan, $this->karyawan, $this->diterapkan, $this->rows, $this->poinManual, $this->cocokSlip);
     }
 
     // ─── Simpan saat blur ─────────────────────────────────────────────────────
@@ -157,6 +157,9 @@ new class extends Component {
     {
         $hasil = JasaMedik::terapkan($this->periode(), auth()->id());
         $pesan = "JM {$this->bulan} diterapkan ke {$hasil['diperbarui']} slip.";
+        if ($hasil['dibersihkan'] > 0) {
+            $pesan .= " JM lama dihapus dari {$hasil['dibersihkan']} slip karyawan yang kini tanpa poin.";
+        }
         if ($hasil['final'] !== []) {
             $pesan .= ' ' . count($hasil['final']) . ' slip Final dilewati.';
         }
@@ -200,6 +203,12 @@ new class extends Component {
 
         return new LengthAwarePaginator($semua->forPage($halaman, $this->itemsPerPage)->values(), $semua->count(), $this->itemsPerPage, $halaman,
             ['path' => request()->url(), 'pageName' => 'page']);
+    }
+
+    #[Computed]
+    public function cocokSlip(): array
+    {
+        return JasaMedik::cocokSlip($this->periode());
     }
 
     #[Computed]
@@ -263,11 +272,28 @@ new class extends Component {
                             class="inline-flex items-center gap-1 px-3 py-2.5 text-sm font-medium rounded-lg text-brand-green hover:underline dark:text-brand-lime focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green">Ke Gaji Karyawan →</a>
                     </div>
                 </div>
-                @if ($this->diterapkan?->diterapkan_at)
-                    <p class="mt-2 text-xs text-muted">Terakhir diterapkan ke slip {{ \App\Support\Format::waktu($this->diterapkan->diterapkan_at) }}{{ $this->diterapkan->name ? ' oleh ' . $this->diterapkan->name : '' }}. Ubah angka? Terapkan lagi.</p>
-                @else
-                    <p class="mt-2 text-xs text-muted">JM {{ $bulan }} belum diterapkan ke slip.</p>
-                @endif
+                @php
+                    $cocok = collect($this->cocokSlip);
+                    $jumlahBeda = $cocok->where('status', 'beda')->count();
+                    $jumlahFinal = $cocok->where('status', 'final')->count();
+                @endphp
+                <div class="flex flex-wrap items-center gap-2 mt-2" role="status" aria-live="polite">
+                    @if ($jumlahBeda > 0)
+                        <x-badge variant="warning">{{ $jumlahBeda }} slip Draft belum sesuai hitungan — klik Terapkan ke Slip</x-badge>
+                    @elseif ($cocok->isNotEmpty())
+                        <x-badge variant="success">Semua slip Draft sudah sesuai hitungan</x-badge>
+                    @endif
+                    @if ($jumlahFinal > 0)
+                        <x-badge variant="danger">{{ $jumlahFinal }} slip Final beda — buka ke Draft dulu bila perlu diubah</x-badge>
+                    @endif
+                    <span class="text-xs text-muted">
+                        @if ($this->diterapkan?->diterapkan_at)
+                            Terakhir diterapkan {{ \App\Support\Format::waktu($this->diterapkan->diterapkan_at) }}{{ $this->diterapkan->name ? ' oleh ' . $this->diterapkan->name : '' }}. Aman diterapkan berulang: JM di slip diganti angka terbaru, bukan ditambah.
+                        @else
+                            JM {{ $bulan }} belum diterapkan ke slip.
+                        @endif
+                    </span>
+                </div>
             </div>
 
             {{-- POS JM --}}
@@ -361,7 +387,10 @@ new class extends Component {
                                     @endforeach
                                     <td class="font-mono font-bold text-right">{{ $rp(array_sum($jm)) }}</td>
                                     <td class="ds-c">
-                                        @if ($row->gaji_status)
+                                        @php $statusCocok = $this->cocokSlip[$row->emp_id]['status'] ?? null; @endphp
+                                        @if ($statusCocok === 'beda' || $statusCocok === 'final')
+                                            <x-badge :variant="$statusCocok === 'final' ? 'danger' : 'warning'" title="Di slip Rp {{ $rp($this->cocokSlip[$row->emp_id]['slip']) }}, hitungan Rp {{ $rp($this->cocokSlip[$row->emp_id]['hitung']) }}">{{ $statusCocok === 'final' ? 'Final, beda' : 'Belum sesuai' }}</x-badge>
+                                        @elseif ($row->gaji_status)
                                             <x-badge :variant="$row->gaji_status === 'F' ? 'success' : 'warning'">{{ \App\Support\GajiKaryawan::STATUS[$row->gaji_status] ?? $row->gaji_status }}</x-badge>
                                         @else
                                             <x-badge variant="gray">Belum ada</x-badge>

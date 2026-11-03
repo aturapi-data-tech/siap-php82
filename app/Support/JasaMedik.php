@@ -217,14 +217,17 @@ class JasaMedik
     }
 
     /**
-     * Tulis JM ke slip Draft bulan ini.
-     * @return array{diperbarui: int, final: array<int, string>, tanpaSlip: array<int, string>}
+     * Tulis JM ke slip Draft bulan ini. AMAN DIULANG kapan saja: setiap kali, baris Jasa Medik slip
+     * karyawan berpoin dihapus lalu ditulis ulang dari angka terbaru (bukan ditambah).
+     * Karyawan yang dulu diterapkan tapi kini tidak berpoin lagi → baris JM hasil terapkan lama
+     * (tarif > 0 = nilai per poin; hanya menu ini yang mengisinya) dibersihkan.
+     * @return array{diperbarui: int, dibersihkan: int, final: array<int, string>, tanpaSlip: array<int, string>}
      */
     public static function terapkan(string $periode, ?int $userId): array
     {
         $poin = self::poin($periode);
         $ringkasan = self::ringkasan($periode, null, $poin);
-        $hasil = ['diperbarui' => 0, 'final' => [], 'tanpaSlip' => []];
+        $hasil = ['diperbarui' => 0, 'dibersihkan' => 0, 'final' => [], 'tanpaSlip' => []];
 
         $slipList = DB::table('siaptxn_gaji_hdrs')->where('periode', $periode)->whereIn('emp_id', array_map('strval', array_keys($poin)) ?: [''])
             ->get(['gaji_id', 'emp_id', 'gaji_status'])->keyBy('emp_id');
@@ -259,10 +262,58 @@ class JasaMedik
             $hasil['diperbarui']++;
         }
 
+        // Bekas terapkan sebelumnya pada karyawan yang kini tanpa poin (master dihapus / keluar).
+        $sisaLama = DB::table('siaptxn_gaji_dtls as d')->join('siaptxn_gaji_hdrs as h', 'h.gaji_id', '=', 'd.gaji_id')
+            ->where('h.periode', $periode)->where('h.gaji_status', GajiKaryawan::STATUS_DRAFT)
+            ->where('d.kode', 'JASA_MEDIK')->where('d.tarif', '>', 0)
+            ->when($poin !== [], fn($query) => $query->whereNotIn('h.emp_id', array_map('strval', array_keys($poin))))
+            ->distinct()->pluck('h.gaji_id');
+        foreach ($sisaLama as $gajiId) {
+            DB::table('siaptxn_gaji_dtls')->where('gaji_id', $gajiId)->where('kode', 'JASA_MEDIK')->where('tarif', '>', 0)->delete();
+            GajiKaryawan::hitungUlang((int) $gajiId);
+            $hasil['dibersihkan']++;
+        }
+
         $ada = DB::table('siaptxn_jm_hdrs')->where('periode', $periode)->exists();
         $data = ['diterapkan_at' => now(), 'diterapkan_oleh' => $userId, 'updated_at' => now()];
         $ada ? DB::table('siaptxn_jm_hdrs')->where('periode', $periode)->update($data)
             : DB::table('siaptxn_jm_hdrs')->insert([...$data, 'periode' => $periode, 'created_at' => now()]);
+
+        return $hasil;
+    }
+
+    /**
+     * Cocokkan JM hitungan dengan yang ada di slip — penanda "perlu diterapkan ulang".
+     * @return array<string, array{status: string, hitung: float, slip: float}> emp_id => status
+     *   status: sesuai | beda (slip Draft, angka beda → Terapkan lagi) | final | tanpa_slip
+     */
+    public static function cocokSlip(string $periode): array
+    {
+        $poin = self::poin($periode);
+        $ringkasan = self::ringkasan($periode, null, $poin);
+        $slip = DB::table('siaptxn_gaji_hdrs as h')
+            ->leftJoin('siaptxn_gaji_dtls as d', fn($join) => $join->on('d.gaji_id', '=', 'h.gaji_id')->where('d.kode', '=', 'JASA_MEDIK'))
+            ->where('h.periode', $periode)
+            ->groupBy('h.emp_id', 'h.gaji_status')
+            ->select('h.emp_id', 'h.gaji_status', DB::raw('NVL(SUM(d.nilai), 0) AS jm'),
+                DB::raw('SUM(CASE WHEN d.tarif > 0 THEN 1 ELSE 0 END) AS baris_terapkan'))
+            ->get()->keyBy('emp_id');
+
+        $hasil = [];
+        foreach ($slip->keys()->merge(array_keys($poin))->unique() as $empId) {
+            $hitung = array_sum(self::jmKaryawan($poin[$empId] ?? [], $ringkasan));
+            $row = $slip[$empId] ?? null;
+            if (!isset($poin[$empId]) && (int) ($row->baris_terapkan ?? 0) === 0) {
+                continue; // bukan peserta JM & tidak pernah diterapkan — JM-nya urusan rincian / form
+            }
+            $diSlip = (float) ($row->jm ?? 0);
+            $hasil[$empId] = ['hitung' => $hitung, 'slip' => $diSlip, 'status' => match (true) {
+                !$row => $hitung > 0 ? 'tanpa_slip' : 'sesuai',
+                abs($hitung - $diSlip) < 0.5 => 'sesuai',
+                $row->gaji_status === GajiKaryawan::STATUS_FINAL => 'final',
+                default => 'beda',
+            }];
+        }
 
         return $hasil;
     }
