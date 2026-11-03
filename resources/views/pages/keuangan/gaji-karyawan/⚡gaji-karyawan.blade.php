@@ -24,7 +24,7 @@ new class extends Component {
     public string $bulan         = ''; // mm/yyyy (bulan kerja)
     public string $searchKeyword = '';
     public string $filterUnit    = '';
-    public string $filterStatus  = ''; // '' | D | F | WA (Final, belum dikirim WA)
+    public string $filterStatus  = ''; // '' | D | F
     public int    $itemsPerPage  = 20;
 
     public function boot(): void
@@ -211,7 +211,6 @@ new class extends Component {
     {
         return $this->querySlip()
             ->when(in_array($this->filterStatus, ['D', 'F'], true), fn($subQuery) => $subQuery->where('gh.gaji_status', $this->filterStatus))
-            ->when($this->filterStatus === 'WA', fn($subQuery) => $subQuery->where('gh.gaji_status', 'F')->whereNull('gh.wa_dikirim_at'))
             ->select('gh.gaji_id', 'gh.emp_id', 'em.emp_name', 'em.emp_phone', 'un.unit_name', 'gh.periode', 'gh.hari_hadir', 'gh.total_pendapatan',
                 'gh.total_potongan', 'gh.gaji_diterima', 'gh.gaji_status', 'gh.difinalkan_at', 'gh.wa_dikirim_at')
             ->orderBy('gh.emp_id')
@@ -230,7 +229,8 @@ new class extends Component {
 
             {{-- TOOLBAR — satu baris (pola gaji dokter sirus): saringan berlabel di kiri, aksi di kanan (ml-auto). --}}
             <div class="sticky z-30 px-4 pt-1 pb-3 bg-surface-soft border-b border-hairline top-20 dark:bg-gray-900 dark:border-gray-700">
-                <div class="flex flex-wrap items-end gap-3">
+                {{-- Satu baris di layar ≥ 1280 px: lebar saringan ringkas; di bawah 1360 px Final Semua & Form Bagian ikon saja (title + sr-only). --}}
+                <div class="flex flex-wrap items-end gap-x-2.5 gap-y-3">
                     <div>
                         <x-input-label value="Bulan Kerja" />
                         <div class="flex items-center gap-1 mt-1">
@@ -241,11 +241,11 @@ new class extends Component {
                             <x-secondary-button type="button" wire:click="geserBulan(1)" class="!px-3" title="Bulan berikutnya" aria-label="Bulan berikutnya">›</x-secondary-button>
                         </div>
                     </div>
-                    <div class="w-44">
+                    <div class="w-36">
                         <x-input-label value="Cari Karyawan" />
                         <x-text-input type="text" wire:model.live.debounce.300ms="searchKeyword" placeholder="ID / nama" class="block w-full mt-1" />
                     </div>
-                    <div class="w-48">
+                    <div class="w-44">
                         <x-input-label value="Unit" />
                         <div class="mt-1">
                             <x-select-input wire:model.live="filterUnit">
@@ -256,36 +256,35 @@ new class extends Component {
                             </x-select-input>
                         </div>
                     </div>
-                    <div class="w-36">
+                    <div class="w-28">
                         <x-input-label value="Status" />
                         <div class="mt-1">
                             <x-select-input wire:model.live="filterStatus">
                                 <option value="">Semua</option>
                                 <option value="D">Draft</option>
                                 <option value="F">Final</option>
-                                <option value="WA">Final, belum dikirim WA</option>
                             </x-select-input>
                         </div>
                     </div>
 
-                    <div class="flex flex-wrap items-end gap-2 ml-auto">
-                        <x-confirm-button variant="primary" action="generate()" title="Generate Slip Gaji"
+                    <div class="flex flex-wrap items-end gap-1.5 ml-auto">
+                        <x-confirm-button variant="primary" action="generate()" title="Generate Slip Gaji" class="!px-4"
                             message="Susun slip {{ $bulan }}{{ $filterUnit !== '' ? ' untuk unit terpilih' : '' }} dari parameter gaji? Slip baru memakai hari kerja default; slip Final dilewati; hari kerja & rincian yang sudah diisi petugas tetap." confirmText="Ya, generate" cancelText="Batal">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                             Generate
                         </x-confirm-button>
-                        <x-confirm-button variant="secondary" action="finalkanSemua()" title="Final Semua"
+                        <x-confirm-button variant="secondary" action="finalkanSemua()" title="Final Semua" class="!px-4"
                             message="Kunci {{ $this->ringkasan['draft'] }} slip Draft {{ $bulan }} yang tampil? Slip Final tidak bisa diubah sampai dibuka kembali." confirmText="Ya, finalkan" cancelText="Batal"
                             :disabled="$this->ringkasan['draft'] === 0">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-                            Final Semua
+                            <span class="hidden min-[1360px]:inline">Final Semua</span><span class="sr-only min-[1360px]:hidden">Final Semua</span>
                         </x-confirm-button>
-                        <x-secondary-button type="button" wire:click="openFormBagian" wire:loading.attr="disabled" wire:target="openFormBagian"
+                        <x-secondary-button type="button" wire:click="openFormBagian" wire:loading.attr="disabled" wire:target="openFormBagian" class="!px-4"
                             title="Ekspor / impor form Excel per bagian: hari kerja, lembur, bon, kenaikan gaji, koperasi, pinjaman bank, BPJS">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 14h18M10 3v18M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" /></svg>
-                            Form Bagian
+                            <span class="hidden min-[1360px]:inline">Form Bagian</span><span class="sr-only min-[1360px]:hidden">Form Bagian</span>
                         </x-secondary-button>
-                        <x-cetak-button wire:click="cetakMassal" label="Cetak Semua" title="Cetak semua slip yang tampil — 4 slip per lembar A4" />
+                        <x-cetak-button wire:click="cetakMassal" label="Cetak" title="Cetak semua slip yang tampil — 4 slip per lembar A4" aria-label="Cetak semua slip yang tampil" />
                         <x-toolbar-refresh-reset :label="null" />
                         {{-- Panduan ikon saja (hemat tempat → aksi muat satu baris dengan saringan); tautan bergaya tombol, bukan <button> di dalam <a> --}}
                         <a href="{{ route('panduan.gaji') }}" wire:navigate title="Panduan: cara pakai modul gaji" aria-label="Panduan modul gaji"

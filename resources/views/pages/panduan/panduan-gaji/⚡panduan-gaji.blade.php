@@ -302,7 +302,7 @@ new class extends Component {
                     </ol>
                     <ul class="mt-3 text-sm">
                         <li>Link PDF bisa dibuka karyawan <b>tanpa login</b>, hanya untuk slipnya sendiri, berlaku <b>{{ $gaji::MASA_LINK_SLIP_HARI }} hari</b>.</li>
-                        <li>Pakai filter Status <b>"Final, belum dikirim WA"</b> untuk mengirim satu per satu sampai habis.</li>
+                        <li>Badge kuning <b>"N slip final belum dikirim WA"</b> di bawah toolbar menunjukkan sisa yang belum dikirim; slip yang sudah ditandai <b>WA ✓</b> di kolom Status.</li>
                         <li>Tanda WA ✓ = tombol sudah diklik, bukan bukti pesan terkirim — pastikan menekan Kirim di WhatsApp.</li>
                     </ul>
                     <div class="p-3 mt-3 text-sm border rounded-xl border-amber-300 bg-amber-50 text-amber-900">
