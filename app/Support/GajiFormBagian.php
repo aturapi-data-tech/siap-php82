@@ -43,8 +43,10 @@ class GajiFormBagian
     private const JM_INAP = 'Rawat Inap';
     private const JM_RJ   = 'Rawat Jalan / UGD';
 
-    private const BARIS_HEADER = 5;
-    private const BARIS_DATA   = 6;
+    private const BARIS_PETUNJUK = 4;
+    private const BARIS_HEADER   = 5;
+    private const BARIS_CONTOH   = 6; // contoh pengisian — tidak diimpor
+    private const BARIS_DATA     = 7;
     private const META_SHEET   = '_form';
 
     /** Kolom tetap di depan setiap form. */
@@ -66,73 +68,73 @@ class GajiFormBagian
                 'judul' => 'Hari Kerja', 'petugas' => 'Kepegawaian',
                 'keterangan' => 'Hari kerja slip (pengali tunjangan makan & transport). Kosong = tidak diubah.',
                 'kolom' => [
-                    ['key' => 'hadir', 'label' => 'Hadir (absensi)', 'tipe' => 'angka'],
-                    ['key' => 'hari_kerja', 'label' => 'Hari Kerja', 'tipe' => 'angka', 'isi' => true],
+                    ['key' => 'hadir', 'label' => 'Hadir (absensi)', 'tipe' => 'angka', 'contoh' => 22, 'petunjuk' => 'Acuan dari absensi'],
+                    ['key' => 'hari_kerja', 'label' => 'Hari Kerja', 'tipe' => 'angka', 'isi' => true, 'contoh' => 20, 'petunjuk' => 'Bilangan bulat 0–31. Kosong = tidak diubah'],
                 ],
             ],
             'lembur' => [
                 'judul' => 'Lembur', 'petugas' => 'Kepegawaian',
                 'keterangan' => 'Isi jam lembur; upah dihitung otomatis (jam ÷ 7 ÷ 22 × dasar × 150%) dan boleh ditimpa.',
                 'kolom' => [
-                    ['key' => 'dasar', 'label' => 'Dasar Upah', 'tipe' => 'rupiah'],
-                    ['key' => 'jam', 'label' => 'Jam Lembur', 'tipe' => 'angka', 'isi' => true],
-                    ['key' => 'upah', 'label' => 'Upah Lembur', 'tipe' => 'rupiah', 'isi' => true],
+                    ['key' => 'dasar', 'label' => 'Dasar Upah', 'tipe' => 'rupiah', 'contoh' => 3000000, 'petunjuk' => 'Pokok + JM + makan + transport'],
+                    ['key' => 'jam', 'label' => 'Jam Lembur', 'tipe' => 'angka', 'isi' => true, 'contoh' => 14, 'petunjuk' => 'Total jam sebulan, mis. 14 atau 3,5'],
+                    ['key' => 'upah', 'label' => 'Upah Lembur', 'tipe' => 'rupiah', 'isi' => true, 'contoh' => 'rumus', 'petunjuk' => 'Terhitung otomatis dari jam; boleh ditimpa'],
                 ],
             ],
             'bon' => [
                 'judul' => 'Bon / Kasbon', 'petugas' => 'Kasir / Keuangan',
                 'keterangan' => 'Total bon yang telah diambil bulan ini — dipotong dari gaji.',
                 'kolom' => [
-                    ['key' => 'kasbon', 'label' => 'Bon (telah diambil)', 'tipe' => 'rupiah', 'isi' => true],
+                    ['key' => 'kasbon', 'label' => 'Bon (telah diambil)', 'tipe' => 'rupiah', 'isi' => true, 'contoh' => 250000, 'petunjuk' => 'Total bon sebulan, angka saja'],
                 ],
             ],
             'jasa_medik' => [
                 'judul' => 'Jasa Medik', 'petugas' => 'Bagian Jasa Medik',
                 'keterangan' => 'Pembagian jasa medik per karyawan, dipisah sumbernya.',
                 'kolom' => [
-                    ['key' => 'jm_inap', 'label' => 'JM ' . self::JM_INAP, 'tipe' => 'rupiah', 'isi' => true],
-                    ['key' => 'jm_rj', 'label' => 'JM ' . self::JM_RJ, 'tipe' => 'rupiah', 'isi' => true],
-                    ['key' => 'jm_lain', 'label' => 'JM Lain', 'tipe' => 'rupiah', 'isi' => true],
+                    ['key' => 'jm_inap', 'label' => 'JM ' . self::JM_INAP, 'tipe' => 'rupiah', 'isi' => true, 'contoh' => 750000, 'petunjuk' => 'Angka saja, tanpa titik / Rp'],
+                    ['key' => 'jm_rj', 'label' => 'JM ' . self::JM_RJ, 'tipe' => 'rupiah', 'isi' => true, 'contoh' => 300000, 'petunjuk' => 'Angka saja'],
+                    ['key' => 'jm_lain', 'label' => 'JM Lain', 'tipe' => 'rupiah', 'isi' => true, 'contoh' => null, 'petunjuk' => 'Kosongkan bila tidak ada'],
                 ],
             ],
             'kenaikan_gaji' => [
                 'judul' => 'Kenaikan Gaji', 'petugas' => 'Kepegawaian / Direksi',
                 'keterangan' => 'Isi nilai BARU saja (kosong = tetap). Mengubah parameter gaji dan slip Draft bulan ini.',
                 'kolom' => [
-                    ['key' => 'pokok_lama', 'label' => 'Gaji Pokok Saat Ini', 'tipe' => 'rupiah'],
-                    ['key' => 'pokok_baru', 'label' => 'Gaji Pokok Baru', 'tipe' => 'rupiah', 'isi' => true],
-                    ['key' => 'struktural_lama', 'label' => 'Tunj. Struktural Saat Ini', 'tipe' => 'rupiah'],
-                    ['key' => 'struktural_baru', 'label' => 'Tunj. Struktural Baru', 'tipe' => 'rupiah', 'isi' => true],
-                    ['key' => 'profesi_lama', 'label' => 'Tunj. Profesi Saat Ini', 'tipe' => 'rupiah'],
-                    ['key' => 'profesi_baru', 'label' => 'Tunj. Profesi Baru', 'tipe' => 'rupiah', 'isi' => true],
+                    ['key' => 'pokok_lama', 'label' => 'Gaji Pokok Saat Ini', 'tipe' => 'rupiah', 'contoh' => 2262738, 'petunjuk' => 'Acuan'],
+                    ['key' => 'pokok_baru', 'label' => 'Gaji Pokok Baru', 'tipe' => 'rupiah', 'isi' => true, 'contoh' => 2400000, 'petunjuk' => 'Isi hanya bila naik. Kosong = tetap'],
+                    ['key' => 'struktural_lama', 'label' => 'Tunj. Struktural Saat Ini', 'tipe' => 'rupiah', 'contoh' => 500000, 'petunjuk' => 'Acuan'],
+                    ['key' => 'struktural_baru', 'label' => 'Tunj. Struktural Baru', 'tipe' => 'rupiah', 'isi' => true, 'contoh' => null, 'petunjuk' => 'Kosong = tetap'],
+                    ['key' => 'profesi_lama', 'label' => 'Tunj. Profesi Saat Ini', 'tipe' => 'rupiah', 'contoh' => 0, 'petunjuk' => 'Acuan'],
+                    ['key' => 'profesi_baru', 'label' => 'Tunj. Profesi Baru', 'tipe' => 'rupiah', 'isi' => true, 'contoh' => 150000, 'petunjuk' => 'Kosong = tetap'],
                 ],
             ],
             'koperasi' => [
                 'judul' => 'Koperasi', 'petugas' => 'Koperasi',
                 'keterangan' => 'Iuran koperasi bulan ini (menimpa iuran rutin parameter) dan angsuran pinjaman koperasi. "Angsuran Lain" = angsuran gabungan lama di slip; hapus di rincian slip bila sudah dirinci di sini.',
                 'kolom' => [
-                    ['key' => 'angs_lain', 'label' => 'Angsuran Lain (belum dirinci)', 'tipe' => 'rupiah'],
-                    ['key' => 'iuran', 'label' => 'Iuran Koperasi', 'tipe' => 'rupiah', 'isi' => true],
-                    ['key' => 'angsuran', 'label' => 'Angsuran Koperasi', 'tipe' => 'rupiah', 'isi' => true],
+                    ['key' => 'angs_lain', 'label' => 'Angsuran Lain (belum dirinci)', 'tipe' => 'rupiah', 'contoh' => 0, 'petunjuk' => 'Acuan: angsuran gabungan lama'],
+                    ['key' => 'iuran', 'label' => 'Iuran Koperasi', 'tipe' => 'rupiah', 'isi' => true, 'contoh' => 100000, 'petunjuk' => 'Iuran bulan ini (menimpa iuran rutin)'],
+                    ['key' => 'angsuran', 'label' => 'Angsuran Koperasi', 'tipe' => 'rupiah', 'isi' => true, 'contoh' => 448000, 'petunjuk' => 'Angsuran pinjaman koperasi'],
                 ],
             ],
             'bank' => [
                 'judul' => 'Pinjaman Bank', 'petugas' => 'Keuangan',
                 'keterangan' => 'Angsuran pinjaman bank yang dipotong dari gaji (maks. 2 bank per karyawan). "Angsuran Lain" = angsuran gabungan lama di slip; hapus di rincian slip bila sudah dirinci di sini.',
                 'kolom' => [
-                    ['key' => 'angs_lain', 'label' => 'Angsuran Lain (belum dirinci)', 'tipe' => 'rupiah'],
-                    ['key' => 'bank1', 'label' => 'Bank 1', 'tipe' => 'teks', 'isi' => true],
-                    ['key' => 'angs1', 'label' => 'Angsuran Bank 1', 'tipe' => 'rupiah', 'isi' => true],
-                    ['key' => 'bank2', 'label' => 'Bank 2', 'tipe' => 'teks', 'isi' => true],
-                    ['key' => 'angs2', 'label' => 'Angsuran Bank 2', 'tipe' => 'rupiah', 'isi' => true],
+                    ['key' => 'angs_lain', 'label' => 'Angsuran Lain (belum dirinci)', 'tipe' => 'rupiah', 'contoh' => 0, 'petunjuk' => 'Acuan: angsuran gabungan lama'],
+                    ['key' => 'bank1', 'label' => 'Bank 1', 'tipe' => 'teks', 'isi' => true, 'contoh' => 'BRI', 'petunjuk' => 'Nama bank'],
+                    ['key' => 'angs1', 'label' => 'Angsuran Bank 1', 'tipe' => 'rupiah', 'isi' => true, 'contoh' => 1200000, 'petunjuk' => 'Angka saja'],
+                    ['key' => 'bank2', 'label' => 'Bank 2', 'tipe' => 'teks', 'isi' => true, 'contoh' => 'BSI', 'petunjuk' => 'Kosongkan bila hanya 1 bank'],
+                    ['key' => 'angs2', 'label' => 'Angsuran Bank 2', 'tipe' => 'rupiah', 'isi' => true, 'contoh' => 650000, 'petunjuk' => 'Angka saja'],
                 ],
             ],
             'bpjs' => [
                 'judul' => 'BPJS', 'petugas' => 'Kepegawaian',
                 'keterangan' => 'Iuran BPJS bagian karyawan bulan ini (menimpa potongan rutin parameter).',
                 'kolom' => [
-                    ['key' => 'bpjs', 'label' => 'BPJS Kesehatan', 'tipe' => 'rupiah', 'isi' => true],
-                    ['key' => 'bpjs_tk', 'label' => 'BPJS Ketenagakerjaan', 'tipe' => 'rupiah', 'isi' => true],
+                    ['key' => 'bpjs', 'label' => 'BPJS Kesehatan', 'tipe' => 'rupiah', 'isi' => true, 'contoh' => 45000, 'petunjuk' => 'Iuran bagian karyawan'],
+                    ['key' => 'bpjs_tk', 'label' => 'BPJS Ketenagakerjaan', 'tipe' => 'rupiah', 'isi' => true, 'contoh' => 30000, 'petunjuk' => 'Iuran bagian karyawan'],
                 ],
             ],
         ];
@@ -175,7 +177,7 @@ class GajiFormBagian
         $sheet->setCellValue('A1', 'FORM ' . mb_strtoupper($definisi['judul']) . ' — ' . Identitas::namaPendek());
         $sheet->setCellValue('A2', 'Bulan kerja ' . Format::bulan($bulan) . ' · diisi oleh ' . $definisi['petugas']
             . ($unitId ? ' · unit ' . (DB::table('siapmst_unit_kerjas')->where('unit_id', $unitId)->value('unit_name') ?? $unitId) : ''));
-        $sheet->setCellValue('A3', 'Isi hanya kolom KUNING. ' . $definisi['keterangan'] . ' Jangan ubah kolom ID Karyawan & jangan menambah baris.');
+        $sheet->setCellValue('A3', 'Isi hanya kolom KUNING (lihat baris CONTOH biru di bawah judul kolom). ' . $definisi['keterangan'] . ' Jangan ubah kolom ID Karyawan & jangan menambah baris.');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(13);
         $sheet->getStyle('A2:A3')->getFont()->setItalic(true)->getColor()->setRGB('5F6961');
 
@@ -190,6 +192,8 @@ class GajiFormBagian
         $sheet->getStyle($rentangHeader)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('157547');
         $sheet->getStyle($rentangHeader)->getAlignment()->setWrapText(true)->setVertical(Alignment::VERTICAL_CENTER)->setHorizontal(Alignment::HORIZONTAL_CENTER);
         $sheet->getRowDimension(self::BARIS_HEADER)->setRowHeight(32);
+
+        self::isiPetunjukDanContoh($sheet, $bagian, $kolomList, $huruf, $kolomAkhir);
 
         // Data
         $nomorBaris = self::BARIS_DATA;
@@ -266,6 +270,47 @@ class GajiFormBagian
         $book->getSecurity()->setLockStructure(true)->setWorkbookPassword(self::sandi());
 
         return $book;
+    }
+
+    /** Baris 4 = petunjuk per kolom isian; baris 6 = CONTOH pengisian (dilewati saat impor). */
+    private static function isiPetunjukDanContoh(Worksheet $sheet, string $bagian, array $kolomList, array $huruf, string $kolomAkhir): void
+    {
+        $p = self::BARIS_PETUNJUK;
+        $c = self::BARIS_CONTOH;
+        $sheet->setCellValue("A{$p}", 'Cara isi ↓');
+        $sheet->setCellValue("A{$c}", 'CONTOH');
+        $sheet->setCellValue("B{$c}", 'Contoh pengisian — baris ini tidak diimpor');
+        $sheet->setCellValue("C{$c}", '(unit)');
+        $sheet->setCellValue("D{$c}", 'Draft');
+
+        foreach ($kolomList as $kolom) {
+            if (!array_key_exists('contoh', $kolom)) {
+                continue;
+            }
+            $h = $huruf[$kolom['key']];
+            $sheet->setCellValue("{$h}{$p}", $kolom['petunjuk'] ?? '');
+            if ($kolom['contoh'] === 'rumus') { // upah lembur contoh = rumus yang sama dengan baris data
+                $sheet->setCellValue("{$h}{$c}", sprintf('=ROUND(%s/%d/%d*%s*%s,0)', $huruf['jam'] . $c,
+                    self::LEMBUR_JAM_PER_HARI, self::LEMBUR_HARI_ACUAN, $huruf['dasar'] . $c, self::LEMBUR_FAKTOR));
+            } elseif ($kolom['contoh'] !== null) {
+                $sheet->setCellValue("{$h}{$c}", $kolom['contoh']);
+            }
+            $format = match ($kolom['tipe']) { 'rupiah' => '#,##0', 'angka' => '0.##', default => '@' };
+            $sheet->getStyle("{$h}{$c}")->getNumberFormat()->setFormatCode($format);
+            if ($kolom['tipe'] === 'angka') {
+                $sheet->getStyle("{$h}{$c}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            }
+        }
+
+        $sheet->getStyle("A{$p}:{$kolomAkhir}{$p}")->getFont()->setItalic(true)->setSize(9)->getColor()->setRGB('8A6A0E');
+        $sheet->getStyle("A{$p}:{$kolomAkhir}{$p}")->getAlignment()->setWrapText(true)->setVertical(Alignment::VERTICAL_BOTTOM);
+        $sheet->getRowDimension($p)->setRowHeight(36);
+
+        $rentangContoh = "A{$c}:{$kolomAkhir}{$c}";
+        $sheet->getStyle($rentangContoh)->getFont()->setItalic(true)->getColor()->setRGB('205D7D');
+        $sheet->getStyle($rentangContoh)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('E3EFF5');
+        $sheet->getStyle($rentangContoh)->getBorders()->getBottom()->setBorderStyle(Border::BORDER_MEDIUM)->getColor()->setRGB('205D7D');
+        $sheet->getStyle("A{$c}")->getFont()->setBold(true);
     }
 
     /** Upah lembur pakai rumus Excel (ikut berubah saat jam diisi) — kecuali nilai di slip ditimpa manual. */
@@ -425,7 +470,7 @@ class GajiFormBagian
         $barisAkhir = $sheet->getHighestDataRow();
         for ($baris = self::BARIS_DATA; $baris <= $barisAkhir; $baris++) {
             $empId = trim((string) $sheet->getCell('A' . $baris)->getValue());
-            if ($empId === '') {
+            if ($empId === '' || mb_strtoupper($empId) === 'CONTOH') {
                 continue;
             }
             $nilai = [];
