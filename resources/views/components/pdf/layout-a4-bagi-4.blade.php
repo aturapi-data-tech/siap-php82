@@ -21,18 +21,14 @@
     'potongan' => false,
 ])
 @php
-    $manifestPath = public_path('build/manifest.json');
-    $pdfCss = null;
-    if (file_exists($manifestPath)) {
-        $manifest = json_decode(file_get_contents($manifestPath), true);
-        $pdfCss = $manifest['resources/css/app.css']['file'] ?? null;
-    }
+    // Sengaja TANPA CSS aplikasi (Tailwind ± 130 KB): layout & slip hanya memakai kelas sendiri (kop-*, slip-*),
+    // dan dompdf mem-parse seluruh CSS di setiap render (± 0,8 dtk per PDF → ZIP slip per karyawan time out).
 
     $perLembar = $potongan ? 1 : 4;
     $lembarList = collect($items)->values()->chunk($perLembar);
 
     $identitas = \App\Support\Identitas::get();
-    $logoPath = \App\Support\Identitas::logoKopPath();
+    $logoPath = \App\Support\Identitas::logoKopPdfPath();
     $alamat = \App\Support\Identitas::alamatLengkap();
     $kontak = collect([
         filled($identitas->telp) ? 'Telp. ' . $identitas->telp : null,
@@ -58,7 +54,10 @@
             color: #111;
         }
 
-        {!! $pdfCss ? file_get_contents(public_path('build/' . $pdfCss)) : '' !!}
+        /* Pengganti reset Tailwind (preflight) yang dulu ikut termuat */
+        html, body { line-height: 1.5; }
+        table { border-collapse: collapse; border-spacing: 0; }
+        img { display: block; max-width: 100%; height: auto; }
 
         /* ── Lembar & potongan ── dompdf: tinggi sel TIDAK termasuk padding → 148mm − 2 × 6mm = 136mm
            (148, bukan 148,5, supaya pembulatan tidak mendorong baris kedua ke halaman baru) */

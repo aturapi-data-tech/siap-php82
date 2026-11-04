@@ -80,11 +80,19 @@ class JasaMedik
             ->update([$kolom => round($nilai, $kolom === 'nilai_dasar' ? 2 : 3), 'updated_by' => $userId, 'updated_at' => now()]) > 0;
     }
 
-    /** Poin bulan ini. @return array<string, array<string, float>> emp_id => [pos => poin] */
+    /**
+     * Poin bulan ini — HANYA karyawan aktif: karyawan non-aktif keluar dari hitungan (tidak ikut total poin,
+     * tidak diterapkan; JM lamanya di slip Draft dibersihkan saat Terapkan). Barisnya tidak dihapus,
+     * jadi bila diaktifkan lagi poinnya kembali terhitung.
+     * @return array<string, array<string, float>> emp_id => [pos => poin]
+     */
     public static function poin(string $periode): array
     {
         $hasil = [];
-        foreach (DB::table('siaptxn_jm_poins')->where('periode', $periode)->get() as $row) {
+        $poinAktif = DB::table('siaptxn_jm_poins as jp')->join('siapmst_employers as em', 'em.emp_id', '=', 'jp.emp_id')
+            ->where('jp.periode', $periode)->where('em.active_status', '1')
+            ->get(['jp.emp_id', 'jp.pos_kode', 'jp.poin']);
+        foreach ($poinAktif as $row) {
             $hasil[$row->emp_id][$row->pos_kode] = (float) $row->poin;
         }
 
@@ -135,7 +143,7 @@ class JasaMedik
 
     /**
      * Generate poin bulan ini dari master (pola generate slip gaji):
-     *  - karyawan aktif yang punya master poin → poin bulan = poin master;
+     *  - karyawan aktif yang punya master poin → poin bulan = poin master (poin karyawan non-aktif diabaikan di semua hitungan, lihat poin());
      *  - poin yang DIUBAH di layar bulan itu (manual = 1) dipertahankan;
      *  - poin hasil generate lama yang tidak ada lagi di master (karyawan keluar / poin dihapus) dibuang.
      * @return array{karyawan: int, dipertahankan: int, dibuang: int}
@@ -293,7 +301,8 @@ class JasaMedik
         $ringkasan = self::ringkasan($periode, null, $poin);
         $slip = DB::table('siaptxn_gaji_hdrs as h')
             ->leftJoin('siaptxn_gaji_dtls as d', fn($join) => $join->on('d.gaji_id', '=', 'h.gaji_id')->where('d.kode', '=', 'JASA_MEDIK'))
-            ->where('h.periode', $periode)
+            ->join('siapmst_employers as em', 'em.emp_id', '=', 'h.emp_id')
+            ->where('h.periode', $periode)->where('em.active_status', '1') // non-aktif keluar dari hitungan
             ->groupBy('h.emp_id', 'h.gaji_status')
             ->select('h.emp_id', 'h.gaji_status', DB::raw('NVL(SUM(d.nilai), 0) AS jm'),
                 DB::raw('SUM(CASE WHEN d.tarif > 0 THEN 1 ELSE 0 END) AS baris_terapkan'))
@@ -324,7 +333,7 @@ class JasaMedik
             ->where('h.periode', $periode)->first(['h.diterapkan_at', 'u.name']);
     }
 
-    /** Karyawan peserta JM: aktif & punya parameter gaji, + yang sudah punya poin bulan ini. @return Collection<int, object> */
+    /** Karyawan peserta JM: aktif & (punya parameter gaji atau sudah punya poin bulan ini). Non-aktif tidak tampil. @return Collection<int, object> */
     public static function karyawan(string $periode, ?string $unitId, string $cari = ''): Collection
     {
         $berpoin = DB::table('siaptxn_jm_poins')->where('periode', $periode)->distinct()->pluck('emp_id')->all();
@@ -332,9 +341,9 @@ class JasaMedik
         return DB::table('siapmst_employers as em')
             ->leftJoin('siapmst_unit_kerjas as un', 'un.unit_id', '=', 'em.emp_unit_id')
             ->leftJoin('siaptxn_gaji_hdrs as gh', fn($join) => $join->on('gh.emp_id', '=', 'em.emp_id')->where('gh.periode', '=', $periode))
+            ->where('em.active_status', '1')
             ->where(fn($query) => $query
-                ->where(fn($aktif) => $aktif->where('em.active_status', '1')
-                    ->whereExists(fn($sub) => $sub->select(DB::raw(1))->from('siapmst_gaji_karyawans as gk')->whereColumn('gk.emp_id', 'em.emp_id')))
+                ->whereExists(fn($sub) => $sub->select(DB::raw(1))->from('siapmst_gaji_karyawans as gk')->whereColumn('gk.emp_id', 'em.emp_id'))
                 ->orWhereIn('em.emp_id', $berpoin ?: ['']))
             ->when($unitId, fn($query) => $query->where('em.emp_unit_id', $unitId))
             ->when(trim($cari) !== '', function ($query) use ($cari) {

@@ -9,7 +9,7 @@
     $detail = $slip['detail'];
     $rupiah = fn($nilai) => \App\Support\GajiKaryawan::rupiah($nilai);
     $bulanSlip = \Carbon\Carbon::createFromFormat('!Y-m', $header->periode);
-    $namaBulan = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'][$bulanSlip->month];
+    $namaBulan = \App\Support\GajiKaryawan::NAMA_BULAN[$bulanSlip->month];
     $kelompok = ['D' => 'A. Pendapatan', 'P' => 'B. Potongan'];
     $kota = \App\Support\Identitas::get()->kota;
 @endphp

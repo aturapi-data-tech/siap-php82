@@ -164,6 +164,10 @@ new class extends Component {
         if (!$this->bisaDiubah()) {
             return;
         }
+        if ((string) ($this->slip['header']->active_status ?? '') !== '1') {
+            $this->dispatch('toast', type: 'error', message: 'Karyawan non-aktif tidak ikut hitungan gaji — slip Draft ini akan dihapus saat Generate.');
+            return;
+        }
         GajiKaryawan::generate($this->slip['header']->periode, null, auth()->id(), $this->slip['header']->emp_id);
         $this->segarkan('Slip disusun ulang dari parameter & absensi terbaru.');
     }

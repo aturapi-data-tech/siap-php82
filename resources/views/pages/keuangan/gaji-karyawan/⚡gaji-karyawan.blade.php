@@ -79,6 +79,9 @@ new class extends Component {
         if ($hasil['dilewatiFinal'] !== []) {
             $pesan .= ' ' . count($hasil['dilewatiFinal']) . ' slip Final dilewati.';
         }
+        if ($hasil['dihapusNonAktif'] > 0) {
+            $pesan .= " {$hasil['dihapusNonAktif']} slip Draft karyawan non-aktif dihapus.";
+        }
         if ($hasil['tanpaParameter'] > 0) {
             $pesan .= " {$hasil['tanpaParameter']} karyawan belum punya parameter gaji.";
         }
@@ -130,20 +133,50 @@ new class extends Component {
             return null;
         }
 
-        return $this->unduhPdf([$slip], 'slip-gaji-' . mb_strtolower($slip['header']->emp_id) . '-' . $slip['header']->periode . '.pdf');
+        return $this->unduhPdf([$slip], GajiKaryawan::namaBerkasSlip($slip['header']));
     }
 
-    /** Cetak semua slip yang tampil (periode + filter) — 4 slip per lembar A4. */
-    public function cetakMassal()
+    /**
+     * Unduh semua slip yang tampil (periode + filter) sebagai satu ZIP: satu PDF per karyawan,
+     * nama berkas "Slip Gaji - NAMA - Bulan Tahun.pdf", satu slip per halaman (seukuran slip link WA).
+     */
+    public function unduhZipPerKaryawan()
     {
-        $slipList = $this->querySlip()->orderBy('gh.emp_id')->pluck('gh.gaji_id')
-            ->map(fn($gajiId) => GajiKaryawan::slip((int) $gajiId))->filter()->values()->all();
-        if ($slipList === []) {
-            $this->dispatch('toast', type: 'error', message: 'Belum ada slip untuk dicetak.');
+        $gajiIds = $this->querySlip()->orderBy('em.emp_name')->pluck('gh.gaji_id');
+        if ($gajiIds->isEmpty()) {
+            $this->dispatch('toast', type: 'error', message: 'Belum ada slip untuk diunduh.');
             return null;
         }
 
-        return $this->unduhPdf($slipList, 'slip-gaji-' . ($this->filterUnit !== '' ? mb_strtolower($this->filterUnit) . '-' : '') . $this->periode() . '.pdf');
+        @set_time_limit(300); // ± 0,1 dtk per slip; cadangan untuk ratusan karyawan
+        $berkasZip = tempnam(sys_get_temp_dir(), 'slipzip');
+        $zip = new \ZipArchive();
+        if ($zip->open($berkasZip, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            $this->dispatch('toast', type: 'error', message: 'Gagal menyiapkan berkas ZIP.');
+            return null;
+        }
+
+        $namaTerpakai = [];
+        foreach ($gajiIds as $gajiId) {
+            $slip = GajiKaryawan::slip((int) $gajiId);
+            if (!$slip) {
+                continue;
+            }
+            $namaBerkas = GajiKaryawan::namaBerkasSlip($slip['header']);
+            if (isset($namaTerpakai[mb_strtolower($namaBerkas)])) { // nama kembar → tambah ID karyawan
+                $namaBerkas = mb_substr($namaBerkas, 0, -4) . ' (' . $slip['header']->emp_id . ').pdf';
+            }
+            $namaTerpakai[mb_strtolower($namaBerkas)] = true;
+            $zip->addFromString($namaBerkas, GajiKaryawan::pdf([$slip], potongan: true)->output());
+        }
+        $zip->close();
+
+        $namaZip = 'Slip Gaji ' . ($this->filterUnit !== '' ? $this->filterUnit . ' ' : '') . GajiKaryawan::namaPeriode($this->periode()) . '.zip';
+
+        $isiZip = file_get_contents($berkasZip);
+        @unlink($berkasZip);
+
+        return response()->streamDownload(fn() => print $isiZip, $namaZip, ['Content-Type' => 'application/zip']);
     }
 
     private function unduhPdf(array $slipList, string $namaBerkas)
@@ -211,7 +244,7 @@ new class extends Component {
     {
         return $this->querySlip()
             ->when(in_array($this->filterStatus, ['D', 'F'], true), fn($subQuery) => $subQuery->where('gh.gaji_status', $this->filterStatus))
-            ->select('gh.gaji_id', 'gh.emp_id', 'em.emp_name', 'em.emp_phone', 'un.unit_name', 'gh.periode', 'gh.hari_hadir', 'gh.total_pendapatan',
+            ->select('gh.gaji_id', 'gh.emp_id', 'em.emp_name', 'em.emp_phone', 'em.active_status', 'un.unit_name', 'gh.periode', 'gh.hari_hadir', 'gh.total_pendapatan',
                 'gh.total_potongan', 'gh.gaji_diterima', 'gh.gaji_status', 'gh.difinalkan_at', 'gh.wa_dikirim_at')
             ->orderBy('gh.emp_id')
             ->paginate($this->itemsPerPage);
@@ -269,7 +302,7 @@ new class extends Component {
 
                     <div class="flex flex-wrap items-end gap-1.5 ml-auto">
                         <x-confirm-button variant="primary" action="generate()" title="Generate Slip Gaji" class="!px-4"
-                            message="Susun slip {{ $bulan }}{{ $filterUnit !== '' ? ' untuk unit terpilih' : '' }} dari parameter gaji? Slip baru memakai hari kerja default; slip Final dilewati; hari kerja & rincian yang sudah diisi petugas tetap." confirmText="Ya, generate" cancelText="Batal">
+                            message="Susun slip {{ $bulan }}{{ $filterUnit !== '' ? ' untuk unit terpilih' : '' }} dari parameter gaji? Slip baru memakai hari kerja default; slip Final dilewati; hari kerja & rincian yang sudah diisi petugas tetap. Slip Draft karyawan non-aktif dihapus." confirmText="Ya, generate" cancelText="Batal">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                             Generate
                         </x-confirm-button>
@@ -284,7 +317,12 @@ new class extends Component {
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 14h18M10 3v18M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" /></svg>
                             <span class="hidden min-[1360px]:inline">Form Bagian</span><span class="sr-only min-[1360px]:hidden">Form Bagian</span>
                         </x-secondary-button>
-                        <x-cetak-button wire:click="cetakMassal" label="Cetak" title="Cetak semua slip yang tampil — 4 slip per lembar A4" aria-label="Cetak semua slip yang tampil" />
+                        <x-secondary-button type="button" wire:click="unduhZipPerKaryawan" wire:loading.attr="disabled" wire:target="unduhZipPerKaryawan" class="!px-4"
+                            title="Unduh ZIP: satu PDF per karyawan (nama + bulan gaji) untuk semua slip yang tampil" aria-label="Unduh ZIP slip per karyawan">
+                            <svg wire:loading.remove wire:target="unduhZipPerKaryawan" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                            <x-loading wire:loading wire:target="unduhZipPerKaryawan" />
+                            <span class="hidden min-[1360px]:inline">ZIP</span><span class="sr-only min-[1360px]:hidden">Unduh ZIP</span>
+                        </x-secondary-button>
                         <x-toolbar-refresh-reset :label="null" />
                         {{-- Panduan ikon saja (hemat tempat → aksi muat satu baris dengan saringan); tautan bergaya tombol, bukan <button> di dalam <a> --}}
                         <a href="{{ route('panduan.gaji') }}" wire:navigate title="Panduan: cara pakai modul gaji" aria-label="Panduan modul gaji"
@@ -328,6 +366,9 @@ new class extends Component {
                                     <td>
                                         <button type="button" wire:click="openRincian({{ $row->gaji_id }})" class="block font-semibold text-left text-brand-green hover:underline" wire:loading.attr="disabled" wire:target="openRincian({{ $row->gaji_id }})">{{ $row->emp_name }}<x-loading wire:loading.delay wire:target="openRincian({{ $row->gaji_id }})" class="ml-1 align-middle" /></button>
                                         <span class="font-mono text-xs text-muted">{{ $row->emp_id }}{{ $row->unit_name ? ' · ' . $row->unit_name : '' }}</span>
+                                        @if ((string) $row->active_status !== '1')
+                                            <x-badge variant="danger" class="ml-1" title="{{ $final ? 'Karyawan non-aktif — slip Final tetap disimpan' : 'Karyawan non-aktif — slip Draft ini dihapus saat Generate' }}">Non-aktif</x-badge>
+                                        @endif
                                     </td>
                                     <td class="font-mono ds-c">{{ (int) $row->hari_hadir }}</td>
                                     <td class="font-mono text-right">{{ \App\Support\GajiKaryawan::rupiah($row->total_pendapatan) }}</td>

@@ -124,6 +124,24 @@ class GajiKaryawan
         return Carbon::createFromFormat('!Y-m', $periode)->startOfMonth();
     }
 
+    public const NAMA_BULAN = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+    /** 'YYYY-MM' → 'November 2026'. */
+    public static function namaPeriode(string $periode): string
+    {
+        $awal = self::awalPeriode($periode);
+
+        return self::NAMA_BULAN[$awal->month] . ' ' . $awal->year;
+    }
+
+    /** Nama berkas slip satu karyawan: "Slip Gaji - BUDI SANTOSO - November 2026.pdf" (karakter terlarang di nama file dibuang). */
+    public static function namaBerkasSlip(object $header): string
+    {
+        $nama = trim(preg_replace('/\s+/', ' ', preg_replace('~[\\\\/:*?"<>|\x00-\x1F]+~', ' ', (string) $header->emp_name)));
+
+        return 'Slip Gaji - ' . ($nama !== '' ? $nama : $header->emp_id) . ' - ' . self::namaPeriode($header->periode) . '.pdf';
+    }
+
     /** Jumlah hari Hadir / Terlambat per karyawan dalam satu periode. @return array<string, int> */
     public static function hariHadir(array $empIds, string $periode): array
     {
@@ -146,8 +164,10 @@ class GajiKaryawan
 
     /**
      * Susun / perbarui slip Draft satu periode untuk karyawan aktif yang sudah punya parameter gaji.
+     * Generate penuh ($empId kosong) juga MENGHAPUS slip Draft karyawan non-aktif periode itu (keluar dari hitungan);
+     * slip Final karyawan non-aktif tetap (sudah dibayar).
      * $empId diisi = hanya satu karyawan (tombol "susun ulang" di rincian slip).
-     * @return array{dibuat: int, diperbarui: int, dilewatiFinal: array<int, string>, tanpaParameter: int}
+     * @return array{dibuat: int, diperbarui: int, dilewatiFinal: array<int, string>, tanpaParameter: int, dihapusNonAktif: int}
      */
     public static function generate(string $periode, ?string $unitId, ?int $userId, ?string $empId = null): array
     {
@@ -159,7 +179,10 @@ class GajiKaryawan
             ->select('em.emp_id', 'em.emp_name', 'em.emp_unit_id', 'gk.*', DB::raw('gk.emp_id AS parameter_emp_id'))
             ->get();
 
-        $hasil = ['dibuat' => 0, 'diperbarui' => 0, 'dilewatiFinal' => [], 'tanpaParameter' => 0];
+        $hasil = ['dibuat' => 0, 'diperbarui' => 0, 'dilewatiFinal' => [], 'tanpaParameter' => 0, 'dihapusNonAktif' => 0];
+        if ($empId === null) {
+            $hasil['dihapusNonAktif'] = self::hapusDraftNonAktif($periode, $unitId);
+        }
         $berparameter = $karyawanList->whereNotNull('parameter_emp_id');
         $hasil['tanpaParameter'] = $karyawanList->count() - $berparameter->count();
 
@@ -219,6 +242,26 @@ class GajiKaryawan
         }
 
         return $hasil;
+    }
+
+    /** Hapus slip Draft (header + detail) karyawan non-aktif satu periode. @return int jumlah slip dihapus */
+    private static function hapusDraftNonAktif(string $periode, ?string $unitId): int
+    {
+        $gajiIds = DB::table('siaptxn_gaji_hdrs as gh')
+            ->join('siapmst_employers as em', 'em.emp_id', '=', 'gh.emp_id')
+            ->where('gh.periode', $periode)->where('gh.gaji_status', self::STATUS_DRAFT)
+            ->where(fn($query) => $query->where('em.active_status', '<>', '1')->orWhereNull('em.active_status'))
+            ->when($unitId, fn($query) => $query->where('gh.unit_id', $unitId))
+            ->pluck('gh.gaji_id')->map(fn($gajiId) => (int) $gajiId)->all();
+
+        foreach (array_chunk($gajiIds, 500) as $potongan) {
+            DB::transaction(function () use ($potongan) {
+                DB::table('siaptxn_gaji_dtls')->whereIn('gaji_id', $potongan)->delete();
+                DB::table('siaptxn_gaji_hdrs')->whereIn('gaji_id', $potongan)->whereIn('gaji_status', [self::STATUS_DRAFT])->delete();
+            });
+        }
+
+        return count($gajiIds);
     }
 
     /** Baris otomatis dari parameter gaji (nilai nol dilewati). */
@@ -400,7 +443,7 @@ class GajiKaryawan
             ->leftJoin('siapmst_unit_kerjas as un', 'un.unit_id', '=', 'gh.unit_id')
             ->leftJoin('siapmst_gaji_karyawans as gk', 'gk.emp_id', '=', 'gh.emp_id')
             ->where('gh.gaji_id', $gajiId)
-            ->select('gh.*', 'em.emp_name', 'em.emp_phone', 'un.unit_name', 'gk.nama_bank', 'gk.no_rekening')
+            ->select('gh.*', 'em.emp_name', 'em.emp_phone', 'em.active_status', 'un.unit_name', 'gk.nama_bank', 'gk.no_rekening')
             ->first();
         if (!$header) {
             return null;

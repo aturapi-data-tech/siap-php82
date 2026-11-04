@@ -112,6 +112,59 @@ class Identitas
         return ($persegi !== $logo ? self::logoPath($persegi) : null) ?? self::logoPath($logo);
     }
 
+    /**
+     * Logo kop untuk PDF (dompdf): diperkecil (tinggi 240 px, tetap tajam di cetak 34 px) dan diratakan ke latar putih
+     * tanpa kanal alfa, di-cache di storage/app/pdf-cache (kunci: path + waktu ubah berkas asli).
+     * Tanpa ini dompdf memisahkan alfa PNG besar piksel demi piksel di SETIAP render (± 3 detik per PDF tanpa Imagick).
+     * Gagal (GD tak ada / bukan PNG-JPG) → berkas asli.
+     */
+    public static function logoKopPdfPath(): ?string
+    {
+        $asli = self::logoKopPath();
+        if (!$asli || !function_exists('imagecreatetruecolor')) {
+            return $asli;
+        }
+
+        $folder = storage_path('app/pdf-cache');
+        $hasil = $folder . '/logo-kop-' . md5($asli . '|' . filemtime($asli)) . '.png';
+        if (is_file($hasil)) {
+            return $hasil;
+        }
+
+        try {
+            $sumber = match (@exif_imagetype($asli) ?: (getimagesize($asli)[2] ?? null)) {
+                IMAGETYPE_PNG  => imagecreatefrompng($asli),
+                IMAGETYPE_JPEG => imagecreatefromjpeg($asli),
+                default        => false,
+            };
+            if (!$sumber) {
+                return $asli;
+            }
+            $lebarAsli = imagesx($sumber);
+            $tinggiAsli = imagesy($sumber);
+            $tinggi = min(240, $tinggiAsli);
+            $lebar = max(1, (int) round($lebarAsli * $tinggi / $tinggiAsli));
+
+            $kecil = imagecreatetruecolor($lebar, $tinggi);
+            imagefill($kecil, 0, 0, imagecolorallocate($kecil, 255, 255, 255));
+            imagecopyresampled($kecil, $sumber, 0, 0, 0, 0, $lebar, $tinggi, $lebarAsli, $tinggiAsli);
+            imagesavealpha($kecil, false);
+
+            if (!is_dir($folder)) {
+                mkdir($folder, 0775, true);
+            }
+            $sementara = $hasil . '.' . getmypid() . '.tmp';
+            if (!imagepng($kecil, $sementara, 6) || !rename($sementara, $hasil)) {
+                @unlink($sementara);
+                return $asli;
+            }
+
+            return $hasil;
+        } catch (\Throwable) {
+            return $asli;
+        }
+    }
+
     /** Alamat lengkap satu baris: alamat, kota kode pos. */
     public static function alamatLengkap(): string
     {

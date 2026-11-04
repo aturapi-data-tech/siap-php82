@@ -369,7 +369,7 @@ class GajiFormBagian
         return DB::table('siaptxn_gaji_hdrs as gh')
             ->join('siapmst_employers as em', 'em.emp_id', '=', 'gh.emp_id')
             ->leftJoin('siapmst_unit_kerjas as un', 'un.unit_id', '=', 'gh.unit_id')
-            ->where('gh.periode', $periode)
+            ->where('gh.periode', $periode)->where('em.active_status', '1')
             ->when($unitId, fn($query) => $query->where('gh.unit_id', $unitId))
             ->orderBy('un.unit_name')->orderBy('em.emp_name')
             ->get(['gh.gaji_id', 'gh.emp_id', 'gh.hari_hadir', 'gh.gaji_status', 'em.emp_name', 'un.unit_name']);
@@ -541,7 +541,7 @@ class GajiFormBagian
     private static function imporSlip(string $bagian, array $isian, string $periode, array &$hasil): void
     {
         $slipList = DB::table('siaptxn_gaji_hdrs as gh')->join('siapmst_employers as em', 'em.emp_id', '=', 'gh.emp_id')
-            ->where('gh.periode', $periode)->whereIn('gh.emp_id', array_map('strval', array_keys($isian)))
+            ->where('gh.periode', $periode)->where('em.active_status', '1')->whereIn('gh.emp_id', array_map('strval', array_keys($isian)))
             ->get(['gh.gaji_id', 'gh.emp_id', 'gh.hari_hadir', 'gh.gaji_status', 'em.emp_name'])->keyBy('emp_id');
 
         foreach ($isian as $empId => $data) {

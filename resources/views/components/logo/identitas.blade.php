@@ -19,7 +19,7 @@
     $fax ??= $identitas->fax;
     $website ??= $identitas->website;
     $email ??= $identitas->email;
-    $logoPath = \App\Support\Identitas::logoKopPath();
+    $logoPath = \App\Support\Identitas::logoKopPdfPath();
     $kontak = collect([
         filled($telp) ? 'Telp. ' . $telp : null,
         filled($fax) ? 'Fax. ' . $fax : null,

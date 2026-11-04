@@ -291,7 +291,7 @@ new class extends Component {
                     <h2>9. Cetak &amp; kirim WhatsApp</h2>
                     <h3 class="mt-3">Cetak</h3>
                     <ul class="mt-1 text-sm">
-                        <li>Ikon printer biru di baris = slip satu karyawan. <b>Cetak Semua</b> = semua slip yang tampil (sesuai filter), 4 slip per lembar A4 — tinggal dipotong mengikuti garis putus-putus.</li>
+                        <li>Ikon printer biru di baris = slip satu karyawan. <b>ZIP</b> di toolbar = semua slip yang tampil (sesuai filter) diunduh sekaligus, satu PDF per karyawan bernama <i>Slip Gaji - NAMA - Bulan Tahun.pdf</i>.</li>
                         <li>Slip memakai kop identitas instansi ({!! $tautan('sistem.identitas', 'Identitas Instansi') !!}); slip Draft bertanda <b>(DRAFT)</b>.</li>
                     </ul>
                     <h3 class="mt-4">Kirim WhatsApp</h3>
@@ -334,6 +334,7 @@ new class extends Component {
                     <div class="mt-3 space-y-2 text-sm">
                         @foreach ([
                             ['Karyawan tidak muncul saat Generate?', 'Parameter gajinya belum diatur, atau karyawannya non-aktif. Cek Master Karyawan dengan filter "Gaji belum diatur".'],
+                            ['Karyawan keluar / berhenti?', 'Non-aktifkan di Master Karyawan. Karyawan non-aktif keluar dari hitungan: Generate gaji tidak membuatkan slip dan menghapus slip Draft-nya bulan itu (slip Final tetap disimpan); poinnya tidak ikut Pembagian JM, jadi jatah JM terbagi ke karyawan aktif. Proses gaji bulan terakhirnya DULU, baru non-aktifkan. Bila diaktifkan lagi, poin & slipnya ikut kembali saat Generate.'],
                             ['Hari kerja salah setelah Generate?', 'Ubah di kotak Hari Kerja pada Rincian (bagian 6), atau impor form Hari Kerja (bagian 4). Hari kerja per slip tidak diubah lagi oleh Generate / Susun ulang.'],
                             ['Gaji pokok naik bulan ini?', 'Ubah di Master Karyawan › Gaji lalu Generate ulang bulan itu, atau untuk banyak karyawan sekaligus pakai form Kenaikan Gaji (Form Bagian) — slip Draft langsung disusun ulang. Slip bulan-bulan sebelumnya tidak berubah.'],
                             ['JM di slip beda dengan menu Pembagian JM?', 'Ada perubahan nilai dasar / persen / poin setelah diterapkan. Di Pembagian JM akan muncul tanda "belum sesuai" — klik Terapkan ke Slip lagi. Slip Final harus dibuka ke Draft dulu.'],
