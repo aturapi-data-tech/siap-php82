@@ -11,7 +11,7 @@ use App\Support\GajiKaryawan;
 /**
  * Tab BUKU Gaji Dokter (anak pembungkus gaji-dokter): slip gaji dokter SIRUS per BULAN JASA — versi terbaru tiap dokter,
  * tombol "Ambil dari SIRUS" (snapshot berversi: sama → tidak ada perubahan; beda → versi baru, versi lama tetap),
- * pembanding dengan bulan lalu, dan modal Rincian (komponen slip + banding antar versi / bulan lalu).
+ * pembanding dengan bulan lalu. Rincian (banding antar versi / bulan lalu) = komponen gaji-dokter-rincian, dibuka lewat event.
  * Bulan jasa & saringan disimpan di Session (komponen di-unmount saat ganti tab — docs/tabs-pattern.md).
  * Tidak ada tulis ke SIRUS; snapshot tidak bisa disunting.
  */
@@ -24,10 +24,6 @@ new class extends Component {
 
     #[Session(key: 'gaji-dokter-saring')]
     public string $saring = 'semua'; // semua | berubah | tanpa_map | final
-
-    /** Modal rincian: header yang dibuka + pembanding (gd_id versi lain / bulan lalu, atau null). */
-    public ?int $rincianGdId = null;
-    public string $bandingPilihan = '';
 
     public function boot(): void
     {
@@ -102,20 +98,10 @@ new class extends Component {
         $this->segarkan();
     }
 
+    /** Modal Rincian = komponen terpisah (gaji-dokter-rincian, dipasang pembungkus sejajar tab) — pola SIRUS. */
     public function openRincian(int $gdId): void
     {
-        $this->rincianGdId = $gdId;
-        $this->bandingPilihan = '';
-        $pilihan = $this->bandingOpsi();
-        $this->bandingPilihan = array_key_first($pilihan) ?? '';
-        $this->dispatch('open-modal', name: 'gaji-dokter-rincian');
-    }
-
-    public function closeModal(): void
-    {
-        $this->rincianGdId = null;
-        $this->bandingPilihan = '';
-        $this->dispatch('close-modal', name: 'gaji-dokter-rincian');
+        $this->dispatch('keuangan.gaji-dokter.openRincian', gdId: $gdId);
     }
 
     public function openLampiran(int $gdId): void
@@ -141,73 +127,18 @@ new class extends Component {
         return $total;
     }
 
+    public static function namaPeriode(?string $ym): string
+    {
+        return $ym && preg_match('/^(\d{4})-(\d{2})$/', $ym, $m)
+            ? ((['01' => 'Januari', '02' => 'Februari', '03' => 'Maret', '04' => 'April', '05' => 'Mei', '06' => 'Juni', '07' => 'Juli', '08' => 'Agustus',
+                '09' => 'September', '10' => 'Oktober', '11' => 'November', '12' => 'Desember'][$m[2]] ?? $m[2]) . ' ' . $m[1])
+            : (string) $ym;
+    }
+
     #[Computed]
     public function ambilTerakhir(): ?object
     {
         return GajiDokterSirus::riwayatAmbil(200)->firstWhere('periode', $this->periode());
-    }
-
-    // ─── Modal rincian ─────────────────────────────────────────────────────
-
-    #[Computed]
-    public function rincian(): ?object
-    {
-        return $this->rincianGdId ? \Illuminate\Support\Facades\DB::table('siaptxn_gdok_hdrs')->where('gd_id', $this->rincianGdId)->first() : null;
-    }
-
-    /** Pilihan pembanding: versi lain dokter yang sama bulan ini + versi terbaru bulan lalu. [kunci => label] */
-    public function bandingOpsi(): array
-    {
-        $h = $this->rincian;
-        if (!$h) {
-            return [];
-        }
-        $opsi = [];
-        foreach (GajiDokterSirus::versiList($h->periode, $h->dr_id) as $v) {
-            if ((int) $v->gd_id !== (int) $h->gd_id) {
-                $opsi[(string) $v->gd_id] = "Versi {$v->versi} (diambil " . Carbon::parse($v->diambil_at)->format('d/m/Y H:i') . ')';
-            }
-        }
-        $bulanLalu = Carbon::createFromFormat('!Y-m', $h->periode)->subMonthNoOverflow()->format('Y-m');
-        $lalu = \Illuminate\Support\Facades\DB::table('siaptxn_gdok_hdrs')->where('periode', $bulanLalu)->where('dr_id', $h->dr_id)->where('terbaru', '1')->first();
-        if ($lalu) {
-            $opsi[(string) $lalu->gd_id] = 'Bulan jasa ' . Carbon::createFromFormat('!Y-m', $bulanLalu)->translatedFormat('M Y') . " (versi {$lalu->versi})";
-        }
-
-        return $opsi;
-    }
-
-    #[Computed]
-    public function pembanding(): ?object
-    {
-        return $this->bandingPilihan !== '' && isset($this->bandingOpsi()[$this->bandingPilihan])
-            ? \Illuminate\Support\Facades\DB::table('siaptxn_gdok_hdrs')->where('gd_id', (int) $this->bandingPilihan)->first() : null;
-    }
-
-    public function updatedBandingPilihan(): void { unset($this->pembanding); }
-
-    /** Baris rincian gabungan: tiap komponen versi ini + komponen pembanding yang hilang. */
-    #[Computed]
-    public function barisRincian(): array
-    {
-        $h = $this->rincian;
-        if (!$h) {
-            return [];
-        }
-        $ini = GajiDokterSirus::detail((int) $h->gd_id)->keyBy(fn($d) => $d->jenis . '|' . $d->kode);
-        $lain = $this->pembanding ? GajiDokterSirus::detail((int) $this->pembanding->gd_id)->keyBy(fn($d) => $d->jenis . '|' . $d->kode) : collect();
-        $baris = [];
-        foreach ($ini->keys()->merge($lain->keys())->unique() as $kunci) {
-            $x = $ini[$kunci] ?? null;
-            $y = $lain[$kunci] ?? null;
-            $baris[] = ['jenis' => ($x ?? $y)->jenis, 'label' => ($x ?? $y)->label ?: ($x ?? $y)->kode, 'kode' => ($x ?? $y)->kode,
-                'pasien' => $x ? (int) $x->jumlah_pasien : null, 'nilai' => $x ? (float) $x->nilai : null, 'manual' => $x && $x->nilai_manual === '1',
-                'pasien_lain' => $y ? (int) $y->jumlah_pasien : null, 'nilai_lain' => $y ? (float) $y->nilai : null,
-                'urutan' => (int) (($x ?? $y)->urutan)];
-        }
-        usort($baris, fn($a, $b) => [$a['jenis'], $a['urutan']] <=> [$b['jenis'], $b['urutan']]);
-
-        return $baris;
     }
 };
 ?>
@@ -215,20 +146,23 @@ new class extends Component {
 <div class="mt-4">
     @php
         $rp = fn($n) => GajiKaryawan::rupiah($n);
+        $persen = fn($n) => rtrim(rtrim(number_format((float) $n, 2, ',', '.'), '0'), ',');
         $selisih = fn($n) => $n === null ? '–' : ($n > 0 ? '+' . $rp($n) : ($n < 0 ? '−' . $rp(abs($n)) : '0'));
         $total = $this->total;
         $ambilTerakhir = $this->ambilTerakhir;
-        $labelBulan = \Carbon\Carbon::createFromFormat('!Y-m', \Carbon\Carbon::createFromFormat('!' . Format::BULAN, $bulan)->format('Y-m'))->translatedFormat('F Y');
+        $periodeJasa = \Carbon\Carbon::createFromFormat('!' . Format::BULAN, $bulan)->format('Y-m');
+        $labelJasa = $this::namaPeriode($periodeJasa);
+        $labelGaji = $this::namaPeriode(\Carbon\Carbon::createFromFormat('!Y-m', $periodeJasa)->addMonthNoOverflow()->format('Y-m'));
     @endphp
 
-    {{-- TOOLBAR --}}
+    {{-- TOOLBAR — saringan di kiri, aksi di kanan (pola Slip Gaji Dokter SIRUS). --}}
     <div class="flex flex-wrap items-end gap-3 px-4 py-3 mb-3 border bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
         <div>
             <x-input-label value="Bulan Jasa" />
             <div class="flex items-center gap-1 mt-1">
                 <x-secondary-button type="button" wire:click="geserBulan(-1)" class="!px-3" title="Bulan sebelumnya" aria-label="Bulan sebelumnya">‹</x-secondary-button>
                 <div class="w-28">
-                    <x-text-input wire:model.live.debounce.600ms="bulan" x-mask="99/9999" placeholder="mm/yyyy" class="w-full text-center font-mono" aria-label="Bulan jasa" />
+                    <x-text-input wire:model.live.debounce.600ms="bulan" x-mask="99/9999" placeholder="mm/yyyy" class="w-full font-mono text-center" aria-label="Bulan jasa" />
                 </div>
                 <x-secondary-button type="button" wire:click="geserBulan(1)" class="!px-3" title="Bulan berikutnya" aria-label="Bulan berikutnya">›</x-secondary-button>
             </div>
@@ -262,174 +196,182 @@ new class extends Component {
         </div>
     </div>
 
-    {{-- RINGKASAN --}}
-    <div class="flex flex-wrap items-center gap-2 px-4 mb-3 text-xs text-muted">
-        @if ($total['jumlah'] === 0)
-            <x-badge variant="gray">Belum ada snapshot bulan jasa {{ $labelBulan }}</x-badge>
-            <span>Klik <b>Ambil dari SIRUS</b> untuk menarik slip gaji dokter bulan ini.</span>
-        @else
-            <x-badge variant="info">{{ $total['jumlah'] }} slip · {{ $total['final'] }} Final di SIRUS</x-badge>
-            @if ($total['berubah'] > 0)<x-badge variant="warning">{{ $total['berubah'] }} slip pernah berubah sejak pertama diambil</x-badge>@endif
-            @if ($total['tanpa_map'] > 0)<x-badge variant="warning">{{ $total['tanpa_map'] }} dokter belum dipetakan ke karyawan</x-badge>@else<x-badge variant="success">Semua dokter terpetakan</x-badge>@endif
-            @if ($ambilTerakhir)<span>Terakhir diambil {{ \Carbon\Carbon::parse($ambilTerakhir->diambil_at)->format('d/m/Y H:i') }} oleh {{ $ambilTerakhir->name ?? '–' }}.</span>@endif
-            <span class="ml-auto">Bulan gaji di SIRUS = bulan jasa + 1. Angka adalah snapshot — ambil ulang untuk melihat apakah SIRUS berubah.</span>
-        @endif
-    </div>
+    <p class="px-4 mb-3 text-sm text-muted dark:text-gray-400">
+        Jasa <span class="font-semibold text-body dark:text-gray-200">{{ $labelJasa }}</span> dibayarkan pada gaji
+        <span class="font-semibold text-body dark:text-gray-200">{{ $labelGaji }}</span>. Angka di sini snapshot dari SIRUS &mdash; tidak bisa disunting; Ambil ulang untuk melihat apakah SIRUS berubah.
+        @if ($ambilTerakhir)<span class="whitespace-nowrap">Terakhir diambil {{ \Carbon\Carbon::parse($ambilTerakhir->diambil_at)->format('d/m/Y H:i') }} oleh {{ $ambilTerakhir->name ?? '–' }}.</span>@endif
+    </p>
 
-    {{-- TABEL --}}
-    <div class="overflow-x-auto bg-canvas border border-hairline shadow-sm rounded-2xl dark:border-gray-700 dark:bg-gray-900">
-        <table class="ds-table">
-            <thead>
-                <tr>
-                    <th>Dokter</th>
-                    <th>Karyawan SIAP</th>
-                    <th class="ds-c">Status</th>
-                    <th class="text-right">Jasa</th>
-                    <th class="text-right">Pot. RS</th>
-                    <th class="text-right">PPh 21</th>
-                    <th class="text-right">Pot. lain</th>
-                    <th class="text-right">Tambahan</th>
-                    <th class="text-right">Diterima</th>
-                    <th class="text-right whitespace-nowrap">vs bulan lalu</th>
-                    <th class="text-right">Aksi</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse ($this->rows as $row)
-                    <tr wire:key="gd-{{ $row->gd_id }}">
-                        <td>
-                            <span class="font-semibold">{{ $row->dr_name }}</span>
-                            <span class="block font-mono text-xs text-muted">dr_id {{ $row->dr_id }} · slip #{{ $row->gajidoctor_no }}
-                                @if ($row->versi_sebelumnya)<x-badge variant="warning">versi {{ $row->versi }}</x-badge>@else · versi {{ $row->versi }}@endif
-                            </span>
-                        </td>
-                        <td>
-                            @if ($row->emp_id_map)
-                                <span>{{ $row->emp_name }}</span><span class="block font-mono text-xs text-muted">{{ $row->emp_id_map }}</span>
-                            @else
-                                <x-badge variant="warning">Belum dipetakan</x-badge>
-                            @endif
-                        </td>
-                        <td class="ds-c">@if ($row->gaji_status === 'F')<x-badge variant="success">Final</x-badge>@else<x-badge variant="gray">Draft</x-badge>@endif
-                            <span class="block text-xs text-muted">{{ $row->npwp_status === 'Y' ? 'NPWP' : 'Tanpa NPWP' }} · PPh {{ rtrim(rtrim(number_format((float) $row->pph21_persen, 2, ',', '.'), '0'), ',') }}%</span></td>
-                        <td class="font-mono text-right tabular-nums">{{ $rp($row->jasa_total) }}</td>
-                        <td class="font-mono text-right tabular-nums">{{ $rp($row->potongan_rs) }}</td>
-                        <td class="font-mono text-right tabular-nums">{{ $rp($row->pph21) }}</td>
-                        <td class="font-mono text-right tabular-nums">{{ (float) $row->potongan_lain_total != 0 ? $rp($row->potongan_lain_total) : '–' }}</td>
-                        <td class="font-mono text-right tabular-nums">{{ (float) $row->tambahan_total != 0 ? $rp($row->tambahan_total) : '–' }}</td>
-                        <td class="font-mono font-semibold text-right tabular-nums">{{ $rp($row->gaji_diterima) }}</td>
-                        <td class="font-mono text-xs text-right tabular-nums {{ $row->selisih_bulan_lalu === null ? 'text-muted' : ($row->selisih_bulan_lalu < 0 ? 'text-fg-danger-strong' : 'text-fg-success-strong') }}">{{ $selisih($row->selisih_bulan_lalu) }}</td>
-                        <td class="text-right whitespace-nowrap">
-                            <div class="inline-flex items-center gap-1">
-                                <x-secondary-button type="button" wire:click="openRincian({{ $row->gd_id }})" wire:loading.attr="disabled" wire:target="openRincian" class="!px-3 !py-1.5 text-xs">Rincian</x-secondary-button>
-                                <x-secondary-button type="button" wire:click="openLampiran({{ $row->gd_id }})" wire:loading.attr="disabled" wire:target="openLampiran" class="!px-3 !py-1.5 text-xs" title="{{ $row->jumlah_lampiran }} baris lampiran">Lampiran <span class="font-mono text-muted">{{ $row->jumlah_lampiran }}</span></x-secondary-button>
-                            </div>
-                        </td>
-                    </tr>
-                @empty
-                    <tr><td colspan="11" class="py-8 text-center text-muted">{{ $total['jumlah'] === 0 ? 'Belum ada snapshot bulan jasa ini.' : 'Tidak ada slip yang cocok dengan saringan.' }}</td></tr>
-                @endforelse
-            </tbody>
-            @if ($total['jumlah'] > 0 && $saring === 'semua' && trim($searchKeyword) === '')
-                <tfoot>
-                    <tr class="font-semibold">
-                        <td colspan="3">Total {{ $total['jumlah'] }} dokter</td>
-                        <td class="font-mono text-right tabular-nums">{{ $rp($total['jasa_total']) }}</td>
-                        <td class="font-mono text-right tabular-nums">{{ $rp($total['potongan_rs']) }}</td>
-                        <td class="font-mono text-right tabular-nums">{{ $rp($total['pph21']) }}</td>
-                        <td class="font-mono text-right tabular-nums">{{ $rp($total['potongan_lain_total']) }}</td>
-                        <td class="font-mono text-right tabular-nums">{{ $rp($total['tambahan_total']) }}</td>
-                        <td class="font-mono text-right tabular-nums">{{ $rp($total['gaji_diterima']) }}</td>
-                        <td colspan="2"></td>
-                    </tr>
-                </tfoot>
-            @endif
-        </table>
-    </div>
+    {{-- RINGKASAN & PANDUAN sebaris: keduanya panel yang bisa ditutup (pola SIRUS). items-start supaya yang terbuka tidak menarik tinggi pasangannya. --}}
+    <div class="grid items-start grid-cols-1 gap-3 mb-4 lg:grid-cols-2">
+        {{-- RINGKASAN — bukan biru-info (biru dicadangkan untuk panduan). Default tertutup; angka pentingnya tetap terbaca di bilah judul. --}}
+        <div x-data="{ buka: false }" class="overflow-hidden border rounded-2xl border-hairline bg-canvas dark:bg-gray-900 dark:border-gray-700">
+            <button type="button" x-on:click="buka = !buka" :aria-expanded="buka"
+                class="flex items-center justify-between w-full px-4 py-2.5 text-sm font-semibold transition-colors text-ink hover:bg-surface-soft dark:text-gray-100 dark:hover:bg-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-green dark:focus-visible:ring-brand-lime">
+                <span class="flex items-center min-w-0 gap-2">
+                    <svg class="w-4 h-4 shrink-0 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m4 10V11m4 6V9M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                    <span class="shrink-0">Ringkasan periode</span>
+                    <span class="text-sm font-normal truncate text-muted dark:text-gray-400">
+                        @if ($total['jumlah'] === 0)(belum ada snapshot {{ $labelJasa }})@else({{ $total['jumlah'] }} slip &middot; diterima {{ $rp($total['gaji_diterima']) }})@endif
+                    </span>
+                </span>
+                <svg class="w-4 h-4 ml-2 transition-transform shrink-0 text-muted motion-reduce:transition-none" x-bind:class="buka && 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+            </button>
 
-    {{-- MODAL RINCIAN --}}
-    <x-modal name="gaji-dokter-rincian" size="2xl">
-        @php $h = $this->rincian; $p = $this->pembanding; @endphp
-        <div class="flex flex-col min-h-full">
-            <x-modul-dokumen.header judul="{{ $h ? $h->dr_name : 'Rincian slip' }}" tutup="closeModal"
-                ikon="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
-                @if ($h)Bulan jasa {{ \Carbon\Carbon::createFromFormat('!Y-m', $h->periode)->translatedFormat('F Y') }} · versi {{ $h->versi }} · diambil {{ \Carbon\Carbon::parse($h->diambil_at)->format('d/m/Y H:i') }} · {{ $h->gaji_status === 'F' ? 'Final' : 'Draft' }} di SIRUS @if ($h->update_date_sirus)(diubah di SIRUS {{ $h->update_date_sirus }})@endif @endif
-            </x-modul-dokumen.header>
-            @if ($h)
-                <div class="flex-1 px-4 py-4 bg-surface-soft dark:bg-gray-950/20">
-                    <div class="flex flex-wrap items-end gap-3 mb-3">
-                        <div class="grid grid-cols-2 gap-x-6 gap-y-1 text-xs sm:grid-cols-4">
-                            <span class="text-muted">Gaji pokok (skema {{ $h->skema_gaji_pokok }})</span><span class="font-mono text-right">{{ $rp($h->nilai_gaji_pokok) }}</span>
-                            <span class="text-muted">Potongan RS</span><span class="font-mono text-right">{{ rtrim(rtrim(number_format((float) $h->potongan_rs_persen, 2, ',', '.'), '0'), ',') }}% dari {{ $h->potongan_rs_basis === 'J' ? 'jasa' : 'total' }}</span>
-                            <span class="text-muted">PPh 21</span><span class="font-mono text-right">{{ rtrim(rtrim(number_format((float) $h->pph21_persen, 2, ',', '.'), '0'), ',') }}% · {{ $h->npwp_status === 'Y' ? 'NPWP' : 'tanpa NPWP' }}</span>
-                            <span class="text-muted">Dibayar</span><span class="font-mono text-right">{{ $h->tanggal_bayar ? \Carbon\Carbon::parse($h->tanggal_bayar)->format('d/m/Y') : '–' }}</span>
+            <div x-show="buka" x-cloak>
+                @if ($total['jumlah'] === 0)
+                    <p class="px-4 pb-4 text-sm text-muted dark:text-gray-400">Klik <span class="font-semibold">Ambil dari SIRUS</span> untuk menarik slip gaji dokter bulan jasa {{ $labelJasa }}.</p>
+                @else
+                    {{-- Lima angka dalam satu baris: label kecil di atas nilai, dipisah garis tipis. --}}
+                    <div class="grid grid-cols-5 px-4 pb-4 divide-x divide-hairline dark:divide-gray-700">
+                        <div class="pr-2">
+                            <div class="text-sm text-muted dark:text-gray-400">Slip</div>
+                            <div class="font-semibold t-num text-ink dark:text-gray-100">{{ $total['jumlah'] }}</div>
+                            <div class="text-sm t-num text-muted dark:text-gray-400 whitespace-nowrap">{{ $total['jumlah'] - $total['final'] }} draft &middot; {{ $total['final'] }} final</div>
                         </div>
-                        <div class="ml-auto w-72">
-                            <x-input-label for="gd-banding" value="Bandingkan dengan" />
-                            <div class="mt-1">
-                                <x-select-input id="gd-banding" wire:model.live="bandingPilihan">
-                                    <option value="">– tanpa pembanding –</option>
-                                    @foreach ($this->bandingOpsi() as $kunci => $label)
-                                        <option value="{{ $kunci }}">{{ $label }}</option>
-                                    @endforeach
-                                </x-select-input>
-                            </div>
+                        <div class="px-2">
+                            <div class="text-sm text-muted dark:text-gray-400">Jasa</div>
+                            <div class="font-semibold t-num text-ink dark:text-gray-100">{{ $rp($total['jasa_total']) }}</div>
+                        </div>
+                        <div class="px-2">
+                            <div class="text-sm text-muted dark:text-gray-400">Total Gaji</div>
+                            <div class="font-semibold t-num text-ink dark:text-gray-100">{{ $rp($total['total_gaji']) }}</div>
+                        </div>
+                        <div class="px-2">
+                            <div class="text-sm text-muted dark:text-gray-400 whitespace-nowrap">Pot. RS + PPh</div>
+                            <div class="font-semibold t-num text-rose-600 dark:text-rose-300">{{ $rp(abs($total['potongan_rs']) + abs($total['pph21'])) }}</div>
+                        </div>
+                        <div class="pl-2">
+                            <div class="text-sm text-muted dark:text-gray-400">Diterima</div>
+                            <div class="font-semibold t-num text-emerald-700 dark:text-emerald-300">{{ $rp($total['gaji_diterima']) }}</div>
                         </div>
                     </div>
-
-                    <div class="overflow-x-auto border bg-canvas border-hairline rounded-xl dark:bg-gray-900 dark:border-gray-700">
-                        <table class="ds-table">
-                            <thead>
-                                <tr>
-                                    <th>Komponen</th>
-                                    <th class="text-right">Pasien</th>
-                                    <th class="text-right">Versi {{ $h->versi }}</th>
-                                    @if ($p)
-                                        <th class="text-right">{{ $p->periode === $h->periode ? 'Versi ' . $p->versi : \Carbon\Carbon::createFromFormat('!Y-m', $p->periode)->translatedFormat('M Y') }}</th>
-                                        <th class="text-right">Selisih</th>
-                                    @endif
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @php $jenisTerakhir = null; @endphp
-                                @foreach ($this->barisRincian as $b)
-                                    @if ($b['jenis'] !== $jenisTerakhir)
-                                        @php $jenisTerakhir = $b['jenis']; @endphp
-                                        <tr class="bg-surface-soft dark:bg-gray-800/60"><td colspan="{{ $p ? 5 : 3 }}" class="py-1 text-xs font-semibold uppercase text-muted">{{ GajiDokterSirus::LABEL_JENIS[$b['jenis']] ?? $b['jenis'] }}</td></tr>
-                                    @endif
-                                    @php $beda = $p && (($b['nilai'] ?? 0) != ($b['nilai_lain'] ?? 0) || ($b['pasien'] ?? 0) != ($b['pasien_lain'] ?? 0)); @endphp
-                                    <tr wire:key="rinci-{{ $b['jenis'] }}-{{ $b['kode'] }}" class="{{ $beda ? 'bg-warning-soft/40' : '' }}">
-                                        <td>{{ $b['label'] }} @if ($b['manual'])<x-badge variant="info">manual</x-badge>@endif @if ($b['nilai'] === null)<x-badge variant="gray">tidak ada di versi ini</x-badge>@endif</td>
-                                        <td class="font-mono text-right tabular-nums">{{ $b['pasien'] ? $b['pasien'] : '' }}@if ($p && $beda && ($b['pasien_lain'] ?? null) !== ($b['pasien'] ?? null))<span class="text-xs text-muted"> ({{ $b['pasien_lain'] ?? 0 }})</span>@endif</td>
-                                        <td class="font-mono text-right tabular-nums">{{ $b['nilai'] === null ? '–' : $rp($b['nilai']) }}</td>
-                                        @if ($p)
-                                            <td class="font-mono text-right tabular-nums text-muted">{{ $b['nilai_lain'] === null ? '–' : $rp($b['nilai_lain']) }}</td>
-                                            <td class="font-mono text-xs text-right tabular-nums {{ !$beda ? 'text-muted' : '' }}">{{ $beda ? $selisih(($b['nilai'] ?? 0) - ($b['nilai_lain'] ?? 0)) : '=' }}</td>
-                                        @endif
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                            <tfoot>
-                                @foreach (GajiDokterSirus::KOLOM_NOMINAL as $k)
-                                    <tr class="{{ $k === 'gaji_diterima' ? 'font-semibold' : '' }}">
-                                        <td colspan="2">{{ GajiDokterSirus::LABEL_NOMINAL[$k] }}</td>
-                                        <td class="font-mono text-right tabular-nums">{{ $rp($h->$k) }}</td>
-                                        @if ($p)
-                                            <td class="font-mono text-right tabular-nums text-muted">{{ $rp($p->$k) }}</td>
-                                            <td class="font-mono text-xs text-right tabular-nums {{ abs((float) $h->$k - (float) $p->$k) < 0.5 ? 'text-muted' : '' }}">{{ abs((float) $h->$k - (float) $p->$k) < 0.5 ? '=' : $selisih((float) $h->$k - (float) $p->$k) }}</td>
-                                        @endif
-                                    </tr>
-                                @endforeach
-                            </tfoot>
-                        </table>
+                    {{-- Penanda khas SIAP: pemetaan & versi. Menetap (bukan toast). --}}
+                    <div class="flex flex-wrap items-center gap-2 px-4 pb-4 -mt-1 text-sm">
+                        @if ($total['tanpa_map'] > 0)
+                            <x-badge variant="warning">{{ $total['tanpa_map'] }} dokter belum dipetakan ke karyawan</x-badge>
+                            <span class="text-muted dark:text-gray-400">&rarr; tab <span class="font-semibold">Pemetaan Dokter</span></span>
+                        @else
+                            <x-badge variant="success">Semua dokter terpetakan</x-badge>
+                        @endif
+                        @if ($total['berubah'] > 0)<x-badge variant="warning">{{ $total['berubah'] }} slip pernah berubah sejak pertama diambil</x-badge>@endif
                     </div>
-                    <p class="mt-2 text-xs text-muted">Potongan tampil sebagai angka negatif, sama seperti di SIRUS. Angka ini snapshot SIAP — tidak bisa disunting; bila SIRUS berubah, Ambil ulang membuat versi baru dan versi ini tetap tersimpan.</p>
-                </div>
-                <div class="flex justify-end gap-2 px-4 py-3 border-t border-hairline dark:border-gray-700">
-                    <x-secondary-button type="button" wire:click="openLampiran({{ $h->gd_id }})">Lihat lampiran</x-secondary-button>
-                    <x-primary-button type="button" wire:click="closeModal">Tutup</x-primary-button>
-                </div>
-            @endif
+                @endif
+            </div>
         </div>
-    </x-modal>
+
+        @include('pages.keuangan.gaji-dokter.panduan-buku')
+    </div>
+
+    {{-- TABEL — baris = kartu ber-ring dengan jarak antar baris, penanda warna kiri per status (pola Slip Gaji Dokter SIRUS). --}}
+    <div class="flex flex-col border shadow-sm bg-canvas border-hairline rounded-2xl dark:border-gray-700 dark:bg-gray-900">
+        <div class="overflow-x-auto rounded-2xl">
+            <table class="w-full min-w-[64rem] text-base -mt-3 border-separate border-spacing-y-3 table-fixed">
+                <thead class="[&_th]:bg-surface-card dark:[&_th]:bg-gray-800">
+                    {{-- 11 kolom dirapatkan jadi 6: angka induk besar, penyusunnya baris kecil di bawahnya. --}}
+                    <tr class="text-sm font-semibold tracking-wide text-left uppercase text-muted dark:text-gray-300">
+                        <th class="px-3 py-3 w-[4%] text-right">No</th>
+                        <th class="px-6 py-3 w-[28%]">Dokter</th>
+                        <th class="px-6 py-3 w-[15%] text-right">Total Gaji</th>
+                        <th class="px-6 py-3 w-[17%] text-right">Potongan</th>
+                        <th class="px-6 py-3 w-[16%] text-right">Diterima</th>
+                        <th class="px-6 py-3 w-[20%] text-center">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse ($this->rows as $row)
+                        @php $potonganTotal = abs((float) $row->potongan_rs) + abs((float) $row->pph21) + abs((float) $row->potongan_lain_total); @endphp
+                        <tr wire:key="gd-{{ $row->gd_id }}"
+                            class="transition rounded-2xl shadow-sm ring-1 ring-hairline dark:ring-gray-700 {{ $row->gaji_status === 'F'
+                                ? 'bg-success/10 dark:bg-gray-800 hover:shadow-lg hover:bg-success/20 dark:hover:bg-gray-700 border-l-4 border-success'
+                                : 'bg-canvas dark:bg-gray-900 hover:shadow-lg hover:bg-surface-soft dark:hover:bg-gray-800 border-l-4 border-warning' }}">
+                            <td class="px-3 py-3 text-sm text-right align-middle t-num text-muted dark:text-gray-400">{{ $loop->iteration }}</td>
+
+                            {{-- DOKTER + sifat slip + pemetaan karyawan SIAP --}}
+                            <td class="px-6 py-3 align-middle">
+                                <div class="font-semibold truncate text-ink dark:text-gray-100" title="{{ $row->dr_name }}">{{ $row->dr_name }}</div>
+                                <div class="flex flex-wrap items-center gap-1.5 mt-1">
+                                    <x-badge :variant="$row->gaji_status === 'F' ? 'success' : 'warning'">{{ $row->gaji_status === 'F' ? 'Final' : 'Draft' }}</x-badge>
+                                    @if ($row->versi_sebelumnya)
+                                        <x-badge variant="info" title="Angka berubah di SIRUS sejak pertama diambil — versi lama tersimpan">v{{ $row->versi }}</x-badge>
+                                    @endif
+                                    <span class="text-sm text-muted dark:text-gray-400">
+                                        {{ $row->dr_id }} &middot; <span class="font-mono">{{ $row->skema_gaji_pokok }}/{{ $row->potongan_rs_basis }}</span>
+                                        @if (in_array($row->potongan_rs_basis, ['T', 'J'], true)) {{ $persen($row->potongan_rs_persen) }}% @endif
+                                        &middot; {{ $row->npwp_status === 'Y' ? 'NPWP' : 'tanpa NPWP' }}
+                                    </span>
+                                </div>
+                                <div class="mt-1 text-sm truncate">
+                                    @if ($row->emp_id_map)
+                                        <span class="text-muted dark:text-gray-400">Karyawan SIAP:</span> <span class="text-body dark:text-gray-200">{{ $row->emp_name }}</span> <span class="font-mono text-muted dark:text-gray-400">{{ $row->emp_id_map }}</span>
+                                    @else
+                                        <x-badge variant="warning">Belum dipetakan ke karyawan</x-badge>
+                                    @endif
+                                </div>
+                            </td>
+
+                            {{-- TOTAL GAJI = jasa + gaji pokok --}}
+                            <td class="px-6 py-3 text-right align-middle">
+                                <div class="font-semibold t-num text-ink dark:text-gray-100">{{ $rp($row->total_gaji) }}</div>
+                                <div class="text-sm t-num text-muted dark:text-gray-400">
+                                    jasa {{ $rp($row->jasa_total) }}
+                                    @if ((float) $row->nilai_gaji_pokok > 0) + pokok {{ $rp($row->nilai_gaji_pokok) }} @endif
+                                </div>
+                            </td>
+
+                            {{-- POTONGAN = RS + PPh + lain --}}
+                            <td class="px-6 py-3 text-right align-middle">
+                                <div class="font-semibold t-num text-rose-600 dark:text-rose-300">-{{ $rp($potonganTotal) }}</div>
+                                <div class="text-sm t-num text-muted dark:text-gray-400">
+                                    RS {{ $rp(abs((float) $row->potongan_rs)) }} &middot; PPh {{ $rp(abs((float) $row->pph21)) }}
+                                    @if ((float) $row->potongan_lain_total != 0) &middot; lain {{ $rp(abs((float) $row->potongan_lain_total)) }} @endif
+                                </div>
+                            </td>
+
+                            {{-- DITERIMA + pembanding bulan lalu (khas SIAP) --}}
+                            <td class="px-6 py-3 text-right align-middle">
+                                <div class="text-xl font-bold t-num text-emerald-700 dark:text-emerald-300">{{ $rp($row->gaji_diterima) }}</div>
+                                <div class="text-sm t-num text-muted dark:text-gray-400">
+                                    @if ((float) $row->tambahan_total > 0)<span class="block">termasuk tambahan {{ $rp($row->tambahan_total) }}</span>@endif
+                                    <span class="{{ $row->selisih_bulan_lalu === null ? '' : ($row->selisih_bulan_lalu < 0 ? 'text-fg-danger-strong' : 'text-fg-success-strong') }}" title="Dibanding gaji diterima bulan jasa sebelumnya">vs bulan lalu {{ $selisih($row->selisih_bulan_lalu) }}</span>
+                                </div>
+                            </td>
+
+                            {{-- AKSI: Rincian (outline) · Lampiran (icon abu, ikon daftar). Target ber-argumen supaya hanya barisnya yang berputar. --}}
+                            <td class="px-6 py-3 align-middle">
+                                <div class="flex flex-nowrap items-center justify-center gap-1.5">
+                                    <x-outline-button type="button" class="whitespace-nowrap shrink-0" wire:click="openRincian({{ $row->gd_id }})" wire:loading.attr="disabled" wire:target="openRincian({{ $row->gd_id }})">
+                                        <span wire:loading.remove wire:target="openRincian({{ $row->gd_id }})" class="inline-flex items-center gap-2">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                            Rincian
+                                        </span>
+                                        <span wire:loading wire:target="openRincian({{ $row->gd_id }})"><x-loading /> Membuka</span>
+                                    </x-outline-button>
+                                    <x-icon-button color="gray" type="button" class="!p-2.5 shrink-0" wire:click="openLampiran({{ $row->gd_id }})" wire:loading.attr="disabled" wire:target="openLampiran({{ $row->gd_id }})"
+                                        title="Lampiran rincian pasien {{ $row->dr_name }} ({{ $row->jumlah_lampiran }} baris)" aria-label="Lampiran rincian pasien {{ $row->dr_name }}">
+                                        <span wire:loading.remove wire:target="openLampiran({{ $row->gd_id }})" class="inline-flex items-center gap-1">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" /></svg>
+                                            <span class="text-xs t-num">{{ $row->jumlah_lampiran }}</span>
+                                        </span>
+                                        <span wire:loading wire:target="openLampiran({{ $row->gd_id }})"><x-loading size="md" /></span>
+                                    </x-icon-button>
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="6" class="px-6 py-16 text-center text-muted dark:text-gray-400">
+                                @if ($total['jumlah'] === 0)
+                                    Belum ada snapshot bulan jasa {{ $labelJasa }}. Klik <span class="font-semibold">Ambil dari SIRUS</span> untuk menariknya.
+                                @else
+                                    Tidak ada slip yang cocok dengan saringan. <button type="button" wire:click="resetFilters" class="font-semibold underline underline-offset-2 text-brand-green dark:text-brand-lime">Reset saringan</button>
+                                @endif
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
+
 </div>

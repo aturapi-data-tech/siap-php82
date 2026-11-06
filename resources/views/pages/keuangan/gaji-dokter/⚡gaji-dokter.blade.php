@@ -12,7 +12,8 @@ use Livewire\Attributes\Url;
  *   PEMETAAN : pages::keuangan.gaji-dokter.gaji-dokter-pemetaan — dokter SIRUS ↔ karyawan SIAP (LOV), segarkan master dokter.
  *   RIWAYAT  : pages::keuangan.gaji-dokter.gaji-dokter-riwayat  — jejak tiap penarikan (baru / berubah / sama).
  *
- * Komunikasi antar tab lewat event: buku → 'keuangan.gaji-dokter.openLampiran' (gdId) → pembungkus pindah ke Lampiran.
+ * Komunikasi antar tab lewat event: buku → 'keuangan.gaji-dokter.openLampiran' (gdId) → pembungkus pindah ke Lampiran;
+ *   buku → 'keuangan.gaji-dokter.openRincian' (gdId) → modal gaji-dokter-rincian (dipasang di pembungkus, sejajar tab).
  * SIAP hanya MEMBACA SIRUS (App\Support\GajiDokterSirus); angka yang sudah tersimpan tidak berubah tanpa versi baru.
  * Hanya role gaji.kelola.
  */
@@ -89,4 +90,8 @@ new class extends Component {
             @endif
         </div>
     </div>
+
+    {{-- Modal Rincian berdiri SEJAJAR dengan tab (bukan di dalam Buku): tidak ikut unmount saat ganti tab, dan tombol
+         Lampiran di footernya mengirim event ke pembungkus ini (pola SIRUS). --}}
+    <livewire:pages::keuangan.gaji-dokter.gaji-dokter-rincian wire:key="gaji-dokter-rincian" />
 </div>
