@@ -62,7 +62,7 @@ class GajiKaryawan
         'ARISAN'     => 'Arisan',
         'KOPERASI'   => 'Koperasi / Iuran',
         'INFAQ'      => 'Infaq',
-        'BPJS'       => 'BPJS',
+        'BPJS'       => 'BPJS Kesehatan',
         'BPJS_TK'    => 'BPJS Ketenagakerjaan',
         'ANGSURAN'   => 'Angsuran',
         'ANGS_KOP'   => 'Angsuran Koperasi',
@@ -91,13 +91,16 @@ class GajiKaryawan
         'potongan_arisan'     => 'ARISAN',
         'potongan_koperasi'   => 'KOPERASI',
         'potongan_infaq'      => 'INFAQ',
-        'potongan_bpjs'       => 'BPJS',
+        // potongan_bpjs TIDAK lagi di sini: BPJS dihitung otomatis di hitungUlang() dari master bpjs_* + PengaturanGaji.
     ];
+
+    /** Komponen pendapatan yang menjadi upah hitung BPJS Ketenagakerjaan (JP) — tanpa lembur / bonus (sheet BPJS workbook lama). */
+    public const UPAH_BPJS_TK = ['POKOK', 'STRUKTURAL', 'PROFESI', 'MAKAN', 'TRANSPORT', 'JASA_MEDIK'];
 
     /** Kolom parameter yang berupa nominal rupiah (form parameter & validasi). */
     public const KOLOM_NOMINAL = [
         'gaji_pokok', 'tarif_makan', 'tarif_transport', 'tunjangan_struktural', 'tunjangan_profesi',
-        'potongan_asuransi', 'potongan_organisasi', 'potongan_arisan', 'potongan_koperasi', 'potongan_infaq', 'potongan_bpjs',
+        'potongan_asuransi', 'potongan_organisasi', 'potongan_arisan', 'potongan_koperasi', 'potongan_infaq',
     ];
 
     /** Urutan cetak per kode (pendapatan dulu, PPh 21 paling akhir). */
@@ -288,13 +291,21 @@ class GajiKaryawan
         return $baris;
     }
 
-    /** Hitung ulang PPh 21 & total header dari detail. Dipanggil setiap rincian berubah. */
+    /**
+     * Hitung ulang BPJS, PPh 21 & total header dari detail. Dipanggil setiap rincian berubah.
+     * BPJS (pola PPh 21): dari master karyawan (bpjs_jkn, bpjs_jkn_dasar, bpjs_keluarga, bpjs_jp) + PengaturanGaji (UMK, %):
+     *   BPJS Kesehatan = % JKN × dasar (master, atau UMK) × (1 + keluarga tambahan)
+     *   BPJS Ketenagakerjaan (JP) = % JP × max(UMK, pokok + tunjangan + JM bulan itu)
+     * Baris yang ditimpa petugas (nilai_manual = 1) dipertahankan.
+     */
     public static function hitungUlang(int $gajiId): void
     {
         $slip = DB::table('siaptxn_gaji_hdrs')->where('gaji_id', $gajiId)->first();
         if (!$slip) {
             return;
         }
+
+        self::hitungBpjs($gajiId, (string) $slip->emp_id);
 
         $detail = DB::table('siaptxn_gaji_dtls')->where('gaji_id', $gajiId)->get();
         $pendapatan = (float) $detail->where('jenis', 'D')->sum('nilai');
@@ -317,6 +328,45 @@ class GajiKaryawan
             'gaji_diterima'    => round($pendapatan + $potongan, 2),
             'updated_at'       => now(),
         ]);
+    }
+
+    /** Baris BPJS otomatis (kode BPJS & BPJS_TK) — lihat hitungUlang(). @return array{jkn: float, jp: float, upah: float} */
+    public static function hitungBpjs(int $gajiId, string $empId): array
+    {
+        $master = DB::table('siapmst_gaji_karyawans')->where('emp_id', $empId)->first(['bpjs_jkn', 'bpjs_jkn_dasar', 'bpjs_keluarga', 'bpjs_jp']);
+        $aturan = PengaturanGaji::ambil();
+        $detail = DB::table('siaptxn_gaji_dtls')->where('gaji_id', $gajiId)->get();
+        $upah = max((float) $aturan->umk, (float) $detail->where('jenis', 'D')->whereIn('kode', self::UPAH_BPJS_TK)->sum('nilai'));
+        $hasil = ['jkn' => 0.0, 'jp' => 0.0, 'upah' => $upah];
+
+        foreach (['BPJS' => 'bpjs_jkn', 'BPJS_TK' => 'bpjs_jp'] as $kode => $flag) {
+            $manual = $detail->where('kode', $kode)->firstWhere('nilai_manual', '1');
+            DB::table('siaptxn_gaji_dtls')->where('gaji_id', $gajiId)->where('kode', $kode)->where('otomatis', '1')->where('nilai_manual', '0')->delete();
+            if ($manual || !$master || $master->$flag !== '1') {
+                continue;
+            }
+            if ($kode === 'BPJS') {
+                $dasar = (float) ($master->bpjs_jkn_dasar ?? 0) > 0 ? (float) $master->bpjs_jkn_dasar : (float) $aturan->umk;
+                $jiwa = 1 + max(0, (int) $master->bpjs_keluarga);
+                $nilai = round($aturan->persen_jkn / 100 * $dasar * $jiwa);
+                $keterangan = self::persenLabel($aturan->persen_jkn) . '% × ' . self::rupiah($dasar) . ($jiwa > 1 ? " × {$jiwa} jiwa" : '');
+                $hasil['jkn'] = $nilai;
+            } else {
+                $nilai = round($aturan->persen_jp / 100 * $upah);
+                $keterangan = 'JP ' . self::persenLabel($aturan->persen_jp) . '% × ' . self::rupiah($upah);
+                $hasil['jp'] = $nilai;
+            }
+            if ($nilai > 0) {
+                self::simpanBaris($gajiId, ['jenis' => 'P', 'kode' => $kode, 'nilai' => -$nilai, 'otomatis' => '1', 'keterangan' => $keterangan]);
+            }
+        }
+
+        return $hasil;
+    }
+
+    private static function persenLabel(float $persen): string
+    {
+        return rtrim(rtrim(number_format($persen, 2, ',', '.'), '0'), ',');
     }
 
     /** Simpan satu baris detail; tanda nilai mengikuti jenis (potongan selalu negatif, koreksi boleh minus). */

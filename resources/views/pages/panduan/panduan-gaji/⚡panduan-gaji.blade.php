@@ -125,7 +125,8 @@ new class extends Component {
                             <tr><td>Gaji Pokok, Tunjangan Struktural, Tunjangan Profesi</td><td>Nominal tetap per bulan.</td></tr>
                             <tr><td>Tarif Makan, Tarif Transport</td><td>Per <b>hari kerja</b> — dikali hari kerja slip.</td></tr>
                             <tr><td>Hari Kerja Default</td><td>Pengali tarif makan &amp; transport untuk slip <b>baru</b> (mis. 25). Per slip bisa diubah (bagian 8).</td></tr>
-                            <tr><td>Potongan rutin</td><td>Asuransi, iuran organisasi (PPNI/IBI), arisan, koperasi, infaq, BPJS — nominal tetap per bulan.</td></tr>
+                            <tr><td>Potongan rutin</td><td>Asuransi lain, iuran organisasi (PPNI/IBI), arisan, koperasi, infaq — nominal tetap per bulan.</td></tr>
+                            <tr><td class="font-semibold">BPJS</td><td>Kepesertaan JKN (dasar hitung &amp; keluarga tambahan) dan JP. Potongannya <b>dihitung otomatis</b> di slip dari UMK &amp; persen di Gaji Karyawan → <b>Ketentuan BPJS</b>; JP ikut berubah saat JM berubah. Bisa ditimpa per slip di rincian.</td></tr>
                             <tr><td>PPh 21 (%)</td><td>Persen dari total pendapatan slip (bagian 9). 0 = tanpa PPh.</td></tr>
                             <tr><td>Bank &amp; No. Rekening</td><td>Tercetak di slip.</td></tr>
                             <tr><td>Poin Jasa Medik (master)</td><td>Poin karyawan per pos ({{ collect($jm::POS)->pluck('nama')->implode(', ') }}), boleh desimal. Sumber <b>Generate Poin dari Master</b> di menu Pembagian Jasa Medik (bagian 3).</td></tr>
@@ -219,38 +220,64 @@ new class extends Component {
                 {{-- PINJAMAN KARYAWAN --}}
                 <section id="pinjaman" class="p-6 border scroll-mt-24 bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
                     <h2>5. Pinjaman Karyawan — {!! $tautan('keuangan.pinjaman-karyawan', 'buka') !!}</h2>
-                    <p class="mt-2 text-sm">Pengganti buku pinjaman koperasi (workbook <i>Angsuran Tiap Bulan Potong Gaji</i>, sheet 1% / 0,8% / LAPORAN 1) dan blok BRI / Koperasi / Rinjani di sheet <i>angsuran</i> workbook gaji lama.
-                        Pinjaman dicatat <b>sekali</b>; angsuran tiap bulan dihitung sendiri, posisi "ke-n / lama" bergeser otomatis, dan berhenti saat lunas.</p>
-                    <h3 class="mt-4">Ketentuan (sekali, atau bila berubah)</h3>
-                    <ul class="mt-1 text-sm">
-                        <li>Tab <b>Ketentuan</b>: tiap sumber (Koperasi, BRI, …) punya <b>% sewa modal / bulan</b>, <b>pembulatan</b> angsuran, dan <b>baris slip</b> tujuan (Angsuran Koperasi / Angsuran Bank / Angsuran lain). Sumber baru ditambah di baris bawah tabel.</li>
-                        <li>Perubahan ketentuan berlaku untuk pinjaman <b>baru</b>. Pinjaman lama tetap pada % saat pinjam (tersimpan di pinjamannya).</li>
-                        <li>Rumus (sama dengan Excel koperasi): sewa modal / bln = pokok × %; angsuran / bln = (pokok ÷ lama + sewa modal) dibulatkan ke atas ke kelipatan pembulatan. Pinjaman bank yang angsurannya sudah ditetapkan bank: isi <b>Angsuran tetap</b> di pinjamannya — menimpa rumus.</li>
-                        <li>Bank-bank umum (BSI, Mandiri, BNI, BCA, BTN, Bank Jatim, BPR, Pegadaian) sudah disiapkan <b>nonaktif</b>; nyalakan sakelar Aktif saat ada karyawan yang meminjam di sana. Bank lain ditambah lewat baris "Tambah sumber baru".</li>
-                    </ul>
-                    <h3 class="mt-4">Saat ada yang pinjam</h3>
+                    <p class="mt-2 text-sm">Pengganti buku pinjaman koperasi (workbook <i>Angsuran Tiap Bulan Potong Gaji</i>, sheet 1% / 0,8% / LAPORAN 1) dan blok BRI / Koperasi / Rinjani di sheet <i>angsuran</i> workbook gaji lama. Empat tab: <b>Entry</b> (catat pinjaman), <b>Buku</b> (posisi &amp; Terapkan ke Slip), <b>Pembayaran</b> (bayar di luar gaji &amp; riwayat per orang), <b>Ketentuan</b> (aturan per sumber).</p>
+
+                    <h3 class="mt-4">Cara kerja</h3>
                     <ol class="mt-1 text-sm">
-                        <li>Buka tab <b>Entry Pinjaman</b> (atau klik <b>Pinjaman Baru</b> di tab Buku): pilih karyawan dan sumber, isi pokok, lama (bulan), dan <b>bulan kerja angsuran ke-1</b>. % sewa modal terisi dari ketentuan sumber, boleh diubah untuk pinjaman itu (mis. 0 = tanpa sewa modal). Centang "melunasi sisa pinjaman lama" bila pinjaman ini menggantikan pinjaman yang masih berjalan.</li>
-                        <li>Kotak pratinjau menampilkan sewa modal, pokok / bln, <b>angsuran / bln</b>, total, dan bulan terakhir. <b>Simpan ke Buku</b> → pindah ke tab Buku Pinjaman.</li>
-                        <li>Klik <b>Terapkan ke Slip</b> bila slip bulan ini sudah ada — atau biarkan, tiap bulan tetap harus Terapkan (bagian "Tiap bulan").</li>
+                        <li><b>Ketentuan per sumber</b> (Koperasi, BRI, …): % sewa modal / bulan, pembulatan, dan baris slip tujuan. Dipakai saat pinjaman <b>baru</b> dicatat; pinjaman lama menyimpan % saat pinjam.</li>
+                        <li><b>Pinjaman</b> = pokok, lama bulan, bulan kerja angsuran ke-1. Angsuran / bulan = (pokok ÷ lama + pokok × %) dibulatkan ke atas — atau <b>angsuran tetap</b> bila pemberi pinjaman (bank) sudah menetapkannya. Tiap angsuran dikenali lewat <b>bulan kerjanya</b>: ke-1 = bulan awal, ke-2 = bulan berikutnya, dst.</li>
+                        <li><b>Buku pembayaran</b>: satu baris per angsuran yang terbayar, dengan sumbernya — <b>potong gaji</b> (dibuat otomatis saat Terapkan ke Slip) atau <b>tunai / transfer</b> (dicatat Keuangan di tab Pembayaran). Satu angsuran hanya bisa dibayar sekali, jadi tidak mungkin terpotong dobel.</li>
+                        <li><b>Tiap bulan kerja, Terapkan ke Slip</b> menanyakan untuk tiap pinjaman berjalan: "kewajiban bulan ini sudah dibayar?" Belum → dipotong di slip Draft &amp; dicatat potong gaji. Sudah (tunai / di muka) → dilewati. Ditunda → dilewati, tetap belum terbayar. Aman diulang: baris di slip diganti, bukan ditambah; slip <b>Final</b> tidak disentuh.</li>
+                        <li><b>Status</b> dihitung dari buku setiap kali ditampilkan, tidak disimpan: <i>Berjalan</i> (ke-n di antara awal–akhir, belum semua terbayar), <i>Lunas</i> (semua angsuran terbayar, atau total nominal ≥ total hutang, atau masa habis), <i>Dilunasi</i> (tanda Lunasi / ditutup pinjaman baru), <i>Belum mulai</i>. <b>Tunggakan</b> = angsuran yang bulannya sudah lewat tanpa pembayaran apa pun (termasuk yang ditunda) — tampil merah.</li>
+                        <li><b>Kunci data</b>: pinjaman yang sudah punya satu pembayaran pun tidak bisa dihapus (salah input → hapus &amp; catat lagi sebelum ada pembayaran). Angsuran yang sudah terpotong di slip <b>Final</b> tidak bisa diubah, ditunda, atau dihapus dari buku.</li>
                     </ol>
-                    <h3 class="mt-4">Tiap bulan</h3>
+
+                    <h3 class="mt-4">Langkah rutin</h3>
                     <ol class="mt-1 text-sm">
-                        <li>Tab <b>Buku Pinjaman</b>, pilih <b>Bulan Kerja</b> (sama dengan bulan slip). Kolom Posisi menunjukkan angsuran ke berapa dan sisa bulan.</li>
-                        <li>Klik <b>Terapkan ke Slip</b> → satu baris potongan per pinjaman berjalan ditulis ke slip Draft, mis. "Koperasi An-Nashir ke-5/15". Pinjaman yang sudah lunas tidak ditulis; bekas angsurannya di slip dihapus.</li>
+                        <li><b>Sekali / bila berubah</b> — tab Ketentuan: isi % sewa modal, pembulatan, baris slip; nyalakan bank yang dipakai (bank umum sudah disiapkan nonaktif), tambah sumber baru bila perlu.</li>
+                        <li><b>Saat ada yang pinjam</b> — tab Entry: pilih karyawan (ketik nama / ID, pilih dari daftar), sumber, pokok, lama, bulan kerja angsuran ke-1, angsuran tetap bila dari bank. Centang "melunasi sisa pinjaman lama" bila pinjaman ini menggantikan pinjaman berjalan di sumber yang sama (praktik koperasi). Kotak pratinjau menampilkan angsuran / bulan dan bulan terakhir. <b>Simpan ke Buku</b>.</li>
+                        <li><b>Tiap bulan</b> — tab Buku: pilih Bulan Kerja (= bulan slip), pastikan slip sudah di-Generate dan JM diterapkan, lalu <b>Terapkan ke Slip</b>. Kolom Slip menunjukkan kecocokan; tanda "N slip Draft belum sesuai buku pinjaman" = perlu Terapkan lagi.</li>
+                        <li><b>Memeriksa seseorang</b> — tab Pembayaran: pilih karyawan → semua pinjamannya, tiap angsuran yang terbayar dan sumbernya, serta <b>kurang berapa</b>.</li>
                     </ol>
-                    <ul class="mt-3 text-sm">
-                        <li><b>Terapkan aman diulang</b> — angsuran di slip diganti, bukan ditambah. Tanda "N slip Draft belum sesuai buku pinjaman" muncul bila ada pinjaman baru / lunas / diubah setelah diterapkan.</li>
-                        <li><b>Pelunasan dipercepat</b>: tombol <b>Lunasi</b> → mulai bulan kerja terpilih tidak dipotong lagi; riwayat tetap ada (saringan Status: Lunas). Salah tandai → <b>Batal lunas</b>.</li>
-                        <li><b>Bayar di luar gaji</b> (tunai / transfer): tab <b>Pembayaran</b> (atau tombol <b>Bayar</b> di Buku) → pilih peminjam dan pinjamannya, isi angsuran ke- dari…sampai (bisa beberapa sekaligus: dobel / di muka), cara bayar, tanggal, jumlah. Angsuran yang tercatat di sini <b>tidak dipotong</b> di slip; bila slip bulan itu sudah berisi angsurannya, klik Terapkan ulang. Potongan lewat gaji tidak perlu dicatat — otomatis.</li>
-                        <li><b>Tunda</b>: atas permintaan karyawan yang disetujui manajemen, angsuran bulan kerja terpilih tidak dipotong gaji (tombol <b>Tunda</b> di Buku, lalu Terapkan ulang bila slip sudah berisi). Kewajibannya tetap: bulan depan tampil sebagai tunggakan — dibayar tunai di tab Pembayaran atau ditagih di slip lewat Tagih tunggakan; kewajiban bulan berikutnya tetap dari gaji. Salah tekan → <b>Batal tunda</b>.</li>
-                        <li><b>Tunggakan</b> (angsuran lewat tanpa pembayaran, termasuk yang ditunda) tampil merah di kolom posisi. Tombol <b>Tagih tunggakan</b> menambahkannya ke slip bulan kerja terpilih (potongan dobel), masuk slip saat Terapkan. Bayar di muka untuk bulan depan dilakukan lewat tab Pembayaran (tunai / transfer), bukan lewat slip.</li>
-                        <li>Pinjaman hasil impor: angsuran s/d bulan sebelum SIAP dipakai dicatat sebagai "riwayat sebelum SIAP" supaya tidak tampak sebagai tunggakan.</li>
-                        <li>Tidak ada tombol ubah. Salah input → <b>Hapus</b> lalu catat lagi; hanya bisa selama belum ada pembayaran. Pinjaman yang sudah punya pembayaran <b>terkunci</b> (data valid) — yang tersisa hanya Tunda, Lunasi, dan pembayaran. Slip <b>Final</b> tidak disentuh.</li>
-                        <li><b>Riwayat per orang</b>: tab Pembayaran → pilih karyawan → semua pinjamannya tampil beserta tiap angsuran yang terbayar, sumbernya, dan <b>kurang berapa</b> (sisa angsuran × angsuran).</li>
-                        <li>Karyawan non-aktif keluar dari tagihan (pinjamannya tetap tercatat sebagai riwayat).</li>
-                        <li>Angsuran koperasi / bank tidak ada lagi di Form Bagian (Excel). Form Koperasi hanya untuk <b>iuran</b>. Angsuran lama yang masih berupa baris "Angsuran" manual di rincian slip tidak disentuh menu ini.</li>
-                    </ul>
+
+                    <h3 class="mt-4">Kasus per kasus</h3>
+                    <dl class="mt-1 space-y-3 text-sm">
+                        <div><dt class="font-semibold">A. Angsuran bulan ini sudah dibayar tunai / transfer sebelum gajian</dt>
+                            <dd><ol class="mt-1">
+                                <li>Tab Pembayaran → pilih karyawan → klik pinjamannya.</li>
+                                <li>Isi angsuran ke-n bulan itu (bawaan = angsuran pertama yang belum terbayar), cara bayar, tanggal, jumlah → <b>Catat Pembayaran</b>.</li>
+                                <li>Tab Buku → <b>Terapkan ke Slip</b> bila slip sudah berisi angsurannya → potongan dicabut; posisi menampilkan "bulan ini: Tunai".</li>
+                            </ol></dd></div>
+                        <div><dt class="font-semibold">B. Bayar dobel / di muka di luar gaji</dt>
+                            <dd>Sama seperti A, isi "ke-n sampai ke-m" (mis. ke-5 sampai ke-7). Bulan-bulan itu dilewati saat tiba; bulan sesudahnya kembali dipotong gaji. Bila nominal yang dibayar sudah mencapai total hutang, status langsung Lunas.</dd></div>
+                        <div><dt class="font-semibold">C. Bulan ini minta tidak dipotong dulu, dibayar nanti</dt>
+                            <dd><ol class="mt-1">
+                                <li>Tab Buku → nyalakan sakelar <b>Tunda</b> di sel posisi (baris "bulan ini").</li>
+                                <li><b>Terapkan ke Slip</b> lagi → baris angsuran dicabut dari slip; posisi menampilkan "bulan ini: ditunda". Kewajiban tetap belum terbayar.</li>
+                                <li>Bulan depan angsuran itu tampil merah sebagai tunggakan. Selesaikan lewat kasus A (bayar tunai), atau klik <b>Tagih tunggakan</b> → ikut dipotong di slip bulan depan bersama angsuran bulan depan (dobel), lalu Terapkan.</li>
+                                <li>Salah tekan → matikan sakelar Tunda, Terapkan lagi → kembali dipotong.</li>
+                            </ol>Selalu Terapkan ulang <b>sebelum</b> slip difinalkan; bila slip terlanjur Final, lihat kasus E.</dd></div>
+                        <div><dt class="font-semibold">D. Slip gaji dibuka ke Draft, lalu potongan dinonaktifkan</dt>
+                            <dd>Membuka slip ke Draft saja tidak mengubah buku. Setelah Tunda dinyalakan, catatan potong gaji bulan itu dicabut → angsuran kembali <b>belum terbayar</b> dan jadi tunggakan bulan depan. Terapkan sebelum Final lagi supaya slip dan buku selaras.</dd></div>
+                        <div><dt class="font-semibold">E. Slip sudah Final</dt>
+                            <dd>Semua yang menyangkut angsuran bulan itu terkunci: Tunda, bayar tunai untuk bulan itu, hapus catatan potong gaji, Lunasi mulai bulan itu — semua ditolak dengan pesan. Jalur resmi: Gaji Karyawan → buka slip ke Draft → lakukan perubahan → Terapkan → Final lagi. Bila gaji memang sudah dibayarkan ke karyawan, anggap angsuran bulan itu terbayar dan berlakukan Tunda / pelunasan untuk bulan berikutnya.</dd></div>
+                        <div><dt class="font-semibold">F. Pelunasan dipercepat / sisa dihapuskan</dt>
+                            <dd>Bila sisanya <b>dibayar</b>: kasus B (ke-n sampai angsuran terakhir) → Lunas. Bila sisanya <b>tidak ditagih</b> (dihapuskan, atau ditutup pinjaman baru): tombol <b>Lunasi</b> dengan Bulan Kerja = bulan pertama yang tidak dipotong (pelunasan sesudah potongan bulan ini dihitung → pilih bulan berikutnya) → status Dilunasi; riwayat per orang menulis "sisa N× tidak ditagih". Salah tandai → <b>Batal lunas</b>. Menghapus pembayaran tidak mengaktifkan pinjaman Dilunasi.</dd></div>
+                        <div><dt class="font-semibold">G. Salah input pinjaman</dt>
+                            <dd>Tidak ada tombol ubah. <b>Hapus</b> di Buku lalu catat lagi di Entry — hanya bisa selama belum ada pembayaran (termasuk belum pernah Terapkan). Sesudah itu pinjaman terkunci sebagai data valid.</dd></div>
+                        <div><dt class="font-semibold">H. Satu orang punya dua pinjaman</dt>
+                            <dd>Boleh. Sumber berbeda (koperasi + bank) berjalan paralel, masing-masing satu baris potongan di slip. Sumber sama: centang "melunasi sisa pinjaman lama" di Entry aktif secara bawaan; hilangkan centang bila keduanya memang berjalan bersama. Tab Pembayaran menampilkan semua pinjaman orang itu berdampingan dengan total kurangnya.</dd></div>
+                        <div><dt class="font-semibold">I. Dokter / karyawan yang gajinya tidak dihitung di SIAP tapi punya pinjaman</dt>
+                            <dd><ol class="mt-1">
+                                <li>Master Karyawan → tombol Gaji → simpan parameter <b>nol</b> (hari kerja default 0), lalu Generate slipnya di Gaji Karyawan.</li>
+                                <li>Terapkan ke Slip → slip <b>minus</b> sebesar angsuran. Angka minus ini <b>tagihan</b>, bukan bukti bayar.</li>
+                                <li>Sebelum slip difinalkan, pastikan angka itu benar-benar dipotong di sistem honor dokter — begitu Final, buku mencatat angsuran terbayar lewat gaji. Bila honor tidak memotong, catat pembayarannya di tab Pembayaran (kasus A) dan jangan finalkan potongan di slip.</li>
+                            </ol></dd></div>
+                        <div><dt class="font-semibold">J. Pinjaman bank dari workbook lama</dt>
+                            <dd>Workbook hanya menyimpan tanggal mulai, lama, dan angsuran. Dicatat sebagai pinjaman BRI dengan <b>angsuran tetap</b>; pokok diisi angsuran × lama (pokok asli tidak tercatat), jadi "sisa" = sisa angsuran × nominal, bukan sisa pokok menurut bank. Riwayat sampai bulan sebelum SIAP dipakai dicatat sebagai potong gaji "sebelum SIAP" supaya tidak tampak sebagai tunggakan.</dd></div>
+                        <div><dt class="font-semibold">K. File koperasi dan workbook gaji tidak sama</dt>
+                            <dd>Buku pinjaman mengikuti file koperasi (bendahara). Bandingkan tanda "Belum sesuai" / tunggakan di Buku dengan workbook, lalu putuskan bersama bendahara: Lunasi / Hapus bila memang tidak berjalan, atau biarkan ditagih.</dd></div>
+                    </dl>
                 </section>
 
                 {{-- FORM BAGIAN --}}
@@ -285,7 +312,7 @@ new class extends Component {
                     <ul class="mt-1 text-sm">
                         <li><b>Hari Kerja</b>: koreksi cepat per slip. Jalur utamanya tetap {!! $tautan('keuangan.laporan-pegawai', 'Laporan Kepegawaian') !!} (bagian 4); hari kerja yang diubah lewat form ini akan tampil "Belum sesuai" di sana sampai diterapkan ulang.</li>
                         <li><b>Kenaikan Gaji</b>: mengubah parameter gaji karyawan, dan slip Draft bulan itu langsung disusun ulang.</li>
-                        <li><b>Iuran Koperasi</b> &amp; <b>BPJS</b>: menimpa potongan rutin parameter untuk bulan itu saja. Angsuran pinjaman tidak di sini — lihat {!! $tautan('keuangan.pinjaman-karyawan', 'Pinjaman Karyawan') !!} (bagian 5).</li>
+                        <li><b>Iuran Koperasi</b>: menimpa potongan rutin parameter untuk bulan itu saja. Angsuran pinjaman tidak di sini — lihat {!! $tautan('keuangan.pinjaman-karyawan', 'Pinjaman Karyawan') !!} (bagian 5). BPJS juga tidak di sini — otomatis dari master (bagian 1).</li>
                     </ul>
                     <p class="mt-3 text-sm">Sandi proteksi form hanya diketahui keuangan (pengaturan <code>GAJI_FORM_SANDI</code> di server).</p>
                 </section>
@@ -389,6 +416,8 @@ new class extends Component {
                             <tr><td class="font-semibold">Total pendapatan</td><td>gaji pokok + tunjangan + makan + transport + jasa medik + lembur + bonus + rapel + koreksi + lain</td></tr>
                             <tr><td class="font-semibold">Jasa medik per pos</td><td>poin karyawan × (nilai dasar × % JM × % pegawai ÷ total poin pos)</td></tr>
                             <tr><td class="font-semibold">Upah lembur</td><td>jam ÷ {{ $lap::LEMBUR_JAM_PER_HARI }} ÷ {{ $lap::LEMBUR_HARI_ACUAN }} × (gaji pokok + jasa medik + makan + transport) × {{ $lap::LEMBUR_FAKTOR * 100 }}%</td></tr>
+                            <tr><td class="font-semibold">BPJS Kesehatan</td><td>% JKN karyawan × dasar (master, atau UMK) × (1 + keluarga tambahan) — otomatis bila peserta JKN</td></tr>
+                            <tr><td class="font-semibold">BPJS Ketenagakerjaan</td><td>% JP karyawan × upah bulan itu (pokok + tunjangan + jasa medik, minimal UMK) — otomatis bila peserta JP; ikut berubah saat JM berubah</td></tr>
                             <tr><td class="font-semibold">PPh 21</td><td>PPh 21 (%) × total pendapatan (dibulatkan ke bawah), kecuali ditimpa</td></tr>
                             <tr><td class="font-semibold">Total potongan</td><td>potongan rutin + angsuran + kasbon + lain + PPh 21</td></tr>
                             <tr><td class="font-semibold">Gaji diterima</td><td>total pendapatan − total potongan</td></tr>

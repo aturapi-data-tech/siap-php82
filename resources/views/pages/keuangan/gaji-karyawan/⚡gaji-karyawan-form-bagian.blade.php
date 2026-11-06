@@ -10,7 +10,7 @@ use App\Support\GajiFormBagian;
 use App\Support\GajiKaryawan;
 
 /**
- * Modal "Form Bagian": ekspor form Excel per bagian (hari kerja, bon, kenaikan gaji, iuran koperasi, BPJS)
+ * Modal "Form Bagian": ekspor form Excel per bagian (hari kerja, bon, kenaikan gaji, iuran koperasi)
  * untuk diisi bagian terkait, lalu impor kembali → slip Draft diperbarui.
  * Jasa Medik lewat menu Pembagian Jasa Medik, Lembur lewat Laporan Kepegawaian, angsuran lewat Pinjaman Karyawan (kartu penunjuk di akhir grid).
  * Logika ekspor/impor di App\Support\GajiFormBagian. Bulan & unit mengikuti toolbar halaman gaji.
@@ -200,6 +200,15 @@ new class extends Component {
                             class="inline-flex items-center justify-center w-full gap-2 px-5 py-2.5 mt-auto text-sm font-medium border rounded-lg text-brand-green border-brand-green/30 bg-brand-green/10 hover:bg-brand-green hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green dark:text-brand-lime dark:border-brand-lime/30 dark:bg-brand-lime/10 dark:hover:bg-brand-lime dark:hover:text-gray-900">
                             Buka Pinjaman Karyawan →
                         </a>
+                    </div>
+
+                    {{-- BPJS bukan form Excel: dihitung otomatis di slip dari master karyawan + Ketentuan BPJS (satu sumber). --}}
+                    <div class="flex flex-col p-4 border border-dashed shadow-sm bg-canvas border-hairline rounded-2xl dark:bg-gray-800 dark:border-gray-700">
+                        <div class="flex items-start justify-between gap-2">
+                            <h3 class="font-semibold text-ink dark:text-gray-100">BPJS</h3>
+                            <x-badge variant="info" class="shrink-0">Otomatis</x-badge>
+                        </div>
+                        <p class="mt-1 text-xs text-muted">Tidak lewat Excel. BPJS Kesehatan (JKN × dasar × jiwa) dan Ketenagakerjaan (JP × upah bulan itu) dihitung otomatis di slip dari kepesertaan di Master Karyawan → Gaji dan UMK / persen di <b>Ketentuan BPJS</b>. Bisa ditimpa per slip di rincian.</p>
                     </div>
                 </div>
             </div>

@@ -54,6 +54,10 @@ new class extends Component {
             }
             $this->form['pph21_persen'] = (float) $parameter->pph21_persen;
             $this->form['hari_kerja_default'] = (int) $parameter->hari_kerja_default;
+            $this->form['bpjs_jkn'] = ($parameter->bpjs_jkn ?? '0') === '1';
+            $this->form['bpjs_jkn_dasar'] = (int) round((float) ($parameter->bpjs_jkn_dasar ?? 0));
+            $this->form['bpjs_keluarga'] = (int) ($parameter->bpjs_keluarga ?? 0);
+            $this->form['bpjs_jp'] = ($parameter->bpjs_jp ?? '0') === '1';
             $this->form['nama_bank']    = (string) ($parameter->nama_bank ?? '');
             $this->form['no_rekening']  = (string) ($parameter->no_rekening ?? '');
         }
@@ -78,6 +82,9 @@ new class extends Component {
         return [...$rules,
             'form.pph21_persen' => 'required|numeric|min:0|max:50',
             'form.hari_kerja_default' => 'required|integer|min:0|max:31',
+            'form.bpjs_jkn' => 'boolean', 'form.bpjs_jp' => 'boolean',
+            'form.bpjs_jkn_dasar' => 'required|numeric|min:0|max:999999999',
+            'form.bpjs_keluarga' => 'required|integer|min:0|max:9',
             'form.nama_bank'    => 'nullable|string|max:30',
             'form.no_rekening'  => 'nullable|string|max:30',
         ];
@@ -99,7 +106,8 @@ new class extends Component {
             'form.gaji_pokok' => 'Gaji Pokok', 'form.tarif_makan' => 'Tarif Makan', 'form.tarif_transport' => 'Tarif Transport',
             'form.tunjangan_struktural' => 'Tunjangan Struktural', 'form.tunjangan_profesi' => 'Tunjangan Profesi',
             'form.potongan_asuransi' => 'Asuransi', 'form.potongan_organisasi' => 'Iuran Organisasi', 'form.potongan_arisan' => 'Arisan',
-            'form.potongan_koperasi' => 'Koperasi', 'form.potongan_infaq' => 'Infaq', 'form.potongan_bpjs' => 'BPJS',
+            'form.potongan_koperasi' => 'Koperasi', 'form.potongan_infaq' => 'Infaq',
+            'form.bpjs_jkn_dasar' => 'Dasar JKN', 'form.bpjs_keluarga' => 'Keluarga tambahan',
             ...collect(JasaMedik::POS)->mapWithKeys(fn($pos, $kode) => ["poinJm.{$kode}" => 'Poin JM ' . $pos['nama']])->all(),
             'form.pph21_persen' => 'PPh 21', 'form.hari_kerja_default' => 'Hari Kerja Default', 'form.nama_bank' => 'Bank', 'form.no_rekening' => 'No. Rekening',
         ];
@@ -110,6 +118,9 @@ new class extends Component {
         $this->validate();
 
         $payload = ['pph21_persen' => (float) $this->form['pph21_persen'], 'hari_kerja_default' => (int) $this->form['hari_kerja_default'], 'updated_by' => auth()->id(), 'updated_at' => now(),
+            'bpjs_jkn' => $this->form['bpjs_jkn'] ? '1' : '0', 'bpjs_jp' => $this->form['bpjs_jp'] ? '1' : '0',
+            'bpjs_jkn_dasar' => (float) $this->form['bpjs_jkn_dasar'] > 0 ? (float) $this->form['bpjs_jkn_dasar'] : null,
+            'bpjs_keluarga' => (int) $this->form['bpjs_keluarga'],
             'nama_bank'   => trim($this->form['nama_bank']) !== '' ? trim($this->form['nama_bank']) : null,
             'no_rekening' => trim($this->form['no_rekening']) !== '' ? trim($this->form['no_rekening']) : null];
         foreach (GajiKaryawan::KOLOM_NOMINAL as $kolom) {
@@ -137,7 +148,8 @@ new class extends Component {
 
     private function resetForm(): void
     {
-        $this->form = array_fill_keys(GajiKaryawan::KOLOM_NOMINAL, 0) + ['pph21_persen' => 0, 'hari_kerja_default' => 25, 'nama_bank' => '', 'no_rekening' => ''];
+        $this->form = array_fill_keys(GajiKaryawan::KOLOM_NOMINAL, 0) + ['pph21_persen' => 0, 'hari_kerja_default' => 25, 'nama_bank' => '', 'no_rekening' => '',
+            'bpjs_jkn' => false, 'bpjs_jkn_dasar' => 0, 'bpjs_keluarga' => 0, 'bpjs_jp' => false];
         $this->poinJm = array_fill_keys(array_keys(JasaMedik::POS), 0);
         $this->sudahAda = false;
         $this->resetValidation();
@@ -191,12 +203,11 @@ new class extends Component {
                     <x-border-form title="Potongan Rutin (per bulan)">
                         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             @foreach ([
-                                'potongan_asuransi' => 'Asuransi',
+                                'potongan_asuransi' => 'Asuransi lain (bukan BPJS)',
                                 'potongan_organisasi' => 'Iuran Organisasi (PPNI / IBI)',
                                 'potongan_arisan' => 'Arisan',
                                 'potongan_koperasi' => 'Koperasi / Iuran',
                                 'potongan_infaq' => 'Infaq',
-                                'potongan_bpjs' => 'BPJS',
                             ] as $kolom => $labelKolom)
                                 <div wire:key="kolom-{{ $kolom }}">
                                     <x-input-label :value="$labelKolom" />
@@ -205,7 +216,32 @@ new class extends Component {
                                 </div>
                             @endforeach
                         </div>
-                        <p class="mt-3 text-xs text-muted">Kasbon &amp; angsuran diisi di rincian slip setiap bulan.</p>
+                        <p class="mt-3 text-xs text-muted">Kasbon diisi lewat Form Bagian; angsuran pinjaman dari menu Pinjaman Karyawan; BPJS dihitung otomatis (kotak di bawah).</p>
+                    </x-border-form>
+
+                    <x-border-form title="BPJS (dihitung otomatis di slip)" class="lg:col-span-2">
+                        @php $aturanBpjs = \App\Support\PengaturanGaji::ambil(); @endphp
+                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-4">
+                            <div class="sm:col-span-2">
+                                <x-toggle wire:model.live="form.bpjs_jkn" :trueValue="true" :falseValue="false" label="Peserta BPJS Kesehatan (JKN)" />
+                                <p class="mt-1 text-xs text-muted">Potongan {{ rtrim(rtrim(number_format($aturanBpjs->persen_jkn, 2, ',', '.'), '0'), ',') }}% × dasar × (1 + keluarga tambahan).</p>
+                            </div>
+                            <div class="sm:col-span-2">
+                                <x-toggle wire:model.live="form.bpjs_jp" :trueValue="true" :falseValue="false" label="Peserta BPJS Ketenagakerjaan (JP)" />
+                                <p class="mt-1 text-xs text-muted">Potongan JP {{ rtrim(rtrim(number_format($aturanBpjs->persen_jp, 2, ',', '.'), '0'), ',') }}% × upah bulan itu (pokok + tunjangan + JM, min. UMK) — berubah tiap bulan.</p>
+                            </div>
+                            <div class="sm:col-span-2">
+                                <x-input-label value="Dasar hitung JKN (kosong = UMK {{ \App\Support\GajiKaryawan::rupiah($aturanBpjs->umk) }})" />
+                                <x-text-input-number wire:model="form.bpjs_jkn_dasar" :disabled="!$form['bpjs_jkn']" :error="$errors->has('form.bpjs_jkn_dasar')" class="w-full mt-1" />
+                                <x-input-error :messages="$errors->get('form.bpjs_jkn_dasar')" class="mt-1" />
+                            </div>
+                            <div>
+                                <x-input-label value="Keluarga tambahan (jiwa)" />
+                                <x-text-input-number wire:model="form.bpjs_keluarga" :disabled="!$form['bpjs_jkn']" :error="$errors->has('form.bpjs_keluarga')" class="w-full mt-1" />
+                                <x-input-error :messages="$errors->get('form.bpjs_keluarga')" class="mt-1" />
+                            </div>
+                        </div>
+                        <p class="mt-3 text-xs text-muted">UMK &amp; persen diatur di Gaji Karyawan → <b>Ketentuan BPJS</b>. Baris BPJS di slip dihitung ulang setiap slip berubah (pola PPh 21) dan bisa ditimpa per slip di rincian.</p>
                     </x-border-form>
 
                     <x-border-form title="Poin Jasa Medik (master)" class="lg:col-span-2">

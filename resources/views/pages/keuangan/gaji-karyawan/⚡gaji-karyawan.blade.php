@@ -110,6 +110,11 @@ new class extends Component {
     }
 
     /** Modal ekspor / impor form Excel per bagian (bulan & unit mengikuti toolbar). */
+    public function openKetentuanBpjs(): void
+    {
+        $this->dispatch('keuangan.gaji-karyawan.openKetentuanBpjs', periode: $this->periode());
+    }
+
     public function openFormBagian(): void
     {
         $this->dispatch('keuangan.gaji-karyawan.openFormBagian', periode: $this->periode(), unitId: $this->filterUnit !== '' ? $this->filterUnit : null);
@@ -324,6 +329,9 @@ new class extends Component {
                             <span class="hidden min-[1360px]:inline">ZIP</span><span class="sr-only min-[1360px]:hidden">Unduh ZIP</span>
                         </x-secondary-button>
                         <x-toolbar-refresh-reset :label="null" />
+                        <x-icon-button color="gray" type="button" class="!p-2.5" wire:click="openKetentuanBpjs" title="Ketentuan BPJS: UMK, persen JKN & JP (dipakai hitungan otomatis slip)" aria-label="Ketentuan BPJS">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                        </x-icon-button>
                         {{-- Panduan ikon saja (hemat tempat → aksi muat satu baris dengan saringan); tautan bergaya tombol, bukan <button> di dalam <a> --}}
                         <a href="{{ route('panduan.gaji') }}" wire:navigate title="Panduan: cara pakai modul gaji" aria-label="Panduan modul gaji"
                             class="inline-flex items-center justify-center w-[42px] h-[42px] rounded-base text-heading hover:bg-neutral-secondary-medium focus:outline-none focus:ring-4 focus:ring-brand-medium">
@@ -417,6 +425,7 @@ new class extends Component {
 
             <livewire:pages::keuangan.gaji-karyawan.gaji-karyawan-rincian wire:key="gaji-karyawan-rincian" />
             <livewire:pages::keuangan.gaji-karyawan.gaji-karyawan-form-bagian wire:key="gaji-karyawan-form-bagian" />
+            <livewire:pages::keuangan.gaji-karyawan.gaji-karyawan-ketentuan-bpjs wire:key="gaji-karyawan-ketentuan-bpjs" />
         </div>
     </div>
 </div>

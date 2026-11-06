@@ -16,11 +16,12 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 /**
  * Form Excel per BAGIAN untuk slip gaji — pengganti sheet-sheet terpisah di workbook gaji lama
- * (angsuran, peg/BON, BPJS, …) yang dulu dirangkum sheet "gaji" lewat SUMIF nama.
+ * (peg/BON, kenaikan gaji, iuran koperasi, …) yang dulu dirangkum sheet "gaji" lewat SUMIF nama.
  * Jasa Medik TIDAK lewat form ini — dihitung & diterapkan di menu Pembagian Jasa Medik (App\Support\JasaMedik);
  * Lembur juga TIDAK — hari kerja & jam lembur dari menu Laporan Kepegawaian (App\Support\LaporanPegawai).
  * Angsuran koperasi / bank juga TIDAK — dari buku pinjaman di menu Pinjaman Karyawan (App\Support\PinjamanKaryawan).
- * Dengan begitu baris Jasa Medik, Upah Lembur, dan Angsuran slip masing-masing hanya punya satu sumber.
+ * BPJS juga TIDAK — dihitung otomatis di slip dari master karyawan (GajiKaryawan::hitungBpjs).
+ * Dengan begitu baris Jasa Medik, Upah Lembur, Angsuran, dan BPJS slip masing-masing hanya punya satu sumber.
  *
  * Alur: keuangan EKSPOR form satu bagian (berisi daftar slip periode + nilai saat ini) → dikirim ke
  * bagian terkait → bagian mengisi kolom KUNING → keuangan IMPOR → slip Draft diperbarui.
@@ -31,7 +32,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  *    Kosong = 0 (komponen dihapus), kecuali Hari Kerja & Kenaikan Gaji: kosong = tidak diubah.
  *  - Baris yang nilainya sama dengan slip dilewati (tidak menandai apa pun).
  *  - Slip Final dilewati — buka ke Draft dulu bila memang perlu diubah.
- *  - Komponen rutin dari parameter (Koperasi, BPJS) ditulis sebagai "ditimpa" → aman saat generate ulang.
+ *  - Komponen rutin dari parameter (Koperasi) ditulis sebagai "ditimpa" → aman saat generate ulang.
  *  - Sheet tersembunyi "_form" menyimpan bagian & periode; impor menolak form bagian/periode lain.
  */
 class GajiFormBagian
@@ -89,14 +90,6 @@ class GajiFormBagian
                 'keterangan' => 'Iuran koperasi bulan ini (menimpa iuran rutin parameter). Angsuran pinjaman koperasi TIDAK di sini — otomatis dari menu Pinjaman Karyawan.',
                 'kolom' => [
                     ['key' => 'iuran', 'label' => 'Iuran Koperasi', 'tipe' => 'rupiah', 'isi' => true, 'contoh' => 100000, 'petunjuk' => 'Iuran bulan ini (menimpa iuran rutin)'],
-                ],
-            ],
-            'bpjs' => [
-                'judul' => 'BPJS', 'petugas' => 'Kepegawaian',
-                'keterangan' => 'Iuran BPJS bagian karyawan bulan ini (menimpa potongan rutin parameter).',
-                'kolom' => [
-                    ['key' => 'bpjs', 'label' => 'BPJS Kesehatan', 'tipe' => 'rupiah', 'isi' => true, 'contoh' => 45000, 'petunjuk' => 'Iuran bagian karyawan'],
-                    ['key' => 'bpjs_tk', 'label' => 'BPJS Ketenagakerjaan', 'tipe' => 'rupiah', 'isi' => true, 'contoh' => 30000, 'petunjuk' => 'Iuran bagian karyawan'],
                 ],
             ],
         ];
@@ -335,8 +328,6 @@ class GajiFormBagian
                 return ['kasbon' => $jumlah('KASBON')];
             case 'koperasi':
                 return ['iuran' => $jumlah('KOPERASI')];
-            case 'bpjs':
-                return ['bpjs' => $jumlah('BPJS'), 'bpjs_tk' => $jumlah('BPJS_TK')];
         }
 
         return [];
@@ -527,10 +518,6 @@ class GajiFormBagian
                 break;
             case 'koperasi':
                 self::timpaRutin($gajiId, 'P', 'KOPERASI', $nilai['iuran']);
-                break;
-            case 'bpjs':
-                self::timpaRutin($gajiId, 'P', 'BPJS', $nilai['bpjs']);
-                self::gantiManual($gajiId, 'P', 'BPJS_TK', [['nilai' => $nilai['bpjs_tk']]]);
                 break;
         }
     }

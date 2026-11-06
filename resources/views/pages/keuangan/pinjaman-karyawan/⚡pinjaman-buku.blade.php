@@ -278,7 +278,7 @@ new class extends Component {
                     </x-select-input>
                 </div>
             </div>
-            <div class="w-44">
+            <div class="w-56">
                 <x-input-label for="pj-status" value="Status" />
                 <div class="mt-1">
                     <x-select-input id="pj-status" wire:model.live="filterStatus">
