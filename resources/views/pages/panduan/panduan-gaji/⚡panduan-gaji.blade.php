@@ -199,11 +199,11 @@ new class extends Component {
                         Role <b>HRD</b> mengisi; <b>Keuangan</b> hanya membaca dan menerapkan; <b>Admin</b> keduanya.</p>
                     <h3 class="mt-4">Tiap bulan</h3>
                     <ol class="mt-1 text-sm">
-                        <li>Pilih <b>Bulan Kerja</b> (sama dengan bulan slip), pastikan slip sudah di-<b>Generate</b> dan <b>JM sudah diterapkan</b> (dasar upah lembur memuat JM).</li>
-                        <li>Kolom sudah <b>terisi bawaan</b>: hari kerja = hari kerja slip bulan ini (slip baru memakai <b>Hari Kerja Default</b> Master Karyawan → Gaji), cuti &amp; lembur 0. Tidak perlu mengisi satu per satu.</li>
+                        <li>Halaman punya dua tab: <b>Entry Laporan</b> (tabel isian kepegawaian) dan <b>Buku Laporan</b> (baca saja + Terapkan ke Slip). Pilih <b>Bulan Kerja</b> (sama dengan bulan slip), pastikan slip sudah di-<b>Generate</b> dan <b>JM sudah diterapkan</b> (dasar upah lembur memuat JM).</li>
+                        <li>Tab Entry: kolom sudah <b>terisi bawaan</b>: hari kerja = hari kerja slip bulan ini (slip baru memakai <b>Hari Kerja Default</b> Master Karyawan → Gaji), cuti &amp; lembur 0. Tidak perlu mengisi satu per satu.</li>
                         <li>Ubah hanya yang berbeda: <b>Hari Kerja</b>, <b>Cuti</b>, <b>Jam Lembur</b> langsung di kotaknya; klik di luar kotak = tersimpan, nama karyawan bertanda ✎. Angka kecil di bawah kotak Hari Kerja = hari kerja di slip saat ini. Kolom <b>Keterangan</b> untuk catatan ke Keuangan (mis. "lembur laundry", "cuti panjang").</li>
                         <li>Kolom <b>Upah Lembur</b> = perkiraan dari dasar slip saat ini (pokok + JM + makan + transport).</li>
-                        <li>Keuangan klik <b>Terapkan ke Slip</b> → hari kerja slip disamakan (tunjangan makan &amp; transport dihitung ulang) dan baris <b>Upah Lembur</b> ditulis, mis. "6 jam".</li>
+                        <li>Tab Buku: Keuangan memeriksa laporan (kolom Slip menunjukkan kecocokan) lalu klik <b>Terapkan ke Slip</b> → hari kerja slip disamakan (tunjangan makan &amp; transport dihitung ulang) dan baris <b>Upah Lembur</b> ditulis, mis. "6 jam".</li>
                     </ol>
                     <ul class="mt-3 text-sm">
                         <li><b>Terapkan ke Slip aman diulang.</b> Hari kerja &amp; lembur di slip diganti angka terbaru, bukan ditambah. Bila laporan, JM, atau hari kerja berubah setelah diterapkan, muncul tanda "N slip Draft belum sesuai laporan" dan kolom Slip bertanda <b>Belum sesuai</b> — cukup klik Terapkan lagi.</li>
