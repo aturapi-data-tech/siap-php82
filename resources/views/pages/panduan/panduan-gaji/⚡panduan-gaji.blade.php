@@ -416,12 +416,13 @@ new class extends Component {
                     <h3 class="mt-4">Cara kerja</h3>
                     <ol class="mt-1 text-sm">
                         <li><b>Sambungan</b>: SIAP login ke API SIRUS memakai <b>akun user SIRUS</b> ber-role <i>Api Siap</i> (dibuat admin SIRUS dengan <code>php artisan siap-api:akun siap-gaji</code>; bisa dinonaktifkan / diganti password dari User Control SIRUS, dan tidak bisa dipakai masuk ke web SIRUS). Username / password-nya diisi di <code>.env</code> SIAP (<code>SIAP_API_URL</code>, <code>SIAP_API_USER</code>, <code>SIAP_API_PASSWORD</code>); rahasia JWT di <code>.env</code> SIRUS (<code>SIAP_API_JWT_SECRET</code>, terpisah dari JWT Mobile JKN). SIRUS membalas token berumur 1 jam; permintaan berikutnya membawa token itu. API-nya <b>hanya membaca</b> — SIAP tidak pernah mengubah data SIRUS. Bila kredensial belum diisi, tombol Ambil tidak muncul.</li>
-                        <li><b>Bulan jasa</b>: periode di SIAP = bulan pelayanan (jasa). Di SIRUS slip bulan jasa Juli dibayar sebagai bulan gaji Agustus — kolom "bulan gaji" ikut tersimpan di snapshot.</li>
+                        <li><b>Bulan jasa</b>: periode di SIAP = bulan pelayanan (jasa). Di SIRUS slip bulan jasa Juli dibayar sebagai bulan gaji Agustus — kolom "bulan gaji" ikut tersimpan di snapshot. Di Gaji Karyawan, padanannya adalah slip <b>bulan kerja Juli</b> (dibayar awal Agustus) — periode yang sama, beda sebutan.</li>
                         <li><b>Ambil dari SIRUS</b> menarik master dokter, semua slip bulan jasa itu (header + komponen J/P/T) dan lampirannya. Tiap dokter diberi <b>checksum</b> (angka header, komponen, lampiran). Sama dengan snapshot terakhir → hanya "terakhir diambil" diperbarui. Berbeda → <b>versi baru</b>; versi lama tetap tersimpan (tidak pernah ditimpa). Aman diulang kapan saja.</li>
                         <li><b>Versi &amp; pembanding</b>: di Buku, slip yang pernah berubah ditandai <i>versi N</i> (saringan "Pernah berubah"). Tombol <b>Rincian</b> membuka komponen slip dan pilihan <b>Bandingkan dengan</b>: versi sebelumnya (apa yang berubah sejak kita proses) atau bulan jasa sebelumnya (naik / turun dibanding bulan lalu). Baris yang berbeda disorot, selisih per komponen dan per total ditampilkan. Kolom "vs bulan lalu" di Buku = selisih gaji diterima.</li>
                         <li><b>Pemetaan dokter → karyawan</b>: saat Ambil / Segarkan, dokter yang namanya cocok persis dengan master karyawan (gelar diabaikan, hanya satu yang cocok) dipetakan otomatis. Sisanya dipetakan manual di tab Pemetaan lewat LOV karyawan. Dokter tanpa pemetaan tetap ditarik dan ditandai "Belum dipetakan" — tidak memblokir.</li>
                         <li><b>Lampiran</b>: tiap angka slip ditopang baris pasien / transaksi (tanggal, pasien, tindakan, klaim, no. SEP, nominal). Tabel per komponen berikut subtotal, komponen besar dilipat sampai diminta, dan di bawahnya rekonsiliasi total transaksi dengan jasa pada slip. Grup "dasar hitung per kapita" = grup kapita yang di SIRUS dibayar lewat skema lain, ditampilkan untuk pembanding.</li>
                         <li><b>Tidak ada sunting</b>: snapshot tidak bisa diubah di SIAP. Koreksi dilakukan di SIRUS, lalu Ambil ulang → versi baru.</li>
+                        <li><b>Terapkan ke slip gaji</b>: menulis snapshot versi terbaru tiap dokter yang <b>sudah dipetakan</b> ke slip Draft Gaji Karyawan bulan kerja yang sama dengan bulan jasa — <b>satu baris per komponen</b> persis seperti slip SIRUS: tiap jasa (uang periksa, visite, operator, …), gaji pokok dokter, dan tambahan sebagai pendapatan; Potongan RS, PPh 21 SIRUS, dan potongan lain (IDI, BPJS, …) sebagai potongan. Diterima di slip SIAP = diterima di SIRUS. PPh 21 otomatis SIAP <b>tidak</b> menghitung baris ini (sudah dipajaki SIRUS). Dokter yang belum punya slip (biasanya tanpa parameter gaji, jadi dilewati Generate) dibuatkan slip Draft kosong berisi baris SIRUS saja. Aman diulang (baris lama ditimpa), slip Final dilewati, Generate ulang tidak menghapusnya. Di Rincian slip karyawan baris ini <b>terkunci</b> (tanda "dari SIRUS"); ubah di SIRUS lalu Ambil &amp; Terapkan ulang. Badge di Buku: <i>di slip gaji</i>, <i>slip pakai v1</i> (snapshot sudah versi baru — Terapkan ulang), <i>belum di slip gaji</i>.</li>
                     </ol>
 
                     <h3 class="mt-4">Langkah rutin tiap bulan</h3>
@@ -430,6 +431,7 @@ new class extends Component {
                         <li>Periksa pesan hasil (baru / berubah / sama) dan badge "dokter belum dipetakan" → lengkapi di tab Pemetaan bila ada dokter baru.</li>
                         <li>Bandingkan kolom "vs bulan lalu"; yang mencolok dibuka Rincian / Lampiran.</li>
                         <li>Menjelang pembayaran, Ambil ulang sekali lagi: bila ada "berubah", buka Rincian → bandingkan dengan versi sebelumnya untuk melihat komponen mana yang diubah SIRUS setelah kita proses.</li>
+                        <li>Klik <b>Terapkan ke slip gaji</b> → cek Gaji Karyawan bulan kerja itu: slip dokter berisi baris "dari SIRUS". Kalau setelah itu Ambil ulang menghasilkan versi baru, badge berubah jadi <i>slip pakai v1</i> → Terapkan ulang sebelum slip difinalkan.</li>
                     </ol>
 
                     <h3 class="mt-4">Kasus yang sudah diantisipasi</h3>
@@ -444,11 +446,17 @@ new class extends Component {
                             <dd>Buku menampilkan apa adanya (jasa 0 atau dokter tidak muncul). Pembanding bulan lalu dan lampiran membantu menemukannya; koreksinya di SIRUS, lalu Ambil ulang.</dd></div>
                         <div><dt class="font-semibold">E. Slip belum Final di SIRUS</dt>
                             <dd>Status Draft / Final SIRUS ikut tersimpan (saringan "Final di SIRUS"). Snapshot Draft boleh ditarik untuk pembanding awal; angka pastinya adalah versi yang diambil setelah Final.</dd></div>
-                        <div><dt class="font-semibold">F. Sambungan gagal</dt>
+                        <div><dt class="font-semibold">F. Dokter belum punya parameter gaji / slip belum di-Generate</dt>
+                            <dd>Terapkan tetap jalan: slip Draft kosong dibuatkan untuk dokter itu, isinya hanya baris SIRUS. Bila kelak parameter gajinya diisi, Generate melengkapi slip tanpa menghapus baris SIRUS. Hanya karyawan <b>nonaktif</b> yang dilewati.</dd></div>
+                        <div><dt class="font-semibold">G. Slip karyawan sudah Final saat Terapkan</dt>
+                            <dd>Dilewati dan disebut di pesan hasil. Buka kembali ke Draft di Gaji Karyawan, Terapkan ulang, lalu finalkan lagi.</dd></div>
+                        <div><dt class="font-semibold">H. Dokter juga karyawan dengan gaji pokok SIAP</dt>
+                            <dd>Baris "Gaji Pokok Dokter (SIRUS)" ditulis terpisah dari "Gaji Pokok" parameter SIAP. Bila keduanya terisi, periksa jangan sampai dobel — matikan salah satunya (skema N di SIRUS, atau kosongkan gaji pokok di parameter SIAP).</dd></div>
+                        <div><dt class="font-semibold">I. Sambungan gagal</dt>
                             <dd>Pesan galat tampil (server SIRUS mati, password beda, token ditolak). Snapshot yang sudah ada tidak terpengaruh. Cek <code>SIAP_API_URL</code>, pastikan akun <i>siap-gaji</i> di SIRUS masih aktif dan password di <code>.env</code> SIAP sama.</dd></div>
                     </dl>
                     <p class="mt-3 text-sm">Detail teknis sambungan (setup .env, akun, token, kontrak data, uji sambungan) ada di {!! $tautan('panduan.sirus-api', 'Panduan Bridging SIRUS') !!}.</p>
-                    <p class="mt-3 text-xs text-muted">Snapshot gaji dokter berdiri sendiri — belum ditulis ke slip gaji karyawan. Dokter yang juga punya slip SIAP (angsuran, BPJS) tetap diproses di Gaji Karyawan seperti biasa.</p>
+                    <p class="mt-3 text-xs text-muted">Snapshot tersimpan terpisah dan masuk ke slip karyawan hanya lewat Terapkan ke slip gaji. Potongan khas SIAP (angsuran, BPJS SIAP, kasbon) tetap diproses di Gaji Karyawan seperti biasa pada slip yang sama.</p>
                 </section>
 
                 {{-- RUMUS --}}
