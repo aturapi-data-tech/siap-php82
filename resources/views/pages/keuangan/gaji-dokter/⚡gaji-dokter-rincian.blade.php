@@ -11,9 +11,9 @@ use App\Support\GajiKaryawan;
 /**
  * Modal RINCIAN slip gaji dokter (SIRUS) — komponen terpisah dari daftar (pola gaji-dokter-rincian di SIRUS), dipasang
  * pembungkus gaji-dokter SEJAJAR tab supaya tidak ikut unmount saat ganti tab. Dibuka lewat event
- * 'keuangan.gaji-dokter.openRincian' (gd_id) dari Buku. Isi: kartu identitas, strip snapshot + pembanding
+ * 'keuangan.gaji-dokter.openRincianSlipDokter' (gd_id) dari Buku. Isi: kartu identitas, strip snapshot + pembanding
  * (versi lain / bulan lalu), blok Jasa & Tunjangan | Potongan | Tambahan dengan selisih, footer angka inti. Hanya baca.
- * Tombol Lampiran di footer → tutup modal ini lalu event 'keuangan.gaji-dokter.openLampiran' → modal gaji-dokter-lampiran (sejajar).
+ * Tombol Lampiran di footer → tutup modal ini lalu event 'keuangan.gaji-dokter.openLampiranPasienDokter' → modal gaji-dokter-lampiran (sejajar).
  */
 new class extends Component {
     /** Header snapshot yang dibuka + pembanding (gd_id versi lain / bulan lalu, atau ''). */
@@ -25,13 +25,13 @@ new class extends Component {
         abort_unless(auth()->user()?->can('gaji.kelola'), 403);
     }
 
-    #[On('keuangan.gaji-dokter.openRincian')]
-    public function openRincian(int $gdId): void
+    #[On('keuangan.gaji-dokter.openRincianSlipDokter')]
+    public function openRincianSlipDokter(int $gdId): void
     {
         $this->rincianGdId = $gdId;
         $this->bandingPilihan = '';
-        unset($this->rincian, $this->pembanding, $this->barisRincian);
-        $this->bandingPilihan = array_key_first($this->bandingOpsi()) ?? '';
+        unset($this->headerSlipDokter, $this->pembanding, $this->barisRincianSlip);
+        $this->bandingPilihan = array_key_first($this->pilihanPembanding()) ?? '';
         $this->dispatch('open-modal', name: 'gaji-dokter-rincian');
     }
 
@@ -39,14 +39,14 @@ new class extends Component {
     {
         $this->rincianGdId = null;
         $this->bandingPilihan = '';
-        unset($this->rincian, $this->pembanding, $this->barisRincian);
+        unset($this->headerSlipDokter, $this->pembanding, $this->barisRincianSlip);
         $this->dispatch('close-modal', name: 'gaji-dokter-rincian');
     }
 
-    public function openLampiran(int $gdId): void
+    public function openLampiranPasienDokter(int $gdId): void
     {
         $this->closeModal();
-        $this->dispatch('keuangan.gaji-dokter.openLampiran', gdId: $gdId);
+        $this->dispatch('keuangan.gaji-dokter.openLampiranPasienDokter', gdId: $gdId);
     }
 
     public static function namaPeriode(?string $periode): string
@@ -58,15 +58,15 @@ new class extends Component {
     }
 
     #[Computed]
-    public function rincian(): ?object
+    public function headerSlipDokter(): ?object
     {
         return $this->rincianGdId ? DB::table('siaptxn_gdok_hdrs')->where('gd_id', $this->rincianGdId)->first() : null;
     }
 
     /** Pilihan pembanding: versi lain dokter yang sama bulan ini + versi terbaru bulan lalu. [kunci => label] */
-    public function bandingOpsi(): array
+    public function pilihanPembanding(): array
     {
-        $header = $this->rincian;
+        $header = $this->headerSlipDokter;
         if (!$header) {
             return [];
         }
@@ -88,7 +88,7 @@ new class extends Component {
     #[Computed]
     public function pembanding(): ?object
     {
-        return $this->bandingPilihan !== '' && isset($this->bandingOpsi()[$this->bandingPilihan])
+        return $this->bandingPilihan !== '' && isset($this->pilihanPembanding()[$this->bandingPilihan])
             ? DB::table('siaptxn_gdok_hdrs')->where('gd_id', (int) $this->bandingPilihan)->first() : null;
     }
 
@@ -96,9 +96,9 @@ new class extends Component {
 
     /** Baris rincian gabungan: tiap komponen versi ini + komponen pembanding yang hilang. */
     #[Computed]
-    public function barisRincian(): array
+    public function barisRincianSlip(): array
     {
-        $header = $this->rincian;
+        $header = $this->headerSlipDokter;
         if (!$header) {
             return [];
         }
@@ -128,7 +128,7 @@ new class extends Component {
             $rupiah = fn($nilai) => GajiKaryawan::rupiah($nilai);
             $formatPersen = fn($nilai) => rtrim(rtrim(number_format((float) $nilai, 2, ',', '.'), '0'), ',');
             $formatSelisih = fn($nilai) => $nilai === null ? '–' : ($nilai > 0 ? '+' . $rupiah($nilai) : ($nilai < 0 ? '−' . $rupiah(abs($nilai)) : '0'));
-            $header = $this->rincian;
+            $header = $this->headerSlipDokter;
             $pembanding = $this->pembanding;
         @endphp
         <div class="flex flex-col min-h-[calc(100vh-8rem)]">
@@ -145,7 +145,7 @@ new class extends Component {
                         'P' => ['judul' => 'Potongan', 'catatan' => 'Dua baris teratas (Potongan RS & PPh 21) berasal dari rumus dan ikut menentukan pajak; sisanya di bawah garis dipotong setelah pajak.'],
                         'T' => ['judul' => 'Tambahan', 'catatan' => 'Diberikan setelah pajak (bonus, rapel, koreksi bulan lalu).'],
                     ];
-                    $perJenis = collect($this->barisRincian)->groupBy('jenis');
+                    $perJenis = collect($this->barisRincianSlip)->groupBy('jenis');
                 @endphp
                 <div class="flex-1 px-4 pt-2 pb-4 bg-surface-soft dark:bg-gray-950/20">
                     <div class="space-y-4">
@@ -207,7 +207,7 @@ new class extends Component {
                                 <div class="w-64">
                                     <x-select-input id="gd-banding" wire:model.live="bandingPilihan" aria-label="Bandingkan dengan">
                                         <option value="">– tanpa pembanding –</option>
-                                        @foreach ($this->bandingOpsi() as $kunciPilihan => $labelPilihan)
+                                        @foreach ($this->pilihanPembanding() as $kunciPilihan => $labelPilihan)
                                             <option value="{{ $kunciPilihan }}">{{ $labelPilihan }}</option>
                                         @endforeach
                                     </x-select-input>
@@ -301,12 +301,12 @@ new class extends Component {
                         </div>
                         <div class="flex items-center gap-2 shrink-0">
                             <x-secondary-button type="button" wire:click="closeModal">Tutup</x-secondary-button>
-                            <x-outline-button type="button" class="gap-2" wire:click="openLampiran({{ $header->gd_id }})" wire:loading.attr="disabled" wire:target="openLampiran" title="Lihat lampiran rincian pasien (tanggal layanan, no. RM, nama, nominal)">
-                                <span wire:loading.remove wire:target="openLampiran" class="inline-flex items-center gap-2">
+                            <x-outline-button type="button" class="gap-2" wire:click="openLampiranPasienDokter({{ $header->gd_id }})" wire:loading.attr="disabled" wire:target="openLampiranPasienDokter" title="Lihat lampiran rincian pasien (tanggal layanan, no. RM, nama, nominal)">
+                                <span wire:loading.remove wire:target="openLampiranPasienDokter" class="inline-flex items-center gap-2">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" /></svg>
                                     Lampiran
                                 </span>
-                                <span wire:loading wire:target="openLampiran" class="inline-flex items-center gap-2"><x-loading /> Menyiapkan...</span>
+                                <span wire:loading wire:target="openLampiranPasienDokter" class="inline-flex items-center gap-2"><x-loading /> Menyiapkan...</span>
                             </x-outline-button>
                         </div>
                     </div>

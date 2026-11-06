@@ -30,7 +30,7 @@
                     @if (!$modeSemua && $snapshot['versiOpsi']->count() > 1)
                         <label class="flex items-center gap-2">
                             <span class="sr-only">Versi snapshot</span>
-                            <select wire:change="gantiVersi($event.target.value)" aria-label="Versi snapshot"
+                            <select wire:change="gantiVersiSnapshot($event.target.value)" aria-label="Versi snapshot"
                                 class="py-1 pl-2 text-xs border rounded-lg pr-7 bg-gray-50 border-gray-300 text-body focus:border-brand-green focus:ring-brand-green dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200">
                                 @foreach ($snapshot['versiOpsi'] as $versi)
                                     <option value="{{ $versi->gd_id }}" @selected((int) $versi->gd_id === (int) $header->gd_id)>Versi {{ $versi->versi }}{{ $versi->terbaru === '1' ? ' (terbaru)' : '' }} · {{ \Carbon\Carbon::parse($versi->diambil_at)->format('d/m/Y H:i') }}</option>
@@ -69,9 +69,9 @@
                     <div class="flex items-center gap-3 text-xs text-muted dark:text-gray-400">
                         <span>{{ $jumlahPasien }} pasien &middot; <span class="font-semibold tabular-nums text-body dark:text-gray-200">{{ $rupiah($subtotal) }}</span></span>
                         @if ($komponenBesar)
-                            <x-secondary-button type="button" wire:click="toggleKomponen('{{ $kunciKomponen }}')" wire:loading.attr="disabled" wire:target="toggleKomponen('{{ $kunciKomponen }}')" class="!py-1 !px-2.5 text-xs whitespace-nowrap">
-                                <span wire:loading.remove wire:target="toggleKomponen('{{ $kunciKomponen }}')">{{ $dilipat ? 'Tampilkan ' . $rowsKomponen->count() . ' baris' : 'Sembunyikan baris' }}</span>
-                                <span wire:loading wire:target="toggleKomponen('{{ $kunciKomponen }}')" class="inline-flex items-center gap-1.5"><x-loading class="w-4 h-4" /> Memuat...</span>
+                            <x-secondary-button type="button" wire:click="toggleLipatKomponen('{{ $kunciKomponen }}')" wire:loading.attr="disabled" wire:target="toggleLipatKomponen('{{ $kunciKomponen }}')" class="!py-1 !px-2.5 text-xs whitespace-nowrap">
+                                <span wire:loading.remove wire:target="toggleLipatKomponen('{{ $kunciKomponen }}')">{{ $dilipat ? 'Tampilkan ' . $rowsKomponen->count() . ' baris' : 'Sembunyikan baris' }}</span>
+                                <span wire:loading wire:target="toggleLipatKomponen('{{ $kunciKomponen }}')" class="inline-flex items-center gap-1.5"><x-loading class="w-4 h-4" /> Memuat...</span>
                             </x-secondary-button>
                         @endif
                     </div>

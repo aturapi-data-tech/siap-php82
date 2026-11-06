@@ -46,7 +46,7 @@ new class extends Component {
         unset($this->rows);
     }
 
-    public function segarkan(): void
+    public function segarkanDokterDariSirus(): void
     {
         try {
             $hasilSegarkanDokterSirus = GajiDokterSirus::segarkanDokter(auth()->id());
@@ -57,14 +57,14 @@ new class extends Component {
         unset($this->rows);
     }
 
-    public function mulaiEdit(string $drId): void
+    public function mulaiPetakanDokter(string $drId): void
     {
         $this->editDrId = $drId;
         $this->empNama = '';
         $this->empId = '';
     }
 
-    public function batalEdit(): void
+    public function batalPetakanDokter(): void
     {
         $this->editDrId = null;
         $this->empNama = '';
@@ -82,11 +82,11 @@ new class extends Component {
             return;
         }
         $this->dispatch('toast', type: 'success', message: "Dokter dipetakan ke {$this->empNama}.");
-        $this->batalEdit();
+        $this->batalPetakanDokter();
         unset($this->rows);
     }
 
-    public function lepas(string $drId): void
+    public function lepasPemetaanDokter(string $drId): void
     {
         GajiDokterSirus::petakan($drId, null, auth()->id());
         $this->dispatch('toast', type: 'success', message: 'Pemetaan dilepas.');
@@ -106,13 +106,13 @@ new class extends Component {
     }
 
     #[Computed]
-    public function karyawanOpsi(): array
+    public function pilihanKaryawan(): array
     {
         return GajiDokterSirus::karyawanOpsi();
     }
 
     #[Computed]
-    public function ringkas(): array
+    public function ringkasanPemetaan(): array
     {
         $semuaDokter = GajiDokterSirus::dokterList();
         $aktif = $semuaDokter->where('aktif', '1');
@@ -123,7 +123,7 @@ new class extends Component {
 ?>
 
 <div class="mt-4">
-    @php $ringkasPemetaan = $this->ringkas; @endphp
+    @php $ringkasPemetaan = $this->ringkasanPemetaan; @endphp
     <div class="flex flex-wrap items-end gap-3 px-4 py-3 mb-3 border bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
         <div class="w-56">
             <x-input-label for="gdp-cari" value="Cari dokter" />
@@ -141,10 +141,10 @@ new class extends Component {
         </div>
         <div class="flex items-center gap-2 ml-auto">
             <x-badge :variant="$ringkasPemetaan['terpetakan'] === $ringkasPemetaan['aktif'] ? 'success' : 'warning'">{{ $ringkasPemetaan['terpetakan'] }} / {{ $ringkasPemetaan['aktif'] }} dokter aktif terpetakan</x-badge>
-            <x-secondary-button type="button" wire:click="segarkan" wire:loading.attr="disabled" wire:target="segarkan">
+            <x-secondary-button type="button" wire:click="segarkanDokterDariSirus" wire:loading.attr="disabled" wire:target="segarkanDokterDariSirus">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                <span wire:loading.remove wire:target="segarkan">Segarkan dari SIRUS</span>
-                <span wire:loading wire:target="segarkan">Mengambil…</span>
+                <span wire:loading.remove wire:target="segarkanDokterDariSirus">Segarkan dari SIRUS</span>
+                <span wire:loading wire:target="segarkanDokterDariSirus">Mengambil…</span>
             </x-secondary-button>
             <x-toolbar-refresh-reset :label="null" />
         </div>
@@ -177,9 +177,9 @@ new class extends Component {
                                 @if ($editDrId === $row->dr_id)
                                     <div class="flex items-center gap-2">
                                         <div class="flex-1">
-                                            <x-combobox wireModel="empNama" wireModelId="empId" :options="$this->karyawanOpsi" inputId="gdp-emp" placeholder="Ketik nama / ID karyawan, lalu pilih…" judulDaftar="daftar karyawan" maxlength="100" />
+                                            <x-combobox wireModel="empNama" wireModelId="empId" :options="$this->pilihanKaryawan" inputId="gdp-emp" placeholder="Ketik nama / ID karyawan, lalu pilih…" judulDaftar="daftar karyawan" maxlength="100" />
                                         </div>
-                                        <x-secondary-button type="button" wire:click="batalEdit" class="whitespace-nowrap shrink-0">Batal</x-secondary-button>
+                                        <x-secondary-button type="button" wire:click="batalPetakanDokter" class="whitespace-nowrap shrink-0">Batal</x-secondary-button>
                                     </div>
                                 @elseif ($row->emp_id)
                                     <span class="font-semibold">{{ $row->emp_name }}</span><span class="block font-mono text-xs text-muted">{{ $row->emp_id }}{{ $row->emp_aktif === '1' ? '' : ' · karyawan nonaktif' }}</span>
@@ -193,7 +193,7 @@ new class extends Component {
                                     {{-- Ukuran TIDAK ditimpa: ikut bawaan komponen supaya seragam dengan tombol lain (docs/standar-komponen-tombol.md).
                                          Petakan/Ganti = outline (aksi alternatif / buka panel), Lepas = confirm danger-soft (destruktif ringan). --}}
                                     <div class="inline-flex flex-nowrap items-center gap-1.5">
-                                        <x-outline-button type="button" class="gap-2 whitespace-nowrap shrink-0" wire:click="mulaiEdit('{{ $row->dr_id }}')" wire:loading.attr="disabled" wire:target="mulaiEdit('{{ $row->dr_id }}')">
+                                        <x-outline-button type="button" class="gap-2 whitespace-nowrap shrink-0" wire:click="mulaiPetakanDokter('{{ $row->dr_id }}')" wire:loading.attr="disabled" wire:target="mulaiPetakanDokter('{{ $row->dr_id }}')">
                                             @if ($row->emp_id)
                                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                                                 Ganti
@@ -203,7 +203,7 @@ new class extends Component {
                                             @endif
                                         </x-outline-button>
                                         @if ($row->emp_id)
-                                            <x-confirm-button variant="danger-soft" action="lepas('{{ $row->dr_id }}')" title="Lepas pemetaan" message="Lepas pemetaan {{ $row->dr_name }} dari {{ $row->emp_name }}? Snapshot yang sudah tersimpan tidak berubah." confirmText="Ya, lepas" cancelText="Batal" class="gap-2 whitespace-nowrap shrink-0">
+                                            <x-confirm-button variant="danger-soft" action="lepasPemetaanDokter('{{ $row->dr_id }}')" title="Lepas pemetaan" message="Lepas pemetaan {{ $row->dr_name }} dari {{ $row->emp_name }}? Snapshot yang sudah tersimpan tidak berubah." confirmText="Ya, lepas" cancelText="Batal" class="gap-2 whitespace-nowrap shrink-0">
                                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1M3 3l18 18" /></svg>
                                                 Lepas
                                             </x-confirm-button>

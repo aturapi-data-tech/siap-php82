@@ -56,14 +56,14 @@ new class extends Component {
         return $this->awalBulan()->format('Y-m');
     }
 
-    public function updatedBulan(): void { $this->segarkan(); }
-    public function updatedSearchKeyword(): void { $this->segarkan(); }
-    public function updatedSaring(): void { $this->segarkan(); }
+    public function updatedBulan(): void { $this->segarkanTampilan(); }
+    public function updatedSearchKeyword(): void { $this->segarkanTampilan(); }
+    public function updatedSaring(): void { $this->segarkanTampilan(); }
 
     public function geserBulan(int $jumlahBulan): void
     {
         $this->bulan = $this->awalBulan()->addMonthsNoOverflow($jumlahBulan)->format(Format::BULAN);
-        $this->segarkan();
+        $this->segarkanTampilan();
     }
 
     public function resetFilters(): void
@@ -71,15 +71,15 @@ new class extends Component {
         $this->reset(['searchKeyword']);
         $this->saring = 'semua';
         $this->bulan = now()->subMonthNoOverflow()->format(Format::BULAN);
-        $this->segarkan();
+        $this->segarkanTampilan();
     }
 
-    private function segarkan(): void
+    private function segarkanTampilan(): void
     {
-        unset($this->rows, $this->ambilTerakhir, $this->total);
+        unset($this->rows, $this->ambilTerakhirPeriodeIni, $this->ringkasanPeriode);
     }
 
-    public function ambil(): void
+    public function ambilGajiDokterDariSirus(): void
     {
         if (!$this->bulanValid()) {
             $this->dispatch('toast', type: 'error', message: 'Bulan jasa tidak valid.');
@@ -96,11 +96,11 @@ new class extends Component {
             $pesanToast .= ' ' . count($hasilAmbilGajiSirus['tanpaMap']) . ' dokter belum dipetakan ke karyawan.';
         }
         $this->dispatch('toast', type: $hasilAmbilGajiSirus['jumlah'] === 0 ? 'warning' : 'success', message: $hasilAmbilGajiSirus['jumlah'] === 0 ? "SIRUS belum punya slip gaji dokter untuk bulan jasa {$this->bulan}." : $pesanToast);
-        $this->segarkan();
+        $this->segarkanTampilan();
     }
 
     /** Tulis snapshot terbaru dokter terpetakan ke slip Draft Gaji Karyawan bulan gaji (jasa + 1) — GajiDokterSirus::terapkan(). */
-    public function terapkan(): void
+    public function terapkanGajiDokterKeSlip(): void
     {
         if (!$this->bulanValid()) {
             $this->dispatch('toast', type: 'error', message: 'Bulan jasa tidak valid.');
@@ -127,29 +127,29 @@ new class extends Component {
             $pesanToast .= ' ' . count($hasilTerapkanKeSlipGaji['tanpaMap']) . ' dokter belum dipetakan.';
         }
         $this->dispatch('toast', type: $hasilTerapkanKeSlipGaji['diperbarui'] > 0 ? 'success' : 'warning', message: $pesanToast);
-        $this->segarkan();
+        $this->segarkanTampilan();
     }
 
     /** Modal Rincian = komponen terpisah (gaji-dokter-rincian, dipasang pembungkus sejajar tab) — pola SIRUS. */
-    public function openRincian(int $gdId): void
+    public function openRincianSlipDokter(int $gdId): void
     {
-        $this->dispatch('keuangan.gaji-dokter.openRincian', gdId: $gdId);
+        $this->dispatch('keuangan.gaji-dokter.openRincianSlipDokter', gdId: $gdId);
     }
 
     /** Modal Lampiran = komponen terpisah (gaji-dokter-lampiran, sejajar tab) — satu dokter atau semua yang sedang tampil. */
-    public function openLampiran(int $gdId): void
+    public function openLampiranPasienDokter(int $gdId): void
     {
-        $this->dispatch('keuangan.gaji-dokter.openLampiran', gdId: $gdId);
+        $this->dispatch('keuangan.gaji-dokter.openLampiranPasienDokter', gdId: $gdId);
     }
 
-    public function openLampiranSemua(): void
+    public function openLampiranPasienSemuaDokter(): void
     {
         $gdIdList = $this->rows->pluck('gd_id')->map(fn($gdId) => (int) $gdId)->values()->all();
         if ($gdIdList === []) {
             $this->dispatch('toast', type: 'warning', message: 'Belum ada slip yang bisa dilampirkan pada bulan jasa ini.');
             return;
         }
-        $this->dispatch('keuangan.gaji-dokter.openLampiranSemua', gdIdList: $gdIdList);
+        $this->dispatch('keuangan.gaji-dokter.openLampiranPasienSemuaDokter', gdIdList: $gdIdList);
     }
 
     #[Computed]
@@ -159,7 +159,7 @@ new class extends Component {
     }
 
     #[Computed]
-    public function total(): array
+    public function ringkasanPeriode(): array
     {
         $rows = GajiDokterSirus::daftar($this->periode());
         $totalPeriode = ['jumlah' => $rows->count(), 'final' => $rows->where('gaji_status', 'F')->count(), 'tanpa_map' => $rows->whereNull('emp_id_map')->count(), 'berubah' => $rows->where('versi_sebelumnya', true)->count(),
@@ -181,7 +181,7 @@ new class extends Component {
     }
 
     #[Computed]
-    public function ambilTerakhir(): ?object
+    public function ambilTerakhirPeriodeIni(): ?object
     {
         return GajiDokterSirus::riwayatAmbil(200)->firstWhere('periode', $this->periode());
     }
@@ -193,8 +193,8 @@ new class extends Component {
         $rupiah = fn($nilai) => GajiKaryawan::rupiah($nilai);
         $formatPersen = fn($nilai) => rtrim(rtrim(number_format((float) $nilai, 2, ',', '.'), '0'), ',');
         $formatSelisih = fn($nilai) => $nilai === null ? '–' : ($nilai > 0 ? '+' . $rupiah($nilai) : ($nilai < 0 ? '−' . $rupiah(abs($nilai)) : '0'));
-        $totalPeriode = $this->total;
-        $ambilTerakhir = $this->ambilTerakhir;
+        $totalPeriode = $this->ringkasanPeriode;
+        $ambilTerakhir = $this->ambilTerakhirPeriodeIni;
         $periodeJasa = \Carbon\Carbon::createFromFormat('!' . Format::BULAN, $bulan)->format('Y-m');
         $labelBulanJasa = $this::namaPeriode($periodeJasa);
         $labelBulanGaji = $this::namaPeriode(\Carbon\Carbon::createFromFormat('!Y-m', $periodeJasa)->addMonthNoOverflow()->format('Y-m'));
@@ -229,7 +229,7 @@ new class extends Component {
         </div>
         <div class="flex items-center gap-2 ml-auto">
             @if (GajiDokterSirus::aktif())
-                <x-confirm-button variant="primary" action="ambil()" title="Ambil dari SIRUS"
+                <x-confirm-button variant="primary" action="ambilGajiDokterDariSirus()" title="Ambil dari SIRUS"
                     message="Tarik slip gaji dokter bulan jasa {{ $bulan }} dari SIRUS? Dokter yang angkanya SAMA tidak berubah; yang BERBEDA mendapat versi baru (versi lama tetap tersimpan untuk pembanding). Tidak ada data SIRUS yang diubah." confirmText="Ya, ambil" cancelText="Batal">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                     Ambil dari SIRUS
@@ -239,19 +239,19 @@ new class extends Component {
             @endif
             @if ($totalPeriode['jumlah'] > 0)
                 {{-- Terapkan = pola "Terapkan ke Slip" Pembagian Jasa Medik: aman diulang (baris lama ditimpa), slip Final dilewati. --}}
-                <x-confirm-button variant="secondary" action="terapkan()" title="Terapkan ke slip gaji"
+                <x-confirm-button variant="secondary" action="terapkanGajiDokterKeSlip()" title="Terapkan ke slip gaji"
                     message="Tulis jasa dokter bulan jasa {{ $bulan }} (snapshot versi terbaru) ke slip Draft Gaji Karyawan bulan kerja {{ $labelBulanJasa }} (dibayar {{ $labelBulanGaji }}) untuk dokter yang sudah dipetakan? Dokter yang belum punya slip dibuatkan slip Draft baru. Jasa, gaji pokok dokter, tambahan, Potongan RS, dan PPh 21 ditulis apa adanya dari SIRUS; baris hasil terapkan sebelumnya ditimpa. Slip yang sudah Final dilewati." confirmText="Ya, terapkan" cancelText="Batal">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
                     Terapkan ke slip gaji
                 </x-confirm-button>
             @endif
             {{-- Lampiran Semua = outline (tampilan pendamping, bukan aksi utama) — mengikuti saringan yang sedang tampil. --}}
-            <x-outline-button type="button" class="gap-2 whitespace-nowrap" wire:click="openLampiranSemua" wire:loading.attr="disabled" wire:target="openLampiranSemua" title="Lampiran rincian pasien semua dokter yang tampil">
-                <span wire:loading.remove wire:target="openLampiranSemua" class="inline-flex items-center gap-2">
+            <x-outline-button type="button" class="gap-2 whitespace-nowrap" wire:click="openLampiranPasienSemuaDokter" wire:loading.attr="disabled" wire:target="openLampiranPasienSemuaDokter" title="Lampiran rincian pasien semua dokter yang tampil">
+                <span wire:loading.remove wire:target="openLampiranPasienSemuaDokter" class="inline-flex items-center gap-2">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" /></svg>
                     Lampiran Semua
                 </span>
-                <span wire:loading wire:target="openLampiranSemua" class="inline-flex items-center gap-2"><x-loading /> Menyiapkan...</span>
+                <span wire:loading wire:target="openLampiranPasienSemuaDokter" class="inline-flex items-center gap-2"><x-loading /> Menyiapkan...</span>
             </x-outline-button>
             <x-toolbar-refresh-reset :label="null" />
         </div>
@@ -411,20 +411,20 @@ new class extends Component {
                             {{-- AKSI: Rincian (outline) · Lampiran (icon abu, ikon daftar). Target ber-argumen supaya hanya barisnya yang berputar. --}}
                             <td class="px-6 py-3 align-middle">
                                 <div class="flex flex-nowrap items-center justify-center gap-1.5">
-                                    <x-outline-button type="button" class="whitespace-nowrap shrink-0" wire:click="openRincian({{ $row->gd_id }})" wire:loading.attr="disabled" wire:target="openRincian({{ $row->gd_id }})">
-                                        <span wire:loading.remove wire:target="openRincian({{ $row->gd_id }})" class="inline-flex items-center gap-2">
+                                    <x-outline-button type="button" class="whitespace-nowrap shrink-0" wire:click="openRincianSlipDokter({{ $row->gd_id }})" wire:loading.attr="disabled" wire:target="openRincianSlipDokter({{ $row->gd_id }})">
+                                        <span wire:loading.remove wire:target="openRincianSlipDokter({{ $row->gd_id }})" class="inline-flex items-center gap-2">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                                             Rincian
                                         </span>
-                                        <span wire:loading wire:target="openRincian({{ $row->gd_id }})"><x-loading /> Membuka</span>
+                                        <span wire:loading wire:target="openRincianSlipDokter({{ $row->gd_id }})"><x-loading /> Membuka</span>
                                     </x-outline-button>
-                                    <x-icon-button color="gray" type="button" class="!p-2.5 shrink-0" wire:click="openLampiran({{ $row->gd_id }})" wire:loading.attr="disabled" wire:target="openLampiran({{ $row->gd_id }})"
+                                    <x-icon-button color="gray" type="button" class="!p-2.5 shrink-0" wire:click="openLampiranPasienDokter({{ $row->gd_id }})" wire:loading.attr="disabled" wire:target="openLampiranPasienDokter({{ $row->gd_id }})"
                                         title="Lampiran rincian pasien {{ $row->dr_name }} ({{ $row->jumlah_lampiran }} baris)" aria-label="Lampiran rincian pasien {{ $row->dr_name }}">
-                                        <span wire:loading.remove wire:target="openLampiran({{ $row->gd_id }})" class="inline-flex items-center gap-1">
+                                        <span wire:loading.remove wire:target="openLampiranPasienDokter({{ $row->gd_id }})" class="inline-flex items-center gap-1">
                                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" /></svg>
                                             <span class="text-xs t-num">{{ $row->jumlah_lampiran }}</span>
                                         </span>
-                                        <span wire:loading wire:target="openLampiran({{ $row->gd_id }})"><x-loading size="md" /></span>
+                                        <span wire:loading wire:target="openLampiranPasienDokter({{ $row->gd_id }})"><x-loading size="md" /></span>
                                     </x-icon-button>
                                 </div>
                             </td>

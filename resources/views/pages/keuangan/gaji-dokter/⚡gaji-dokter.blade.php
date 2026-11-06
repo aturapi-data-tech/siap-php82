@@ -11,9 +11,9 @@ use Livewire\Attributes\Url;
  *   RIWAYAT  : pages::keuangan.gaji-dokter.gaji-dokter-riwayat  — jejak tiap penarikan (baru / berubah / sama).
  *
  * Modal Rincian & Lampiran = komponen terpisah yang dipasang di sini SEJAJAR tab (pola Slip Gaji Dokter SIRUS), dibuka lewat event:
- *   'keuangan.gaji-dokter.openRincian' (gdId)           → modal gaji-dokter-rincian
- *   'keuangan.gaji-dokter.openLampiran' (gdId)          → modal gaji-dokter-lampiran (satu dokter; dari baris Buku / footer Rincian)
- *   'keuangan.gaji-dokter.openLampiranSemua' (gdIdList) → modal gaji-dokter-lampiran (semua dokter yang tampil di Buku)
+ *   'keuangan.gaji-dokter.openRincianSlipDokter' (gdId)           → modal gaji-dokter-rincian
+ *   'keuangan.gaji-dokter.openLampiranPasienDokter' (gdId)          → modal gaji-dokter-lampiran (satu dokter; dari baris Buku / footer Rincian)
+ *   'keuangan.gaji-dokter.openLampiranPasienSemuaDokter' (gdIdList) → modal gaji-dokter-lampiran (semua dokter yang tampil di Buku)
  * SIAP hanya MEMBACA SIRUS (App\Support\GajiDokterSirus); angka yang sudah tersimpan tidak berubah tanpa versi baru.
  * Hanya role gaji.kelola.
  */

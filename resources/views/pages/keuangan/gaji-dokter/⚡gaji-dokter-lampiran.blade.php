@@ -9,8 +9,8 @@ use App\Support\GajiDokterSirus;
 /**
  * Modal LAMPIRAN rincian pasien gaji dokter (SIRUS) — tampil di LAYAR, komponen terpisah yang dipasang pembungkus
  * gaji-dokter SEJAJAR tab (pola modal gaji-dokter-lampiran di SIRUS). Dibuka lewat event:
- *   'keuangan.gaji-dokter.openLampiran'      (gdId)      → satu dokter (dari baris Buku / footer Rincian)
- *   'keuangan.gaji-dokter.openLampiranSemua' (gdIdList)  → semua dokter yang sedang tampil di Buku
+ *   'keuangan.gaji-dokter.openLampiranPasienDokter'      (gdId)      → satu dokter (dari baris Buku / footer Rincian)
+ *   'keuangan.gaji-dokter.openLampiranPasienSemuaDokter' (gdIdList)  → semua dokter yang sedang tampil di Buku
  * Isi per dokter (partial isi-lampiran-layar): identitas → catatan tanggal → tabel per komponen + subtotal (komponen
  * besar dilipat) → rekonsiliasi dengan slip. Data = snapshot SIAP (versi yang dipilih), jadi mode satu dokter punya
  * pemilih versi. Unduh Excel = CSV pipih, kolom sama dengan SIRUS.
@@ -40,14 +40,14 @@ new class extends Component {
         abort_unless(auth()->user()?->can('gaji.kelola'), 403);
     }
 
-    #[On('keuangan.gaji-dokter.openLampiran')]
-    public function openLampiran(int $gdId): void
+    #[On('keuangan.gaji-dokter.openLampiranPasienDokter')]
+    public function openLampiranPasienDokter(int $gdId): void
     {
         $this->siapkan([$gdId], false);
     }
 
-    #[On('keuangan.gaji-dokter.openLampiranSemua')]
-    public function openLampiranSemua(array $gdIdList): void
+    #[On('keuangan.gaji-dokter.openLampiranPasienSemuaDokter')]
+    public function openLampiranPasienSemuaDokter(array $gdIdList): void
     {
         $this->siapkan($gdIdList, true);
     }
@@ -57,8 +57,8 @@ new class extends Component {
         $this->gdIdList = array_values(array_unique(array_filter(array_map('intval', $gdIdList))));
         $this->modeSemua = $modeSemua;
         $this->komponenTerbuka = [];
-        unset($this->dataLampiran);
-        if ($this->dataLampiran->isEmpty()) {
+        unset($this->dataLampiranPerDokter);
+        if ($this->dataLampiranPerDokter->isEmpty()) {
             $this->gdIdList = [];
             $this->dispatch('toast', type: 'warning', message: 'Tidak ada baris lampiran pada snapshot ini.');
             return;
@@ -71,22 +71,22 @@ new class extends Component {
     {
         $this->gdIdList = [];
         $this->komponenTerbuka = [];
-        unset($this->dataLampiran);
+        unset($this->dataLampiranPerDokter);
         $this->dispatch('close-modal', name: 'gaji-dokter-lampiran');
     }
 
     /** Mode satu dokter: ganti versi snapshot yang ditampilkan. */
-    public function gantiVersi(int $gdId): void
+    public function gantiVersiSnapshot(int $gdId): void
     {
         if ($this->modeSemua || $gdId <= 0) {
             return;
         }
         $this->gdIdList = [$gdId];
         $this->komponenTerbuka = [];
-        unset($this->dataLampiran);
+        unset($this->dataLampiranPerDokter);
     }
 
-    public function toggleKomponen(string $kunciKomponen): void
+    public function toggleLipatKomponen(string $kunciKomponen): void
     {
         $this->komponenTerbuka = in_array($kunciKomponen, $this->komponenTerbuka, true)
             ? array_values(array_diff($this->komponenTerbuka, [$kunciKomponen]))
@@ -103,7 +103,7 @@ new class extends Component {
      * rekonsiliasi, dan daftar versi (mode satu dokter). Dokter tanpa baris lampiran dilewati (mode semua).
      */
     #[Computed]
-    public function dataLampiran()
+    public function dataLampiranPerDokter()
     {
         if ($this->gdIdList === []) {
             return collect();
@@ -149,9 +149,9 @@ new class extends Component {
      * Unduh APA YANG SEDANG TAMPIL (satu dokter atau semua) sebagai CSV siap Excel — bentuk sama dengan SIRUS: PIPIH
      * (tanpa judul/subtotal di tengah data) supaya bisa dipivot, nominal angka mentah, BOM UTF-8, kolom Dokter & Periode di tiap baris.
      */
-    public function unduhCsv(): mixed
+    public function unduhLampiranCsv(): mixed
     {
-        $dataLampiran = $this->dataLampiran;
+        $dataLampiran = $this->dataLampiranPerDokter;
         if ($dataLampiran->isEmpty()) {
             $this->dispatch('toast', type: 'warning', message: 'Tidak ada data untuk diunduh.');
             return null;
@@ -185,14 +185,14 @@ new class extends Component {
             {{-- HEADER MODAL --}}
             <x-modul-dokumen.header judul="Lampiran Rincian Pasien" tutup="closeModal"
                 ikon="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
-                @if ($modeSemua){{ $this->dataLampiran->count() }} dokter · snapshot SIAP @else{{ $this->dataLampiran->first()['header']->dr_name ?? '' }} · snapshot SIAP @endif
+                @if ($modeSemua){{ $this->dataLampiranPerDokter->count() }} dokter · snapshot SIAP @else{{ $this->dataLampiranPerDokter->first()['header']->dr_name ?? '' }} · snapshot SIAP @endif
             </x-modul-dokumen.header>
 
             {{-- BODY — tertutup = tidak merender apa pun (daftar dikosongkan di closeModal). --}}
             <div class="flex-1 px-4 pt-2 pb-4 overflow-y-auto bg-surface-soft dark:bg-gray-950/20">
                 @if ($gdIdList)
                     @include('pages.keuangan.gaji-dokter.isi-lampiran-layar', [
-                        'dataLampiran' => $this->dataLampiran,
+                        'dataLampiran' => $this->dataLampiranPerDokter,
                         'komponenTerbuka' => $komponenTerbuka,
                         'batasLipat' => $modeSemua ? self::BATAS_LIPAT_SEMUA : self::BATAS_LIPAT,
                         'modeSemua' => $modeSemua,
@@ -205,12 +205,12 @@ new class extends Component {
                 <div class="flex items-center justify-end gap-2">
                     <x-secondary-button type="button" wire:click="closeModal">Tutup</x-secondary-button>
                     {{-- Unduh mengekspor APA YANG SEDANG TAMPIL — satu dokter atau semua — supaya isi berkas tidak pernah berbeda dari yang dilihat. --}}
-                    <x-info-button type="button" wire:click="unduhCsv" wire:loading.attr="disabled" wire:target="unduhCsv" title="Unduh sebagai CSV — siap dibuka di Excel">
-                        <span wire:loading.remove wire:target="unduhCsv" class="inline-flex items-center gap-2">
+                    <x-info-button type="button" wire:click="unduhLampiranCsv" wire:loading.attr="disabled" wire:target="unduhLampiranCsv" title="Unduh sebagai CSV — siap dibuka di Excel">
+                        <span wire:loading.remove wire:target="unduhLampiranCsv" class="inline-flex items-center gap-2">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
                             Unduh Excel
                         </span>
-                        <span wire:loading wire:target="unduhCsv" class="inline-flex items-center gap-2"><x-loading /> Menyiapkan...</span>
+                        <span wire:loading wire:target="unduhLampiranCsv" class="inline-flex items-center gap-2"><x-loading /> Menyiapkan...</span>
                     </x-info-button>
                 </div>
             </div>
