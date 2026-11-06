@@ -7,22 +7,19 @@ use Livewire\Attributes\Url;
 /**
  * PINJAMAN KARYAWAN — pembungkus tab (pola docs/tabs-pattern.md, mode Server @if: hanya tab aktif yang di-mount).
  *
- *   ENTRY     : pages::keuangan.pinjaman-karyawan.pinjaman-entry     — form catat / ubah pinjaman.
+ *   ENTRY     : pages::keuangan.pinjaman-karyawan.pinjaman-entry     — form catat pinjaman baru (salah input → hapus & catat lagi).
  *   BUKU      : pages::keuangan.pinjaman-karyawan.pinjaman-buku      — daftar pinjaman per bulan kerja + Terapkan ke Slip.
  *   BAYAR     : pages::keuangan.pinjaman-karyawan.pinjaman-bayar     — catat pembayaran angsuran di luar gaji (tunai / transfer, dobel, di muka).
  *   KETENTUAN : pages::keuangan.pinjaman-karyawan.pinjaman-ketentuan — master ketentuan per sumber (% sewa modal, pembulatan, bank aktif).
  *
  * Komunikasi antar tab lewat event:
- *   buku  → 'keuangan.pinjaman.openEdit' (id) / 'keuangan.pinjaman.openTambah'  → pembungkus pindah ke Entry
+ *   buku  → 'keuangan.pinjaman.openTambah' / 'keuangan.pinjaman.openBayar' (id)  → pembungkus pindah ke Entry / Pembayaran
  *   entry → 'keuangan.pinjaman.saved' / 'keuangan.pinjaman.batal'               → pembungkus pindah ke Buku
  * Hanya role gaji.kelola (data gaji & pinjaman = rahasia).
  */
 new class extends Component {
     #[Url(as: 'tab')]
     public string $tab = 'buku'; // entry | buku | bayar | ketentuan
-
-    /** Pinjaman yang dibuka untuk diubah di tab Entry (null = pinjaman baru). */
-    public ?int $editId = null;
 
     /** Pinjaman yang dibuka di tab Pembayaran (tombol Bayar di Buku). */
     public ?int $bayarId = null;
@@ -44,23 +41,12 @@ new class extends Component {
         if (!in_array($tab, ['entry', 'buku', 'bayar', 'ketentuan'], true)) {
             return;
         }
-        if ($tab === 'entry' && $this->tab !== 'entry') {
-            $this->editId = null;
-        }
         $this->tab = $tab;
     }
 
     #[On('keuangan.pinjaman.openTambah')]
     public function openTambah(): void
     {
-        $this->editId = null;
-        $this->tab = 'entry';
-    }
-
-    #[On('keuangan.pinjaman.openEdit')]
-    public function openEdit(int $id): void
-    {
-        $this->editId = $id;
         $this->tab = 'entry';
     }
 
@@ -75,7 +61,6 @@ new class extends Component {
     #[On('keuangan.pinjaman.batal')]
     public function keBuku(): void
     {
-        $this->editId = null;
         $this->bayarId = null;
         $this->tab = 'buku';
     }
@@ -91,7 +76,7 @@ new class extends Component {
             <div class="flex flex-wrap items-end justify-between gap-3 px-4">
                 <x-tabs variant="underline" class="border-0">
                     <x-tab :active="$tab === 'entry'" wire:click="setTab('entry')">
-                        <svg class="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>Entry Pinjaman{{ $editId ? ' (ubah #' . $editId . ')' : '' }}
+                        <svg class="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" /></svg>Entry Pinjaman
                     </x-tab>
                     <x-tab :active="$tab === 'buku'" wire:click="setTab('buku')">
                         <svg class="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>Buku Pinjaman
@@ -109,7 +94,7 @@ new class extends Component {
             <div class="border-b border-hairline dark:border-gray-700"></div>
 
             @if ($tab === 'entry')
-                <livewire:pages::keuangan.pinjaman-karyawan.pinjaman-entry :edit-id="$editId" wire:key="pinjaman-entry-{{ $editId ?? 'baru' }}" />
+                <livewire:pages::keuangan.pinjaman-karyawan.pinjaman-entry wire:key="pinjaman-entry" />
             @elseif ($tab === 'bayar')
                 <livewire:pages::keuangan.pinjaman-karyawan.pinjaman-bayar :pinjaman-id="$bayarId" wire:key="pinjaman-bayar-{{ $bayarId ?? 'kosong' }}" />
             @elseif ($tab === 'ketentuan')

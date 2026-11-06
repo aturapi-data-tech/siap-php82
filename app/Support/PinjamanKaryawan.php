@@ -41,8 +41,15 @@ class PinjamanKaryawan
 
     public const PEMBULATAN_PILIHAN = [1, 100, 1000, 10000];
 
-    /** Sumber pembayaran angsuran. GAJI = dipotong slip (otomatis); selain itu dicatat Keuangan di tab Pembayaran. */
+    /** Sumber pembayaran angsuran. GAJI = dipotong slip (otomatis); TUNAI / TRANSFER / LAIN dicatat Keuangan di tab Pembayaran. */
     public const SUMBER_BAYAR = ['GAJI' => 'Potong gaji', 'TUNAI' => 'Tunai', 'TRANSFER' => 'Transfer', 'LAIN' => 'Lainnya'];
+
+    /**
+     * Penanda TUNDA di buku pembayaran: angsuran bulan itu sengaja TIDAK dipotong gaji (permintaan karyawan, disetujui
+     * manajemen) dan BELUM dibayar — bukan pembayaran. Bulan berikutnya tampil sebagai tunggakan: dibayar tunai di tab
+     * Pembayaran atau ditagih di slip lewat Tagih tunggakan. Batal tunda = hapus penandanya.
+     */
+    public const TUNDA = 'TUNDA';
 
     /** Ketentuan awal (dipakai migrasi). */
     public const SUMBER_BAWAAN = [
@@ -173,15 +180,16 @@ class PinjamanKaryawan
     {
         $ke = self::angsuranKe((string) $pinjaman->bulan_awal, $periode);
         $lama = (int) $pinjaman->lama_bulan;
-        $terbayar = count($bayar);
-        $terbayarNominal = (float) array_sum(array_map(fn($b) => (float) $b->jumlah, $bayar));
+        $dibayar = array_filter($bayar, fn($b) => $b->sumber !== self::TUNDA); // penanda TUNDA bukan pembayaran
+        $terbayar = count($dibayar);
+        $terbayarNominal = (float) array_sum(array_map(fn($b) => (float) $b->jumlah, $dibayar));
         $totalHutang = (float) ($pinjaman->angsuran ?? 0) * $lama; // angsuran diisi lengkapi() sebelum posisi()
         $lunasNominal = $totalHutang > 0 && $terbayarNominal >= $totalHutang - 0.5;
         $tunggakan = [];
         if (!$lunasNominal) {
             for ($n = 1; $n <= min($ke - 1, $lama); $n++) {
                 $periodeN = self::periodeKe((string) $pinjaman->bulan_awal, $n);
-                if (!isset($bayar[$periodeN]) && ($pinjaman->lunas_periode === null || $periodeN < $pinjaman->lunas_periode)) {
+                if (!isset($dibayar[$periodeN]) && ($pinjaman->lunas_periode === null || $periodeN < $pinjaman->lunas_periode)) {
                     $tunggakan[] = $periodeN;
                 }
             }
@@ -194,10 +202,11 @@ class PinjamanKaryawan
             default    => 'berjalan',
         };
         $bayarIni = $bayar[$periode] ?? null;
-        $luarGaji = $bayarIni !== null && $bayarIni->sumber !== 'GAJI';
+        $ditunda = $bayarIni !== null && $bayarIni->sumber === self::TUNDA;
+        $luarGaji = $bayarIni !== null && !$ditunda && $bayarIni->sumber !== 'GAJI';
 
         return ['ke' => $ke, 'sisa' => $status === 'berjalan' ? max(0, $lama - max($ke, $terbayar)) : 0,
-            'aktif' => $status === 'berjalan' && !$luarGaji, 'status' => $status,
+            'aktif' => $status === 'berjalan' && !$luarGaji && !$ditunda, 'status' => $status, 'ditunda_bulan_ini' => $ditunda,
             'terbayar' => $terbayar, 'terbayar_nominal' => $terbayarNominal, 'total_hutang' => $totalHutang, 'lunas_nominal' => $lunasNominal,
             'tunggakan' => $tunggakan, 'bayar_bulan_ini' => $bayarIni, 'luar_gaji_bulan_ini' => $luarGaji];
     }
@@ -507,7 +516,7 @@ class PinjamanKaryawan
             ->join('siapmst_employers as em', 'em.emp_id', '=', 'p.emp_id')
             ->join('siapmst_pinjaman_sumbers as s', 's.sumber_kode', '=', 'p.sumber_kode')
             ->leftJoin('users as u', 'u.id', '=', 'b.created_by')
-            ->where('b.sumber', '!=', 'GAJI')
+            ->whereNotIn('b.sumber', ['GAJI', self::TUNDA])
             ->orderByDesc('b.tanggal_bayar')->orderByDesc('b.bayar_id')->limit($batas)
             ->get(['b.*', 'p.emp_id', 'p.bulan_awal', 'p.lama_bulan', 'em.emp_name', 's.nama as sumber_nama', 'u.name as oleh'])
             ->map(function ($row) {
@@ -540,6 +549,10 @@ class PinjamanKaryawan
                     continue;
                 }
                 $ada = DB::table('siaptxn_pinjaman_bayars')->where('pinjaman_id', $pinjamanId)->where('periode', $periode)->first();
+                if ($ada && $ada->sumber === self::TUNDA) {
+                    DB::table('siaptxn_pinjaman_bayars')->where('bayar_id', $ada->bayar_id)->delete(); // tunda → dibayar
+                    $ada = null;
+                }
                 if ($ada) {
                     if ($ada->sumber !== 'GAJI') {
                         $hasil['dilewati'][] = "{$periode} (ke-{$ke}): sudah dibayar " . (self::SUMBER_BAYAR[$ada->sumber] ?? $ada->sumber) . '.';
@@ -587,7 +600,12 @@ class PinjamanKaryawan
                 $hasil['dilewati'][] = "{$periode}: di luar masa angsuran.";
                 continue;
             }
-            if (DB::table('siaptxn_pinjaman_bayars')->where('pinjaman_id', $pinjamanId)->where('periode', $periode)->exists()) {
+            $ada = DB::table('siaptxn_pinjaman_bayars')->where('pinjaman_id', $pinjamanId)->where('periode', $periode)->first();
+            if ($ada && $ada->sumber === self::TUNDA) {
+                DB::table('siaptxn_pinjaman_bayars')->where('bayar_id', $ada->bayar_id)->delete(); // tunda → ditagih di slip
+                $ada = null;
+            }
+            if ($ada) {
                 $hasil['dilewati'][] = "{$periode} (ke-{$ke}): sudah terbayar / sudah ditagih.";
                 continue;
             }
@@ -600,6 +618,41 @@ class PinjamanKaryawan
         }
 
         return $hasil;
+    }
+
+    /**
+     * TUNDA angsuran bulan kerja $periode: tidak dipotong gaji bulan itu, tetap terhitung belum dibayar (jadi tunggakan bulan
+     * depan). Tagihan gaji Draft yang sudah ada diganti; slip Final / angsuran yang sudah dibayar ditolak. @return string|null galat
+     */
+    public static function tunda(int $pinjamanId, string $periode, ?int $userId): ?string
+    {
+        $pinjaman = self::ambil($pinjamanId, $periode);
+        if (!$pinjaman || !self::periodeValid($periode)) {
+            return 'Pinjaman / bulan kerja tidak valid.';
+        }
+        $ke = self::angsuranKe((string) $pinjaman->bulan_awal, $periode);
+        if ($ke < 1 || $ke > (int) $pinjaman->lama_bulan || !in_array($pinjaman->status, ['berjalan'], true)) {
+            return 'Hanya angsuran pinjaman berjalan yang bisa ditunda.';
+        }
+        $ada = DB::table('siaptxn_pinjaman_bayars')->where('pinjaman_id', $pinjamanId)->where('periode', $periode)->first();
+        if ($ada) {
+            if ($ada->sumber === self::TUNDA) {
+                return 'Angsuran bulan ini sudah ditunda.';
+            }
+            if ($ada->sumber !== 'GAJI') {
+                return 'Angsuran bulan ini sudah dibayar ' . (self::SUMBER_BAYAR[$ada->sumber] ?? $ada->sumber) . ' — tidak perlu ditunda.';
+            }
+            if (self::slipFinal((string) $ada->dipotong_periode, (string) $pinjaman->emp_id)) {
+                return 'Sudah dipotong di slip Final ' . self::labelPeriode((string) $ada->dipotong_periode) . ' — tidak bisa ditunda.';
+            }
+            DB::table('siaptxn_pinjaman_bayars')->where('bayar_id', $ada->bayar_id)->delete(); // tagihan Draft dicabut saat Terapkan berikutnya
+        }
+        DB::table('siaptxn_pinjaman_bayars')->insert([
+            'pinjaman_id' => $pinjamanId, 'periode' => $periode, 'sumber' => self::TUNDA, 'dipotong_periode' => null, 'jumlah' => 0,
+            'tanggal_bayar' => null, 'keterangan' => 'ditunda — tidak dipotong gaji bulan ini', 'created_by' => $userId, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        return null;
     }
 
     /** Hapus satu baris pembayaran. Baris GAJI yang slipnya sudah Final tidak bisa dihapus. @return string|null pesan galat */

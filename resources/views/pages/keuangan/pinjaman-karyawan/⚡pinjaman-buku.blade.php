@@ -9,12 +9,13 @@ use Carbon\Carbon;
 use App\Support\Format;
 use App\Support\GajiKaryawan;
 use App\Support\PinjamanKaryawan;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Tab BUKU Pinjaman Karyawan (anak pembungkus pinjaman-karyawan):
  *   daftar pinjaman dengan posisi "ke-n / lama" & sisa pada bulan kerja terpilih, Lunasi / Batal lunas / Hapus,
  *   dan "Terapkan ke Slip" (potongan angsuran bulan kerja → slip Draft, aman diulang).
- * Ubah pinjaman → event 'keuangan.pinjaman.openEdit' (pembungkus pindah ke tab Entry); Pinjaman Baru → 'keuangan.pinjaman.openTambah'.
+ * Pinjaman Baru → event 'keuangan.pinjaman.openTambah' (pembungkus pindah ke tab Entry). Tidak ada ubah: salah input → Hapus (selama belum ada pembayaran) lalu catat lagi.
  * Saringan & bulan kerja disimpan di Session (komponen di-unmount saat ganti tab — docs/tabs-pattern.md).
  */
 new class extends Component {
@@ -107,14 +108,33 @@ new class extends Component {
         $this->dispatch('keuangan.pinjaman.openTambah');
     }
 
-    public function openEdit(int $id): void
-    {
-        $this->dispatch('keuangan.pinjaman.openEdit', id: $id);
-    }
-
     public function openBayar(int $id): void
     {
         $this->dispatch('keuangan.pinjaman.openBayar', id: $id);
+    }
+
+    /** Tunda angsuran bulan kerja terpilih (tidak dipotong gaji; jadi tunggakan bulan depan). */
+    public function tunda(int $id): void
+    {
+        $galat = PinjamanKaryawan::tunda($id, $this->periode(), auth()->id());
+        $this->dispatch('toast', type: $galat ? 'error' : 'success', message: $galat ?? "Angsuran {$this->bulan} ditunda — tidak dipotong gaji bulan ini. Bulan depan tampil sebagai tunggakan: bayar tunai di tab Pembayaran atau Tagih tunggakan. Klik Terapkan ke Slip bila slip sudah berisi angsurannya.");
+        $this->segarkan();
+    }
+
+    /** Sakelar Tunda (x-toggle): ON = ditunda bulan ini, OFF = kembali dipotong gaji. */
+    public function toggleTunda(int $id): void
+    {
+        $ditunda = DB::table('siaptxn_pinjaman_bayars')->where('pinjaman_id', $id)->where('periode', $this->periode())->where('sumber', PinjamanKaryawan::TUNDA)->exists();
+        $ditunda ? $this->batalTunda($id) : $this->tunda($id);
+    }
+
+    /** Batal tunda: angsuran bulan kerja terpilih kembali dipotong gaji. */
+    public function batalTunda(int $id): void
+    {
+        $row = DB::table('siaptxn_pinjaman_bayars')->where('pinjaman_id', $id)->where('periode', $this->periode())->where('sumber', PinjamanKaryawan::TUNDA)->first();
+        $galat = $row ? PinjamanKaryawan::hapusBayar((int) $row->bayar_id) : 'Tidak ada penundaan bulan ini.';
+        $this->dispatch('toast', type: $galat ? 'error' : 'success', message: $galat ?? "Penundaan dibatalkan — angsuran {$this->bulan} kembali dipotong gaji saat Terapkan.");
+        $this->segarkan();
     }
 
     /** Tagih semua tunggakan pinjaman ini di slip bulan kerja terpilih. */
@@ -313,7 +333,7 @@ new class extends Component {
         <div class="flex flex-wrap items-end justify-between gap-2 px-4 pt-3">
             <div>
                 <h2 class="font-semibold text-ink dark:text-gray-100">Buku pinjaman</h2>
-                <p class="text-xs text-muted">Posisi <b>ke-n / lama</b> dan sisa dihitung dari bulan kerja di atas. Pinjaman berhenti sendiri setelah angsuran terakhir; pelunasan dipercepat lewat tombol <b>Lunasi</b>. Pinjaman yang sudah punya pembayaran <b>terkunci</b>: tidak bisa dihapus, pensil hanya untuk keterangan &amp; pelunasan. Riwayat per orang ada di tab Pembayaran.</p>
+                <p class="text-xs text-muted">Posisi <b>ke-n / lama</b> dan sisa dihitung dari bulan kerja di atas. Pinjaman berhenti sendiri setelah angsuran terakhir; pelunasan dipercepat lewat tombol <b>Lunasi</b>. Salah input → <b>Hapus</b> lalu catat lagi (hanya selama belum ada pembayaran; sesudahnya pinjaman terkunci). Riwayat per orang ada di tab Pembayaran.</p>
             </div>
             <x-badge variant="gray">{{ $rows->total() }} pinjaman</x-badge>
         </div>
@@ -356,10 +376,13 @@ new class extends Component {
                                 @endif
                                 @if ($row->luar_gaji_bulan_ini)
                                     <x-badge variant="success" class="mt-0.5">bulan ini: {{ PinjamanKaryawan::SUMBER_BAYAR[$row->bayar_bulan_ini->sumber] ?? $row->bayar_bulan_ini->sumber }}</x-badge>
-                                @elseif ($row->bayar_bulan_ini && $row->bayar_bulan_ini->dipotong_periode !== $periodeKini)
+                                @elseif ($row->bayar_bulan_ini && !$row->ditunda_bulan_ini && $row->bayar_bulan_ini->dipotong_periode !== $periodeKini)
                                     <x-badge variant="info" class="mt-0.5">bulan ini: dipotong slip {{ PinjamanKaryawan::labelPeriode($row->bayar_bulan_ini->dipotong_periode) }}</x-badge>
-                                @elseif ($row->status === 'berjalan')
-                                    <span class="block text-muted">bulan ini: potong gaji</span>
+                                @elseif ($row->status === 'berjalan' && ($row->aktif || $row->ditunda_bulan_ini))
+                                    <span class="flex items-center gap-2 mt-1 pt-1 border-t border-dashed border-hairline dark:border-gray-700" title="Nyalakan = angsuran {{ $bulan }} tidak dipotong gaji (kewajiban tetap, bulan depan jadi tunggakan). Matikan = kembali dipotong.">
+                                        <span class="{{ $row->ditunda_bulan_ini ? 'font-semibold text-warning-deep dark:text-warning' : 'text-muted' }}">bulan ini: {{ $row->ditunda_bulan_ini ? 'ditunda' : 'potong gaji' }}</span>
+                                        <x-toggle :current="$row->ditunda_bulan_ini ? '1' : '0'" trueValue="1" falseValue="0" wireClick="toggleTunda({{ $row->pinjaman_id }})" aria-label="Tunda angsuran {{ $bulan }} {{ $row->emp_name }}">Tunda</x-toggle>
+                                    </span>
                                 @endif
                             </td>
                             <td class="ds-c">
@@ -373,31 +396,36 @@ new class extends Component {
                                     <span class="text-muted">–</span>
                                 @endif
                             </td>
-                            <td class="ds-c">
-                                <div class="flex flex-wrap items-center justify-end gap-1 max-w-[13rem] ml-auto">
-                                    <x-icon-button color="green" class="!p-1.5" wire:click="openEdit({{ $row->pinjaman_id }})" title="{{ $row->terbayar > 0 ? 'Ubah keterangan / pelunasan (data pokok terkunci)' : 'Ubah pinjaman' }}" aria-label="Ubah pinjaman {{ $row->emp_name }}">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                                    </x-icon-button>
-                                    @if ($row->status !== 'lunas' && $row->status !== 'dilunasi')
-                                        <x-icon-button color="blue" class="!p-1.5" wire:click="openBayar({{ $row->pinjaman_id }})" title="Catat pembayaran di luar gaji" aria-label="Bayar pinjaman {{ $row->emp_name }}">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-                                        </x-icon-button>
-                                    @endif
-                                    @if ($row->tunggakan !== [])
-                                        <x-confirm-button variant="warning-soft" action="tagihTunggakan({{ $row->pinjaman_id }})" title="Tagih tunggakan di slip" class="!px-2 !py-1 text-xs"
-                                            message="Tagih {{ count($row->tunggakan) }} tunggakan {{ $row->emp_name }} ({{ implode(', ', array_map(fn($p) => PinjamanKaryawan::labelPeriode($p), $row->tunggakan)) }}) di slip bulan kerja {{ $bulan }}, selain angsuran bulan ini? Potongan bulan ini jadi dobel." confirmText="Ya, tagih" cancelText="Batal">Tagih tunggakan</x-confirm-button>
-                                    @endif
-                                    @if ($row->status === 'berjalan')
-                                        <x-confirm-button variant="warning-soft" action="lunaskan({{ $row->pinjaman_id }})" title="Lunasi dipercepat" class="!px-2 !py-1 text-xs"
-                                            message="Tandai pinjaman {{ $row->emp_name }} ({{ $row->sumber_nama }}) lunas mulai bulan kerja {{ $bulan }}? Mulai bulan itu tidak dipotong lagi. Pinjaman tetap tercatat sebagai riwayat." confirmText="Ya, lunas" cancelText="Batal">Lunasi</x-confirm-button>
-                                    @elseif ($row->status === 'dilunasi')
-                                        <x-confirm-button variant="secondary" action="batalLunas({{ $row->pinjaman_id }})" title="Batalkan tanda lunas" class="!px-2 !py-1 text-xs"
-                                            message="Batalkan tanda lunas {{ $row->emp_name }}? Angsuran berjalan lagi sesuai jadwal." confirmText="Ya, batalkan" cancelText="Batal">Batal lunas</x-confirm-button>
-                                    @endif
-                                    @if ($row->terbayar === 0)
-                                        <x-confirm-button variant="danger-soft" action="hapus({{ $row->pinjaman_id }})" title="Hapus pinjaman (belum ada pembayaran)" class="!px-2 !py-1 text-xs"
-                                            message="Hapus pinjaman {{ $row->emp_name }} ({{ $row->sumber_nama }}, {{ $rp($row->pokok) }})? Hanya untuk salah input sebelum ada pembayaran." confirmText="Ya, hapus" cancelText="Batal">Hapus</x-confirm-button>
-                                    @endif
+                            <td class="whitespace-nowrap">
+                                <div class="flex items-center justify-between gap-3">
+                                    {{-- kiri: pembayaran --}}
+                                    <div class="flex items-center gap-2">
+                                        @if ($row->status !== 'lunas' && $row->status !== 'dilunasi')
+                                            <x-secondary-button type="button" wire:click="openBayar({{ $row->pinjaman_id }})" title="Catat pembayaran di luar gaji (tab Pembayaran)">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                                                Bayar
+                                            </x-secondary-button>
+                                        @endif
+                                        @if ($row->tunggakan !== [])
+                                            <x-confirm-button variant="warning-soft" action="tagihTunggakan({{ $row->pinjaman_id }})" title="Tagih tunggakan di slip"
+                                                message="Tagih {{ count($row->tunggakan) }} tunggakan {{ $row->emp_name }} ({{ implode(', ', array_map(fn($p) => PinjamanKaryawan::labelPeriode($p), $row->tunggakan)) }}) di slip bulan kerja {{ $bulan }}, selain angsuran bulan ini? Potongan bulan ini jadi dobel." confirmText="Ya, tagih" cancelText="Batal"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> Tagih tunggakan</x-confirm-button>
+                                        @endif
+                                    </div>
+                                    <span class="self-stretch w-px bg-hairline dark:bg-gray-700" aria-hidden="true"></span>
+                                    {{-- kanan: status pinjaman --}}
+                                    <div class="flex items-center gap-2">
+                                        @if ($row->status === 'berjalan')
+                                            <x-confirm-button variant="warning-soft" action="lunaskan({{ $row->pinjaman_id }})" title="Lunasi dipercepat"
+                                                message="Tandai pinjaman {{ $row->emp_name }} ({{ $row->sumber_nama }}) lunas mulai bulan kerja {{ $bulan }}? Mulai bulan itu tidak dipotong lagi. Pinjaman tetap tercatat sebagai riwayat." confirmText="Ya, lunas" cancelText="Batal"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> Lunasi</x-confirm-button>
+                                        @elseif ($row->status === 'dilunasi')
+                                            <x-confirm-button variant="secondary" action="batalLunas({{ $row->pinjaman_id }})" title="Batalkan tanda lunas"
+                                                message="Batalkan tanda lunas {{ $row->emp_name }}? Angsuran berjalan lagi sesuai jadwal." confirmText="Ya, batalkan" cancelText="Batal"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg> Batal lunas</x-confirm-button>
+                                        @endif
+                                        @if ($row->terbayar === 0)
+                                            <x-confirm-button variant="danger-soft" action="hapus({{ $row->pinjaman_id }})" title="Hapus pinjaman (belum ada pembayaran)"
+                                                message="Hapus pinjaman {{ $row->emp_name }} ({{ $row->sumber_nama }}, {{ $rp($row->pokok) }})? Hanya untuk salah input sebelum ada pembayaran." confirmText="Ya, hapus" cancelText="Batal"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg> Hapus</x-confirm-button>
+                                        @endif
+                                    </div>
                                 </div>
                             </td>
                         </tr>

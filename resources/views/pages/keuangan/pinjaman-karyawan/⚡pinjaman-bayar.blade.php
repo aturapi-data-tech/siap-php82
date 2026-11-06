@@ -76,7 +76,7 @@ new class extends Component {
         }
         $this->pinjamanId = $id;
         // bawaan: angsuran pertama yang belum terbayar (tunggakan terlama, atau bulan ini / berikutnya)
-        $terbayar = PinjamanKaryawan::riwayatBayar($id)->pluck('periode')->flip();
+        $terbayar = PinjamanKaryawan::riwayatBayar($id)->where('sumber', '!=', PinjamanKaryawan::TUNDA)->pluck('periode')->flip();
         $keBelum = null;
         for ($n = 1; $n <= (int) $row->lama_bulan; $n++) {
             if (!isset($terbayar[PinjamanKaryawan::periodeKe((string) $row->bulan_awal, $n)])) {
@@ -319,15 +319,15 @@ new class extends Component {
                                             <tr wire:key="bayar-{{ $b->bayar_id }}">
                                                 <td class="whitespace-nowrap"><b class="font-mono">ke-{{ $b->ke }}</b> <span class="font-mono text-xs text-muted">{{ $lbl($b->periode) }}</span></td>
                                                 <td>
-                                                    <x-badge :variant="$b->sumber === 'GAJI' ? 'info' : 'success'">{{ PinjamanKaryawan::SUMBER_BAYAR[$b->sumber] ?? $b->sumber }}</x-badge>
+                                                    <x-badge :variant="$b->sumber === PinjamanKaryawan::TUNDA ? 'warning' : ($b->sumber === 'GAJI' ? 'info' : 'success')">{{ $b->sumber === PinjamanKaryawan::TUNDA ? 'Ditunda' : (PinjamanKaryawan::SUMBER_BAYAR[$b->sumber] ?? $b->sumber) }}</x-badge>
                                                     @if ($detail !== '' || $ket)<span class="ml-1 text-[11px] text-muted">{{ trim($detail . ($ket ? ($detail !== '' ? ' · ' : '') . $ket : '')) }}</span>@endif
                                                 </td>
-                                                <td class="font-mono text-right text-xs whitespace-nowrap">{{ $rp($b->jumlah) }}</td>
+                                                <td class="font-mono text-right text-xs whitespace-nowrap">{{ $b->sumber === PinjamanKaryawan::TUNDA ? '–' : $rp($b->jumlah) }}</td>
                                                 <td class="text-right">
                                                     @php $bisaHapus = $b->sumber !== 'GAJI' || ($b->keterangan !== null && $b->keterangan !== 'riwayat sebelum SIAP'); @endphp
                                                     @if ($bisaHapus)
-                                                        <x-confirm-button variant="danger-soft" action="hapusBayar({{ $b->bayar_id }})" title="{{ $b->sumber === 'GAJI' ? 'Batalkan tagihan ini dari slip' : 'Hapus catatan pembayaran' }}" class="!px-1.5 !py-0.5 text-[11px]"
-                                                            message="{{ $b->sumber === 'GAJI' ? 'Batalkan tagihan angsuran ke-' . $b->ke . ' (' . $lbl($b->periode) . ') dari slip ' . $lbl($b->dipotong_periode) . '? Angsuran itu kembali ditagih pada bulannya sendiri.' : 'Hapus catatan pembayaran angsuran ke-' . $b->ke . ' (' . $lbl($b->periode) . ')? Angsuran itu kembali ditagih lewat gaji bila masih berjalan.' }}" confirmText="Ya, hapus" cancelText="Batal">✕</x-confirm-button>
+                                                        <x-confirm-button variant="danger-soft" action="hapusBayar({{ $b->bayar_id }})" title="{{ $b->sumber === PinjamanKaryawan::TUNDA ? 'Batalkan penundaan' : ($b->sumber === 'GAJI' ? 'Batalkan tagihan ini dari slip' : 'Hapus catatan pembayaran') }}" class="!px-1.5 !py-0.5 text-[11px]"
+                                                            message="{{ $b->sumber === PinjamanKaryawan::TUNDA ? 'Batalkan penundaan angsuran ke-' . $b->ke . ' (' . $lbl($b->periode) . ')? Angsuran itu kembali dipotong gaji saat Terapkan.' : ($b->sumber === 'GAJI' ? 'Batalkan tagihan angsuran ke-' . $b->ke . ' (' . $lbl($b->periode) . ') dari slip ' . $lbl($b->dipotong_periode) . '? Angsuran itu kembali ditagih pada bulannya sendiri.' : 'Hapus catatan pembayaran angsuran ke-' . $b->ke . ' (' . $lbl($b->periode) . ')? Angsuran itu kembali ditagih lewat gaji bila masih berjalan.') }}" confirmText="Ya, hapus" cancelText="Batal">✕</x-confirm-button>
                                                     @endif
                                                 </td>
                                             </tr>
