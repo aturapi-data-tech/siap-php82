@@ -268,14 +268,19 @@ new class extends Component {
                                                         {{ \App\Support\GajiKaryawan::label($row->jenis, $row->kode) }}
                                                         @if (in_array($row->kode, \App\Support\GajiKaryawan::PENDAPATAN_HARIAN, true))
                                                             <span class="text-[10px] text-muted-soft">× hari kerja</span>
+                                                        @elseif (in_array($row->kode, \App\Support\GajiKaryawan::KODE_DOKTER_SIRUS, true))
+                                                            <span class="text-[10px] text-muted-soft" title="Dari slip gaji dokter SIRUS — ubah di SIRUS, lalu Ambil & Terapkan ulang di Gaji Dokter">dari SIRUS</span>
                                                         @elseif ($row->otomatis === '1')
                                                             <span class="text-[10px] text-muted-soft">{{ $row->nilai_manual === '1' ? 'ditimpa' : 'otomatis' }}</span>
                                                         @endif
                                                     </td>
                                                     <td class="text-xs text-muted">{{ $row->keterangan }}{{ (float) $row->tarif > 0 ? ' × Rp ' . \App\Support\GajiKaryawan::rupiah($row->tarif) : '' }}</td>
-                                                    @php $harian = in_array($row->kode, \App\Support\GajiKaryawan::PENDAPATAN_HARIAN, true); @endphp
+                                                    @php $harian = in_array($row->kode, \App\Support\GajiKaryawan::PENDAPATAN_HARIAN, true); $dariSirus = in_array($row->kode, \App\Support\GajiKaryawan::KODE_DOKTER_SIRUS, true); @endphp
                                                     <td class="text-right">
-                                                        @if ($harian)
+                                                        @if ($dariSirus)
+                                                            {{-- Terkunci: angka milik SIRUS; GajiKaryawan::ubahNilai/hapusBaris juga menolaknya. --}}
+                                                            <span class="font-mono {{ $jenis === 'P' ? 'text-red-700' : '' }}" title="Dari slip gaji dokter SIRUS — ubah di SIRUS, lalu Ambil & Terapkan ulang">{{ \App\Support\GajiKaryawan::rupiah($row->nilai) }}</span>
+                                                        @elseif ($harian)
                                                             {{-- Baris harian = hari kerja × tarif — diubah lewat kotak Hari Kerja, bukan diketik di sini --}}
                                                             <span class="font-mono" title="Ubah lewat kotak Hari Kerja">{{ \App\Support\GajiKaryawan::rupiah($row->nilai) }}</span>
                                                         @elseif ($draft)
@@ -290,7 +295,9 @@ new class extends Component {
                                                     </td>
                                                     @if ($draft)
                                                         <td class="ds-c">
-                                                            @if ($row->otomatis !== '1')
+                                                            @if ($dariSirus)
+                                                                <svg class="inline w-4 h-4 text-muted-soft" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><title>Terkunci — dari SIRUS</title><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                                            @elseif ($row->otomatis !== '1')
                                                                 <x-hapus-button action="hapusBaris({{ $row->dtl_id }})" title="Hapus Baris"
                                                                     message="Hapus baris {{ \App\Support\GajiKaryawan::label($row->jenis, $row->kode) }} dari slip?" />
                                                             @elseif ($row->nilai_manual === '1' && !in_array($row->kode, \App\Support\GajiKaryawan::PENDAPATAN_HARIAN, true))

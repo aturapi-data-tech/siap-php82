@@ -443,7 +443,8 @@ class GajiKaryawan
     public static function ubahNilai(int $dtlId, float $nilai): bool
     {
         $baris = DB::table('siaptxn_gaji_dtls')->where('dtl_id', $dtlId)->first();
-        if (!$baris || !self::bisaDiubah((int) $baris->gaji_id)) {
+        // Baris dari slip dokter SIRUS tidak diubah di sini — ubah di SIRUS lalu Ambil & Terapkan ulang (satu sumber kebenaran).
+        if (!$baris || !self::bisaDiubah((int) $baris->gaji_id) || in_array($baris->kode, self::KODE_DOKTER_SIRUS, true)) {
             return false;
         }
 
@@ -470,7 +471,8 @@ class GajiKaryawan
     public static function hapusBaris(int $dtlId, ?int $userId): bool
     {
         $baris = DB::table('siaptxn_gaji_dtls')->where('dtl_id', $dtlId)->first();
-        if (!$baris || !self::bisaDiubah((int) $baris->gaji_id) || ($baris->otomatis === '1' && $baris->nilai_manual !== '1')) {
+        if (!$baris || !self::bisaDiubah((int) $baris->gaji_id) || ($baris->otomatis === '1' && $baris->nilai_manual !== '1')
+            || in_array($baris->kode, self::KODE_DOKTER_SIRUS, true)) {
             return false;
         }
 

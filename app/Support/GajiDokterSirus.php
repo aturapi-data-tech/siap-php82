@@ -298,8 +298,9 @@ class GajiDokterSirus
      * beda sebutan.) Pola JasaMedik::terapkan: AMAN DIULANG — baris berkode KODE_DOKTER_SIRUS dihapus lalu ditulis
      * ulang dari snapshot terbaru, slip dihitung ulang; slip Final dilewati; dokter tanpa slip / tanpa pemetaan dilaporkan.
      * Baris ditulis dengan otomatis = '0' (seperti Jasa Medik) supaya Generate ulang slip tidak menghapusnya.
-     * Yang ditulis = angka SIRUS apa adanya: Jasa, gaji pokok dokter (bila ada), tambahan sebagai pendapatan; Potongan RS,
-     * PPh 21 SIRUS, potongan lain sebagai potongan → diterima di SIAP = diterima di SIRUS untuk bagian dokter.
+     * Yang ditulis = angka SIRUS apa adanya, PER KOMPONEN slip (uang periksa, visite, operator, …; gaji pokok dokter bila ada;
+     * tambahan) sebagai pendapatan; Potongan RS, PPh 21 SIRUS, potongan lain (IDI, BPJS, …) sebagai potongan
+     * → diterima di SIAP = diterima di SIRUS untuk bagian dokter. Baris ini DIKUNCI di Rincian slip karyawan.
      * Bekas terapkan pada karyawan yang kini tidak lagi punya snapshot/pemetaan di periode itu dibersihkan.
      * Dokter terpetakan yang BELUM punya slip bulan itu dibuatkan slip Draft kosong (pokok/tunjangan 0, PPh 0) — Generate
      * melewati karyawan tanpa parameter gaji, dan dokter spesialis umumnya memang hanya digaji lewat jasa SIRUS. Bila
@@ -342,20 +343,30 @@ class GajiDokterSirus
                 continue;
             }
             $gajiId = (int) $slip->gaji_id;
-            $ket = "bulan jasa {$label} · SIRUS slip #{$row->gajidoctor_no} v{$row->versi}";
-            DB::transaction(function () use ($gajiId, $row, $ket, $userId, $periode) {
+            $ket = "SIRUS #{$row->gajidoctor_no} v{$row->versi} · jasa {$label}";
+            // Per KOMPONEN slip SIRUS (uang periksa, visite, operator, …), bukan satu angka gabungan — rinciannya tetap terbaca di slip
+            // karyawan. Jumlahnya sama dengan header: Σ jenis J = jasa_total, Σ P = potongan RS + PPh + lain, Σ T = tambahan.
+            $detail = self::detail((int) $row->gd_id);
+            DB::transaction(function () use ($gajiId, $row, $ket, $userId, $periode, $detail) {
                 DB::table('siaptxn_gaji_dtls')->where('gaji_id', $gajiId)->whereIn('kode', GajiKaryawan::KODE_DOKTER_SIRUS)->delete();
-                $baris = [
-                    ['D', 'JASA_DOKTER', (float) $row->jasa_total, "Jasa dokter {$ket}"],
-                    ['D', 'POKOK_DOKTER', (float) $row->nilai_gaji_pokok, "Gaji pokok dokter skema {$row->skema_gaji_pokok} · {$ket}"],
-                    ['D', 'TAMBAHAN_DOKTER', (float) $row->tambahan_total, "Tambahan slip dokter · {$ket}"],
-                    ['P', 'POT_RS', (float) $row->potongan_rs, 'Potongan RS ' . rtrim(rtrim(number_format((float) $row->potongan_rs_persen, 2, ',', '.'), '0'), ',') . "% · {$ket}"],
-                    ['P', 'PPH21_DOKTER', (float) $row->pph21, 'PPh 21 ' . rtrim(rtrim(number_format((float) $row->pph21_persen, 2, ',', '.'), '0'), ',') . '% ' . ($row->npwp_status === 'Y' ? 'NPWP' : 'tanpa NPWP') . " · {$ket}"],
-                    ['P', 'POT_DOKTER', (float) $row->potongan_lain_total, "Potongan lain slip dokter · {$ket}"],
-                ];
-                foreach ($baris as [$jenis, $kode, $nilai, $keterangan]) {
+                $baris = [];
+                foreach ($detail as $d) {
+                    $nama = $d->label ?: $d->kode;
+                    $pasien = (int) $d->jumlah_pasien > 0 ? " · {$d->jumlah_pasien} pasien" : '';
+                    $baris[] = match (true) {
+                        $d->jenis === 'J'                     => ['D', 'JASA_DOKTER', (float) $d->nilai, "{$nama}{$pasien} · {$ket}", (int) $d->jumlah_pasien],
+                        $d->jenis === 'T'                     => ['D', 'TAMBAHAN_DOKTER', (float) $d->nilai, "{$nama} · {$ket}", 0],
+                        $d->jenis === 'P' && $d->kode === 'RS'    => ['P', 'POT_RS', (float) $d->nilai, "{$nama} · {$ket}", 0],
+                        $d->jenis === 'P' && $d->kode === 'PPH21' => ['P', 'PPH21_DOKTER', (float) $d->nilai, "{$nama} " . rtrim(rtrim(number_format((float) $row->pph21_persen, 2, ',', '.'), '0'), ',') . '% ' . ($row->npwp_status === 'Y' ? 'NPWP' : 'tanpa NPWP') . " · {$ket}", 0],
+                        default                               => ['P', 'POT_DOKTER', (float) $d->nilai, "{$nama} · {$ket}", 0],
+                    };
+                }
+                if ((float) $row->nilai_gaji_pokok > 0) {
+                    $baris[] = ['D', 'POKOK_DOKTER', (float) $row->nilai_gaji_pokok, "Gaji pokok dokter skema {$row->skema_gaji_pokok} · {$ket}", 0];
+                }
+                foreach ($baris as [$jenis, $kode, $nilai, $keterangan, $jumlah]) {
                     if (abs($nilai) >= 0.5) {
-                        GajiKaryawan::simpanBaris($gajiId, ['jenis' => $jenis, 'kode' => $kode, 'nilai' => $nilai, 'otomatis' => '0', 'keterangan' => mb_substr($keterangan, 0, 100)]);
+                        GajiKaryawan::simpanBaris($gajiId, ['jenis' => $jenis, 'kode' => $kode, 'nilai' => $nilai, 'jumlah' => $jumlah, 'otomatis' => '0', 'keterangan' => mb_substr($keterangan, 0, 100)]);
                     }
                 }
                 DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->where('dr_id', $row->dr_id)
