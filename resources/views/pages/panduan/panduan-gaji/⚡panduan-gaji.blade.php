@@ -223,19 +223,19 @@ new class extends Component {
                         Pinjaman dicatat <b>sekali</b>; angsuran tiap bulan dihitung sendiri, posisi "ke-n / lama" bergeser otomatis, dan berhenti saat lunas.</p>
                     <h3 class="mt-4">Ketentuan (sekali, atau bila berubah)</h3>
                     <ul class="mt-1 text-sm">
-                        <li>Tabel <b>1. Ketentuan sumber pinjaman</b>: tiap sumber (Koperasi, BRI, …) punya <b>% sewa modal / bulan</b>, <b>pembulatan</b> angsuran, dan <b>baris slip</b> tujuan (Angsuran Koperasi / Angsuran Bank / Angsuran lain). Sumber baru ditambah di baris bawah tabel.</li>
+                        <li>Tabel <b>Ketentuan sumber pinjaman</b> (tab Entry, sebelah kanan form): tiap sumber (Koperasi, BRI, …) punya <b>% sewa modal / bulan</b>, <b>pembulatan</b> angsuran, dan <b>baris slip</b> tujuan (Angsuran Koperasi / Angsuran Bank / Angsuran lain). Sumber baru ditambah di baris bawah tabel.</li>
                         <li>Perubahan ketentuan berlaku untuk pinjaman <b>baru</b>. Pinjaman lama tetap pada % saat pinjam (tersimpan di pinjamannya; ubah lewat tombol Edit bila memang disepakati).</li>
                         <li>Rumus (sama dengan Excel koperasi): sewa modal / bln = pokok × %; angsuran / bln = (pokok ÷ lama + sewa modal) dibulatkan ke atas ke kelipatan pembulatan.</li>
                     </ul>
                     <h3 class="mt-4">Saat ada yang pinjam</h3>
                     <ol class="mt-1 text-sm">
-                        <li>Klik <b>Pinjaman Baru</b>: pilih karyawan dan sumber, isi pokok, lama (bulan), dan <b>bulan kerja angsuran ke-1</b>. % sewa modal terisi dari ketentuan sumber, boleh diubah untuk pinjaman itu (mis. 0 = tanpa sewa modal).</li>
-                        <li>Kotak pratinjau menampilkan sewa modal, pokok / bln, <b>angsuran / bln</b>, total, dan bulan terakhir. Simpan.</li>
+                        <li>Buka tab <b>Entry Pinjaman</b> (atau klik <b>Pinjaman Baru</b> di tab Buku): pilih karyawan dan sumber, isi pokok, lama (bulan), dan <b>bulan kerja angsuran ke-1</b>. % sewa modal terisi dari ketentuan sumber, boleh diubah untuk pinjaman itu (mis. 0 = tanpa sewa modal). Centang "melunasi sisa pinjaman lama" bila pinjaman ini menggantikan pinjaman yang masih berjalan.</li>
+                        <li>Kotak pratinjau menampilkan sewa modal, pokok / bln, <b>angsuran / bln</b>, total, dan bulan terakhir. <b>Simpan ke Buku</b> → pindah ke tab Buku Pinjaman.</li>
                         <li>Klik <b>Terapkan ke Slip</b> bila slip bulan ini sudah ada — atau biarkan, tiap bulan tetap harus Terapkan (bagian "Tiap bulan").</li>
                     </ol>
                     <h3 class="mt-4">Tiap bulan</h3>
                     <ol class="mt-1 text-sm">
-                        <li>Pilih <b>Bulan Kerja</b> (sama dengan bulan slip). Kolom Posisi menunjukkan angsuran ke berapa dan sisa bulan.</li>
+                        <li>Tab <b>Buku Pinjaman</b>, pilih <b>Bulan Kerja</b> (sama dengan bulan slip). Kolom Posisi menunjukkan angsuran ke berapa dan sisa bulan.</li>
                         <li>Klik <b>Terapkan ke Slip</b> → satu baris potongan per pinjaman berjalan ditulis ke slip Draft, mis. "Koperasi An-Nashir ke-5/15". Pinjaman yang sudah lunas tidak ditulis; bekas angsurannya di slip dihapus.</li>
                     </ol>
                     <ul class="mt-3 text-sm">
