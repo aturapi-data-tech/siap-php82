@@ -39,13 +39,14 @@ new class extends Component {
         'pph' => '9. PPh 21',
         'final' => '10. Final & buka kembali',
         'cetak' => '11. Cetak & kirim WhatsApp',
+        'gaji-dokter' => '12. Gaji Dokter (SIRUS)',
         'rumus' => 'Rumus hitungan',
         'faq' => 'Tanya jawab',
     ];
 @endphp
 
 <div>
-    <x-page-title title="Panduan Gaji" subtitle="Cara pakai: parameter gaji → generate slip → jasa medik → laporan kepegawaian → pinjaman karyawan → form bagian → rincian → final → cetak / kirim WhatsApp" />
+    <x-page-title title="Panduan Gaji" subtitle="Cara pakai: parameter gaji → generate slip → jasa medik → laporan kepegawaian → pinjaman karyawan → form bagian → rincian → final → cetak / kirim WhatsApp · gaji dokter spesialis ditarik dari SIRUS" />
 
     <div class="w-full min-h-[calc(100vh-5rem)] bg-surface-soft dark:bg-gray-900">
         <div class="grid grid-cols-1 gap-6 px-6 py-6 mx-auto max-w-7xl lg:grid-cols-4">
@@ -60,7 +61,7 @@ new class extends Component {
                         @endforeach
                     </ul>
                     <p class="pt-3 mt-3 text-xs border-t border-hairline text-muted">
-                        Buka modul: {!! $tautan('keuangan.gaji-karyawan', 'Gaji Karyawan') !!} · {!! $tautan('keuangan.pembagian-jm', 'Pembagian Jasa Medik') !!} · {!! $tautan('keuangan.laporan-pegawai', 'Laporan Kepegawaian') !!} · {!! $tautan('keuangan.pinjaman-karyawan', 'Pinjaman Karyawan') !!}
+                        Buka modul: {!! $tautan('keuangan.gaji-karyawan', 'Gaji Karyawan') !!} · {!! $tautan('keuangan.pembagian-jm', 'Pembagian Jasa Medik') !!} · {!! $tautan('keuangan.laporan-pegawai', 'Laporan Kepegawaian') !!} · {!! $tautan('keuangan.pinjaman-karyawan', 'Pinjaman Karyawan') !!} · {!! $tautan('keuangan.gaji-dokter', 'Gaji Dokter (SIRUS)') !!}
                     </p>
                 </div>
             </nav>
@@ -405,6 +406,49 @@ new class extends Component {
                         ⚠️ Alamat link mengikuti alamat SIAP yang sedang dibuka. Bila SIAP dibuka lewat alamat jaringan lokal (mis. <code>192.168.x.x</code>),
                         link hanya bisa dibuka dari wifi kantor. Kirim slip saat SIAP dibuka lewat alamat publik (domain / HTTPS).
                     </div>
+                </section>
+
+                {{-- GAJI DOKTER (SIRUS) --}}
+                <section id="gaji-dokter" class="p-6 border scroll-mt-24 bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
+                    <h2>12. Gaji Dokter (SIRUS) — {!! $tautan('keuangan.gaji-dokter', 'buka') !!}</h2>
+                    <p class="mt-2 text-sm">Gaji dokter spesialis (uang periksa, jasa tindakan, visite, operasi, kapita, potongan RS, PPh 21) <b>dihitung di SIRUS</b>, bukan di SIAP. SIAP menariknya lewat API baca-saja dan menyimpannya sebagai <b>snapshot berversi per bulan jasa</b>, supaya angka yang sudah diproses tidak berubah diam-diam dan perubahan di SIRUS selalu terlihat. Empat tab: <b>Buku</b> (slip per bulan jasa + Ambil dari SIRUS), <b>Lampiran</b> (rincian pasien di balik tiap angka), <b>Pemetaan Dokter</b> (dokter SIRUS ↔ karyawan SIAP), <b>Riwayat Ambil</b>.</p>
+
+                    <h3 class="mt-4">Cara kerja</h3>
+                    <ol class="mt-1 text-sm">
+                        <li><b>Sambungan</b>: SIAP login ke API SIRUS memakai <b>akun user SIRUS</b> ber-role <i>Api Siap</i> (dibuat admin SIRUS dengan <code>php artisan siap-api:akun siap-gaji</code>; bisa dinonaktifkan / diganti password dari User Control SIRUS, dan tidak bisa dipakai masuk ke web SIRUS). Username / password-nya diisi di <code>.env</code> SIAP (<code>SIRUS_API_URL</code>, <code>SIRUS_API_USER</code>, <code>SIRUS_API_PASSWORD</code>); rahasia JWT di <code>.env</code> SIRUS (<code>SIAP_API_JWT_SECRET</code>, terpisah dari JWT Mobile JKN). SIRUS membalas token berumur 1 jam; permintaan berikutnya membawa token itu. API-nya <b>hanya membaca</b> — SIAP tidak pernah mengubah data SIRUS. Bila kredensial belum diisi, tombol Ambil tidak muncul.</li>
+                        <li><b>Bulan jasa</b>: periode di SIAP = bulan pelayanan (jasa). Di SIRUS slip bulan jasa Juli dibayar sebagai bulan gaji Agustus — kolom "bulan gaji" ikut tersimpan di snapshot.</li>
+                        <li><b>Ambil dari SIRUS</b> menarik master dokter, semua slip bulan jasa itu (header + komponen J/P/T) dan lampirannya. Tiap dokter diberi <b>checksum</b> (angka header, komponen, lampiran). Sama dengan snapshot terakhir → hanya "terakhir diambil" diperbarui. Berbeda → <b>versi baru</b>; versi lama tetap tersimpan (tidak pernah ditimpa). Aman diulang kapan saja.</li>
+                        <li><b>Versi &amp; pembanding</b>: di Buku, slip yang pernah berubah ditandai <i>versi N</i> (saringan "Pernah berubah"). Tombol <b>Rincian</b> membuka komponen slip dan pilihan <b>Bandingkan dengan</b>: versi sebelumnya (apa yang berubah sejak kita proses) atau bulan jasa sebelumnya (naik / turun dibanding bulan lalu). Baris yang berbeda disorot, selisih per komponen dan per total ditampilkan. Kolom "vs bulan lalu" di Buku = selisih gaji diterima.</li>
+                        <li><b>Pemetaan dokter → karyawan</b>: saat Ambil / Segarkan, dokter yang namanya cocok persis dengan master karyawan (gelar diabaikan, hanya satu yang cocok) dipetakan otomatis. Sisanya dipetakan manual di tab Pemetaan lewat LOV karyawan. Dokter tanpa pemetaan tetap ditarik dan ditandai "Belum dipetakan" — tidak memblokir.</li>
+                        <li><b>Lampiran</b>: tiap angka slip ditopang baris pasien / transaksi (tanggal, pasien, tindakan, klaim, no. SEP, nominal). Kartu per komponen = subtotal; klik kartu untuk menyaring. Baris "tidak masuk slip" = grup kapita yang di SIRUS dibayar lewat skema lain, ditampilkan untuk pembanding.</li>
+                        <li><b>Tidak ada sunting</b>: snapshot tidak bisa diubah di SIAP. Koreksi dilakukan di SIRUS, lalu Ambil ulang → versi baru.</li>
+                    </ol>
+
+                    <h3 class="mt-4">Langkah rutin tiap bulan</h3>
+                    <ol class="mt-1 text-sm">
+                        <li>Setelah SIRUS menutup gaji dokter bulan jasa N: buka Buku, pilih bulan jasa N, klik <b>Ambil dari SIRUS</b>.</li>
+                        <li>Periksa pesan hasil (baru / berubah / sama) dan badge "dokter belum dipetakan" → lengkapi di tab Pemetaan bila ada dokter baru.</li>
+                        <li>Bandingkan kolom "vs bulan lalu"; yang mencolok dibuka Rincian / Lampiran.</li>
+                        <li>Menjelang pembayaran, Ambil ulang sekali lagi: bila ada "berubah", buka Rincian → bandingkan dengan versi sebelumnya untuk melihat komponen mana yang diubah SIRUS setelah kita proses.</li>
+                    </ol>
+
+                    <h3 class="mt-4">Kasus yang sudah diantisipasi</h3>
+                    <dl class="mt-1 space-y-2 text-sm">
+                        <div><dt class="font-semibold">A. SIRUS mengubah angka setelah kita proses</dt>
+                            <dd>Ambil ulang → dokter itu mendapat versi 2, versi 1 tetap. Saringan "Pernah berubah" menampilkan siapa saja; Rincian → "Bandingkan dengan Versi 1" menunjukkan komponen yang berubah dan selisihnya. Riwayat Ambil mencatat kapan dan oleh siapa.</dd></div>
+                        <div><dt class="font-semibold">B. Dokter ada di SIRUS tapi bukan karyawan SIAP (dokter jaga, tamu, "TIDAK ADA", nama kosong)</dt>
+                            <dd>Tetap ditarik dan tampil "Belum dipetakan". Biarkan kosong bila memang tidak digaji lewat SIAP; snapshot-nya tetap berguna sebagai pembanding total jasa.</dd></div>
+                        <div><dt class="font-semibold">C. Nama dokter beda ejaan dengan master karyawan</dt>
+                            <dd>Pemetaan otomatis gagal (mis. salah ketik di master). Petakan manual di tab Pemetaan: Petakan → ketik nama / ID → pilih. Pemetaan tersimpan sekali untuk seterusnya.</dd></div>
+                        <div><dt class="font-semibold">D. Jasa dokter tidak dihitung di SIRUS (anomali)</dt>
+                            <dd>Buku menampilkan apa adanya (jasa 0 atau dokter tidak muncul). Pembanding bulan lalu dan lampiran membantu menemukannya; koreksinya di SIRUS, lalu Ambil ulang.</dd></div>
+                        <div><dt class="font-semibold">E. Slip belum Final di SIRUS</dt>
+                            <dd>Status Draft / Final SIRUS ikut tersimpan (saringan "Final di SIRUS"). Snapshot Draft boleh ditarik untuk pembanding awal; angka pastinya adalah versi yang diambil setelah Final.</dd></div>
+                        <div><dt class="font-semibold">F. Sambungan gagal</dt>
+                            <dd>Pesan galat tampil (server SIRUS mati, password beda, token ditolak). Snapshot yang sudah ada tidak terpengaruh. Cek <code>SIRUS_API_URL</code>, pastikan akun <i>siap-gaji</i> di SIRUS masih aktif dan password di <code>.env</code> SIAP sama.</dd></div>
+                    </dl>
+                    <p class="mt-3 text-sm">Detail teknis sambungan (setup .env, akun, token, kontrak data, uji sambungan) ada di {!! $tautan('panduan.sirus-api', 'Panduan Bridging SIRUS') !!}.</p>
+                    <p class="mt-3 text-xs text-muted">Snapshot gaji dokter berdiri sendiri — belum ditulis ke slip gaji karyawan. Dokter yang juga punya slip SIAP (angsuran, BPJS) tetap diproses di Gaji Karyawan seperti biasa.</p>
                 </section>
 
                 {{-- RUMUS --}}

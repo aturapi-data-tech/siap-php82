@@ -81,6 +81,8 @@ Route::middleware(['auth'])->group(function () {
         ->name('keuangan.laporan-pegawai');
     Route::livewire('/keuangan/pinjaman-karyawan', 'pages::keuangan.pinjaman-karyawan.pinjaman-karyawan')
         ->name('keuangan.pinjaman-karyawan');
+    Route::livewire('/keuangan/gaji-dokter', 'pages::keuangan.gaji-dokter.gaji-dokter')
+        ->name('keuangan.gaji-dokter');
 
     // ── PANDUAN (cara pakai, semua user) ──
     Route::livewire('/panduan/absensi', 'pages::panduan.panduan-absensi.panduan-absensi')
@@ -89,6 +91,8 @@ Route::middleware(['auth'])->group(function () {
         ->name('panduan.aset');
     Route::livewire('/panduan/gaji', 'pages::panduan.panduan-gaji.panduan-gaji')
         ->name('panduan.gaji');
+    Route::livewire('/panduan/bridging-sirus', 'pages::panduan.panduan-sirus-api.panduan-sirus-api')
+        ->name('panduan.sirus-api');
     Route::livewire('/panduan/struktur-database', 'pages::panduan.panduan-struktur-db.panduan-struktur-db')
         ->name('panduan.struktur-db');
     // Unduh SQL struktur database (Admin) — berkas dibuat `php artisan siap:struktur-db`.
