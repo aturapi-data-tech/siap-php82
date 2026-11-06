@@ -73,7 +73,7 @@ new class extends Component {
     private function resetForm(): void
     {
         $sumberPertama = PinjamanKaryawan::sumber(true)->first();
-        $this->form = ['emp_id' => '', 'sumber_kode' => $sumberPertama?->sumber_kode ?? '', 'pokok' => 0,
+        $this->form = ['emp_id' => '', 'emp_nama' => '', 'sumber_kode' => $sumberPertama?->sumber_kode ?? '', 'pokok' => 0,
             'persen_sewa' => (float) ($sumberPertama?->persen_sewa ?? 0), 'lama_bulan' => 12,
             'bulan_awal' => $this->bulanValid() ? $this->bulan : now()->format(Format::BULAN), 'lunas_periode' => '', 'keterangan' => '', 'tutup_lama' => true];
         $this->formVersi++;
@@ -86,7 +86,7 @@ new class extends Component {
         if (!$row) {
             return false;
         }
-        $this->form = ['emp_id' => $row->emp_id, 'sumber_kode' => $row->sumber_kode, 'pokok' => (float) $row->pokok,
+        $this->form = ['emp_id' => $row->emp_id, 'emp_nama' => (string) $row->emp_name, 'sumber_kode' => $row->sumber_kode, 'pokok' => (float) $row->pokok,
             'persen_sewa' => (float) $row->persen_sewa, 'lama_bulan' => (int) $row->lama_bulan,
             'bulan_awal' => $this->keTampilPeriode($row->bulan_awal), 'lunas_periode' => $this->keTampilPeriode($row->lunas_periode),
             'keterangan' => (string) ($row->keterangan ?? ''), 'tutup_lama' => false];
@@ -194,10 +194,13 @@ new class extends Component {
         return PinjamanKaryawan::sumber();
     }
 
+    /** Opsi LOV karyawan (x-combobox): id = emp_id, nama = nama karyawan, kelas = ID · unit (ikut dicari saat mengetik). */
     #[Computed]
-    public function karyawanPilihan()
+    public function karyawanPilihan(): array
     {
-        return PinjamanKaryawan::karyawanPilihan();
+        return PinjamanKaryawan::karyawanPilihan()
+            ->map(fn($row) => ['id' => $row->emp_id, 'nama' => $row->emp_name, 'kelas' => $row->emp_id . ($row->unit_name ? ' · ' . $row->unit_name : '')])
+            ->all();
     }
 
     #[Computed]
@@ -229,13 +232,20 @@ new class extends Component {
             <div class="grid grid-cols-1 gap-4 px-4 py-4 sm:grid-cols-2">
                 <div class="sm:col-span-2">
                     <x-input-label for="pj-emp" value="Karyawan" />
-                    <x-select-input id="pj-emp" wire:model="form.emp_id" :disabled="(bool) $editId" class="w-full mt-1">
-                        <option value="">— pilih karyawan —</option>
-                        @foreach ($this->karyawanPilihan as $karyawan)
-                            <option value="{{ $karyawan->emp_id }}">{{ $karyawan->emp_name }} · {{ $karyawan->emp_id }}{{ $karyawan->unit_name ? ' · ' . $karyawan->unit_name : '' }}</option>
-                        @endforeach
-                    </x-select-input>
-                    <p class="mt-1 text-xs text-muted">Hanya karyawan aktif yang punya parameter gaji (supaya ada slip untuk dipotong).</p>
+                    <div class="mt-1">
+                        <x-combobox wireModel="form.emp_nama" wireModelId="form.emp_id" :options="$this->karyawanPilihan" :disabled="(bool) $editId"
+                            inputId="pj-emp" placeholder="Ketik nama / ID karyawan, lalu pilih dari daftar…" judulDaftar="daftar karyawan" maxlength="100"
+                            enterAction="document.getElementById('pj-pokok')?.focus()" />
+                    </div>
+                    <p class="mt-1 text-xs {{ $form['emp_nama'] !== '' && $form['emp_id'] === '' ? 'text-warning-deep dark:text-warning' : 'text-muted' }}">
+                        @if ($form['emp_nama'] !== '' && $form['emp_id'] === '')
+                            Nama belum cocok dengan daftar — pilih dari daftar (panah bawah / klik) supaya karyawannya terkunci.
+                        @elseif ($form['emp_id'] !== '')
+                            Terpilih: <b class="font-mono">{{ $form['emp_id'] }}</b>
+                        @else
+                            Hanya karyawan aktif yang punya parameter gaji (supaya ada slip untuk dipotong). Bisa cari lewat nama, ID, atau unit.
+                        @endif
+                    </p>
                 </div>
                 <div>
                     <x-input-label for="pj-sumber-form" value="Sumber pinjaman" />
