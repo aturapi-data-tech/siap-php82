@@ -63,7 +63,8 @@ new class extends Component {
         $kodeBoleh = array_keys($this->baru['jenis'] === 'P' ? GajiKaryawan::POTONGAN : GajiKaryawan::PENDAPATAN);
         $this->validate([
             'baru.jenis'      => 'required|in:D,P',
-            'baru.kode'       => ['required', 'in:' . implode(',', array_diff($kodeBoleh, ['PPH21']))],
+            // PPH21 = otomatis; KODE_DOKTER_SIRUS = hanya lewat Terapkan ke slip gaji (Gaji Dokter SIRUS) — bukan entri manual.
+            'baru.kode'       => ['required', 'in:' . implode(',', array_diff($kodeBoleh, ['PPH21', ...GajiKaryawan::KODE_DOKTER_SIRUS]))],
             'baru.keterangan' => 'nullable|string|max:100',
             'baru.nilai'      => 'required|numeric|min:-999999999|max:999999999|not_in:0',
         ], [
@@ -341,7 +342,7 @@ new class extends Component {
                                     </x-select-input>
                                     <x-select-input wire:model="baru.kode">
                                         @foreach ($baru['jenis'] === 'P' ? \App\Support\GajiKaryawan::POTONGAN : \App\Support\GajiKaryawan::PENDAPATAN as $kode => $namaKomponen)
-                                            @continue($kode === 'PPH21')
+                                            @continue($kode === 'PPH21' || in_array($kode, \App\Support\GajiKaryawan::KODE_DOKTER_SIRUS, true))
                                             <option value="{{ $kode }}">{{ $namaKomponen }}</option>
                                         @endforeach
                                     </x-select-input>

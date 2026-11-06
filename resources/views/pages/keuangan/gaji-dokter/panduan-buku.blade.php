@@ -30,6 +30,10 @@
             </table>
         </div>
         <div>
+            <div class="font-semibold">Terapkan ke slip gaji</div>
+            <p class="mt-0.5">Menulis snapshot versi terbaru tiap dokter yang <span class="font-semibold">sudah dipetakan</span> ke slip <span class="font-semibold">Draft</span> Gaji Karyawan bulan gaji (bulan jasa + 1): Jasa, gaji pokok dokter, dan tambahan sebagai pendapatan; Potongan RS, PPh 21 SIRUS, dan potongan lain sebagai potongan &mdash; angkanya apa adanya dari SIRUS, dan PPh 21 SIAP tidak menghitung ulang bagian ini. Aman diulang: baris lama ditimpa. Slip Final dilewati; dokter tanpa slip harus di-generate dulu di Gaji Karyawan. Badge <span class="font-semibold">di slip gaji</span> / <span class="font-semibold">slip pakai v1</span> di daftar menunjukkan versi mana yang sudah ditulis.</p>
+        </div>
+        <div>
             <div class="font-semibold">Pemetaan dokter</div>
             <p class="mt-0.5">Dokter SIRUS perlu dipetakan ke karyawan SIAP (tab <span class="font-semibold">Pemetaan Dokter</span>) supaya slipnya bisa dihubungkan ke data kepegawaian. Yang belum dipetakan ditandai di daftar.</p>
         </div>

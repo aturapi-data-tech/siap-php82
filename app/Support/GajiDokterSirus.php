@@ -266,11 +266,18 @@ class GajiDokterSirus
             ->get(['h.*', 'd.emp_id as emp_id_map', 'd.cara_map', 'em.emp_name']);
         $bulanLalu = Carbon::createFromFormat('!Y-m', $periode)->subMonthNoOverflow()->format('Y-m');
         $lalu = DB::table('siaptxn_gdok_hdrs')->where('periode', $bulanLalu)->where('terbaru', '1')->get()->keyBy('dr_id');
+        // Versi yang pernah ditulis ke slip gaji (bisa versi lama) — penanda "slip memakai v1, snapshot sudah v2".
+        $diterapkan = DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->whereNotNull('diterapkan_at')
+            ->orderBy('versi')->get(['dr_id', 'versi', 'gaji_id', 'diterapkan_at'])->keyBy('dr_id');
 
-        $rows = $rows->map(function ($row) use ($lalu) {
+        $rows = $rows->map(function ($row) use ($lalu, $diterapkan) {
             $row->versi_sebelumnya = (int) $row->versi > 1;
             $row->bulan_lalu = $lalu[$row->dr_id] ?? null;
             $row->selisih_bulan_lalu = $row->bulan_lalu ? (float) $row->gaji_diterima - (float) $row->bulan_lalu->gaji_diterima : null;
+            $t = $diterapkan[$row->dr_id] ?? null;
+            $row->diterapkan_versi = $t ? (int) $t->versi : null;
+            $row->diterapkan_gaji_id = $t ? (int) $t->gaji_id : null;
+            $row->diterapkan_at_slip = $t?->diterapkan_at;
 
             return $row;
         });
@@ -281,6 +288,92 @@ class GajiDokterSirus
             'final'     => $rows->where('gaji_status', 'F')->values(),
             default     => $rows,
         };
+    }
+
+    // ─── Terapkan ke slip Gaji Karyawan ───────────────────────────────────────
+
+    /**
+     * Tulis snapshot versi terbaru tiap dokter TERPETAKAN ke slip Draft Gaji Karyawan periode bulan gaji SIRUS
+     * (= bulan jasa + 1). Pola JasaMedik::terapkan: AMAN DIULANG — baris berkode KODE_DOKTER_SIRUS dihapus lalu ditulis
+     * ulang dari snapshot terbaru, slip dihitung ulang; slip Final dilewati; dokter tanpa slip / tanpa pemetaan dilaporkan.
+     * Yang ditulis = angka SIRUS apa adanya: Jasa, gaji pokok dokter (bila ada), tambahan sebagai pendapatan; Potongan RS,
+     * PPh 21 SIRUS, potongan lain sebagai potongan → diterima di SIAP = diterima di SIRUS untuk bagian dokter.
+     * Bekas terapkan pada karyawan yang kini tidak lagi punya snapshot/pemetaan di periode itu dibersihkan.
+     * @return array{diperbarui: int, dibersihkan: int, periodeGaji: string, final: array<int, string>, tanpaSlip: array<int, string>, tanpaMap: array<int, string>}
+     */
+    public static function terapkan(string $periode, ?int $userId): array
+    {
+        $rows = self::daftar($periode);
+        $periodeGaji = Carbon::createFromFormat('!Y-m', $periode)->addMonthNoOverflow()->format('Y-m');
+        $hasil = ['diperbarui' => 0, 'dibersihkan' => 0, 'periodeGaji' => $periodeGaji, 'final' => [], 'tanpaSlip' => [], 'tanpaMap' => []];
+        $label = self::namaPeriode($periode);
+
+        $terpetakan = $rows->filter(fn($r) => $r->emp_id_map !== null);
+        $hasil['tanpaMap'] = $rows->filter(fn($r) => $r->emp_id_map === null)->pluck('dr_name')->values()->all();
+        $slipList = DB::table('siaptxn_gaji_hdrs')->where('periode', $periodeGaji)
+            ->whereIn('emp_id', $terpetakan->pluck('emp_id_map')->map(fn($e) => (string) $e)->all() ?: [''])
+            ->get(['gaji_id', 'emp_id', 'gaji_status'])->keyBy('emp_id');
+        $dipakai = [];
+
+        foreach ($terpetakan as $row) {
+            $slip = $slipList[$row->emp_id_map] ?? null;
+            if (!$slip) {
+                $hasil['tanpaSlip'][] = $row->dr_name;
+                continue;
+            }
+            $dipakai[] = (int) $slip->gaji_id;
+            if ($slip->gaji_status === GajiKaryawan::STATUS_FINAL) {
+                $hasil['final'][] = $row->dr_name;
+                continue;
+            }
+            $gajiId = (int) $slip->gaji_id;
+            $ket = "bulan jasa {$label} · SIRUS slip #{$row->gajidoctor_no} v{$row->versi}";
+            DB::transaction(function () use ($gajiId, $row, $ket, $userId, $periode) {
+                DB::table('siaptxn_gaji_dtls')->where('gaji_id', $gajiId)->whereIn('kode', GajiKaryawan::KODE_DOKTER_SIRUS)->delete();
+                $baris = [
+                    ['D', 'JASA_DOKTER', (float) $row->jasa_total, "Jasa dokter {$ket}"],
+                    ['D', 'POKOK_DOKTER', (float) $row->nilai_gaji_pokok, "Gaji pokok dokter skema {$row->skema_gaji_pokok} · {$ket}"],
+                    ['D', 'TAMBAHAN_DOKTER', (float) $row->tambahan_total, "Tambahan slip dokter · {$ket}"],
+                    ['P', 'POT_RS', (float) $row->potongan_rs, 'Potongan RS ' . rtrim(rtrim(number_format((float) $row->potongan_rs_persen, 2, ',', '.'), '0'), ',') . "% · {$ket}"],
+                    ['P', 'PPH21_DOKTER', (float) $row->pph21, 'PPh 21 ' . rtrim(rtrim(number_format((float) $row->pph21_persen, 2, ',', '.'), '0'), ',') . '% ' . ($row->npwp_status === 'Y' ? 'NPWP' : 'tanpa NPWP') . " · {$ket}"],
+                    ['P', 'POT_DOKTER', (float) $row->potongan_lain_total, "Potongan lain slip dokter · {$ket}"],
+                ];
+                foreach ($baris as [$jenis, $kode, $nilai, $keterangan]) {
+                    if (abs($nilai) >= 0.5) {
+                        GajiKaryawan::simpanBaris($gajiId, ['jenis' => $jenis, 'kode' => $kode, 'nilai' => $nilai, 'otomatis' => '1', 'keterangan' => mb_substr($keterangan, 0, 100)]);
+                    }
+                }
+                DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->where('dr_id', $row->dr_id)
+                    ->update(['gaji_id' => null, 'diterapkan_at' => null, 'diterapkan_oleh' => null]);
+                DB::table('siaptxn_gdok_hdrs')->where('gd_id', $row->gd_id)
+                    ->update(['gaji_id' => $gajiId, 'diterapkan_at' => now(), 'diterapkan_oleh' => $userId, 'updated_at' => now()]);
+            });
+            GajiKaryawan::hitungUlang($gajiId);
+            $hasil['diperbarui']++;
+        }
+
+        // Bekas terapkan pada slip Draft periode gaji ini yang tidak lagi punya dokter terpetakan (pemetaan dilepas / dokter hilang).
+        $sisaLama = DB::table('siaptxn_gaji_dtls as d')->join('siaptxn_gaji_hdrs as h', 'h.gaji_id', '=', 'd.gaji_id')
+            ->where('h.periode', $periodeGaji)->where('h.gaji_status', GajiKaryawan::STATUS_DRAFT)
+            ->whereIn('d.kode', GajiKaryawan::KODE_DOKTER_SIRUS)
+            ->when($dipakai !== [], fn($q) => $q->whereNotIn('h.gaji_id', $dipakai))
+            ->distinct()->pluck('h.gaji_id');
+        foreach ($sisaLama as $gajiId) {
+            DB::table('siaptxn_gaji_dtls')->where('gaji_id', $gajiId)->whereIn('kode', GajiKaryawan::KODE_DOKTER_SIRUS)->delete();
+            DB::table('siaptxn_gdok_hdrs')->where('gaji_id', $gajiId)->update(['gaji_id' => null, 'diterapkan_at' => null, 'diterapkan_oleh' => null]);
+            GajiKaryawan::hitungUlang((int) $gajiId);
+            $hasil['dibersihkan']++;
+        }
+
+        return $hasil;
+    }
+
+    public static function namaPeriode(?string $ym): string
+    {
+        return $ym && preg_match('/^(\d{4})-(\d{2})$/', $ym, $m)
+            ? ((['01' => 'Januari', '02' => 'Februari', '03' => 'Maret', '04' => 'April', '05' => 'Mei', '06' => 'Juni', '07' => 'Juli', '08' => 'Agustus',
+                '09' => 'September', '10' => 'Oktober', '11' => 'November', '12' => 'Desember'][$m[2]] ?? $m[2]) . ' ' . $m[1])
+            : (string) $ym;
     }
 
     public static function periodeTersedia(): Collection

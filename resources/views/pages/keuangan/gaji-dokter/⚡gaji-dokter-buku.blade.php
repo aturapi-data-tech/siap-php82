@@ -9,7 +9,8 @@ use App\Support\GajiDokterSirus;
 use App\Support\GajiKaryawan;
 
 /**
- * Tab BUKU Gaji Dokter (anak pembungkus gaji-dokter; Rincian & Lampiran = modal terpisah sejajar tab): slip gaji dokter SIRUS per BULAN JASA — versi terbaru tiap dokter,
+ * Tab BUKU Gaji Dokter (anak pembungkus gaji-dokter; Rincian & Lampiran = modal terpisah sejajar tab): juga tombol
+ * "Terapkan ke slip gaji" (snapshot → slip Draft Gaji Karyawan bulan gaji, pola Jasa Medik). slip gaji dokter SIRUS per BULAN JASA — versi terbaru tiap dokter,
  * tombol "Ambil dari SIRUS" (snapshot berversi: sama → tidak ada perubahan; beda → versi baru, versi lama tetap),
  * pembanding dengan bulan lalu. Rincian (banding antar versi / bulan lalu) = komponen gaji-dokter-rincian, dibuka lewat event.
  * Bulan jasa & saringan disimpan di Session (komponen di-unmount saat ganti tab — docs/tabs-pattern.md).
@@ -98,6 +99,32 @@ new class extends Component {
         $this->segarkan();
     }
 
+    /** Tulis snapshot terbaru dokter terpetakan ke slip Draft Gaji Karyawan bulan gaji (jasa + 1) — GajiDokterSirus::terapkan(). */
+    public function terapkan(): void
+    {
+        if (!$this->bulanValid()) {
+            $this->dispatch('toast', type: 'error', message: 'Bulan jasa tidak valid.');
+            return;
+        }
+        $h = GajiDokterSirus::terapkan($this->periode(), auth()->id());
+        $labelGaji = GajiDokterSirus::namaPeriode($h['periodeGaji']);
+        $pesan = "Jasa dokter {$this->bulan} diterapkan ke {$h['diperbarui']} slip gaji {$labelGaji}.";
+        if ($h['dibersihkan'] > 0) {
+            $pesan .= " {$h['dibersihkan']} slip dibersihkan dari bekas terapkan lama.";
+        }
+        if ($h['final'] !== []) {
+            $pesan .= ' Dilewati (slip Final): ' . implode(', ', $h['final']) . '.';
+        }
+        if ($h['tanpaSlip'] !== []) {
+            $pesan .= ' Belum punya slip ' . $labelGaji . ' (generate dulu di Gaji Karyawan): ' . implode(', ', $h['tanpaSlip']) . '.';
+        }
+        if ($h['tanpaMap'] !== []) {
+            $pesan .= ' Belum dipetakan: ' . count($h['tanpaMap']) . ' dokter.';
+        }
+        $this->dispatch('toast', type: $h['diperbarui'] > 0 ? 'success' : 'warning', message: $pesan);
+        $this->segarkan();
+    }
+
     /** Modal Rincian = komponen terpisah (gaji-dokter-rincian, dipasang pembungkus sejajar tab) — pola SIRUS. */
     public function openRincian(int $gdId): void
     {
@@ -130,7 +157,9 @@ new class extends Component {
     public function total(): array
     {
         $rows = GajiDokterSirus::daftar($this->periode());
-        $total = ['jumlah' => $rows->count(), 'final' => $rows->where('gaji_status', 'F')->count(), 'tanpa_map' => $rows->whereNull('emp_id_map')->count(), 'berubah' => $rows->where('versi_sebelumnya', true)->count()];
+        $total = ['jumlah' => $rows->count(), 'final' => $rows->where('gaji_status', 'F')->count(), 'tanpa_map' => $rows->whereNull('emp_id_map')->count(), 'berubah' => $rows->where('versi_sebelumnya', true)->count(),
+            'diterapkan' => $rows->filter(fn($r) => $r->diterapkan_versi === (int) $r->versi)->count(),
+            'diterapkan_lama' => $rows->filter(fn($r) => $r->diterapkan_versi !== null && $r->diterapkan_versi !== (int) $r->versi)->count()];
         foreach (GajiDokterSirus::KOLOM_NOMINAL as $k) {
             $total[$k] = (float) $rows->sum($k);
         }
@@ -203,6 +232,14 @@ new class extends Component {
             @else
                 <x-badge variant="danger">API SIRUS belum diatur di .env (SIAP_API_URL / USER / PASSWORD)</x-badge>
             @endif
+            @if ($total['jumlah'] > 0)
+                {{-- Terapkan = pola "Terapkan ke Slip" Pembagian Jasa Medik: aman diulang (baris lama ditimpa), slip Final dilewati. --}}
+                <x-confirm-button variant="secondary" action="terapkan()" title="Terapkan ke slip gaji"
+                    message="Tulis jasa dokter bulan jasa {{ $bulan }} (snapshot versi terbaru) ke slip Draft Gaji Karyawan {{ $labelGaji }} untuk dokter yang sudah dipetakan? Jasa, gaji pokok dokter, tambahan, Potongan RS, dan PPh 21 ditulis apa adanya dari SIRUS; baris hasil terapkan sebelumnya ditimpa. Slip yang sudah Final dilewati." confirmText="Ya, terapkan" cancelText="Batal">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+                    Terapkan ke slip gaji
+                </x-confirm-button>
+            @endif
             {{-- Lampiran Semua = outline (tampilan pendamping, bukan aksi utama) — mengikuti saringan yang sedang tampil. --}}
             <x-outline-button type="button" class="gap-2 whitespace-nowrap" wire:click="openLampiranSemua" wire:loading.attr="disabled" wire:target="openLampiranSemua" title="Lampiran rincian pasien semua dokter yang tampil">
                 <span wire:loading.remove wire:target="openLampiranSemua" class="inline-flex items-center gap-2">
@@ -274,6 +311,9 @@ new class extends Component {
                             <x-badge variant="success">Semua dokter terpetakan</x-badge>
                         @endif
                         @if ($total['berubah'] > 0)<x-badge variant="warning">{{ $total['berubah'] }} slip pernah berubah sejak pertama diambil</x-badge>@endif
+                        @if ($total['diterapkan'] > 0)<x-badge variant="success">{{ $total['diterapkan'] }} sudah di slip gaji {{ $labelGaji }}</x-badge>@endif
+                        @if ($total['diterapkan_lama'] > 0)<x-badge variant="warning">{{ $total['diterapkan_lama'] }} slip gaji masih memakai versi lama — Terapkan ulang</x-badge>@endif
+                        @if ($total['diterapkan'] === 0 && $total['diterapkan_lama'] === 0)<x-badge variant="gray">Belum diterapkan ke slip gaji</x-badge>@endif
                     </div>
                 @endif
             </div>
@@ -320,9 +360,16 @@ new class extends Component {
                                         &middot; {{ $row->npwp_status === 'Y' ? 'NPWP' : 'tanpa NPWP' }}
                                     </span>
                                 </div>
-                                <div class="mt-1 text-sm truncate">
+                                <div class="flex flex-wrap items-center gap-1.5 mt-1 text-sm">
                                     @if ($row->emp_id_map)
-                                        <span class="text-muted dark:text-gray-400">Karyawan SIAP:</span> <span class="text-body dark:text-gray-200">{{ $row->emp_name }}</span> <span class="font-mono text-muted dark:text-gray-400">{{ $row->emp_id_map }}</span>
+                                        <span class="truncate"><span class="text-muted dark:text-gray-400">Karyawan SIAP:</span> <span class="text-body dark:text-gray-200">{{ $row->emp_name }}</span> <span class="font-mono text-muted dark:text-gray-400">{{ $row->emp_id_map }}</span></span>
+                                        @if ($row->diterapkan_versi === (int) $row->versi)
+                                            <x-badge variant="success" title="Ditulis ke slip gaji {{ $labelGaji }} {{ \Carbon\Carbon::parse($row->diterapkan_at_slip)->format('d/m/Y H:i') }}">di slip gaji</x-badge>
+                                        @elseif ($row->diterapkan_versi !== null)
+                                            <x-badge variant="warning" title="Slip gaji masih memakai versi {{ $row->diterapkan_versi }}; snapshot sudah versi {{ $row->versi }} — klik Terapkan ke slip gaji">slip pakai v{{ $row->diterapkan_versi }}</x-badge>
+                                        @else
+                                            <x-badge variant="gray">belum di slip gaji</x-badge>
+                                        @endif
                                     @else
                                         <x-badge variant="warning">Belum dipetakan ke karyawan</x-badge>
                                     @endif

@@ -48,6 +48,9 @@ class GajiKaryawan
         'STRUKTURAL' => 'Tunjangan Struktural',
         'PROFESI'    => 'Tunjangan Profesi',
         'JASA_MEDIK' => 'Jasa Medik',
+        'JASA_DOKTER'     => 'Jasa Dokter (SIRUS)',
+        'POKOK_DOKTER'    => 'Gaji Pokok Dokter (SIRUS)',
+        'TAMBAHAN_DOKTER' => 'Tambahan Slip Dokter (SIRUS)',
         'LEMBUR'     => 'Upah Lembur',
         'BONUS'      => 'Bonus',
         'RAPEL'      => 'Rapel',
@@ -69,8 +72,18 @@ class GajiKaryawan
         'ANGS_BANK'  => 'Angsuran Bank',
         'KASBON'     => 'Kasbon / Telah Diambil',
         'PPH21'      => 'PPh 21',
+        'POT_RS'      => 'Potongan RS Jasa Dokter (SIRUS)',
+        'PPH21_DOKTER' => 'PPh 21 Jasa Dokter (SIRUS)',
+        'POT_DOKTER'  => 'Potongan Lain Slip Dokter (SIRUS)',
         'LAIN'       => 'Potongan Lain',
     ];
+
+    /**
+     * Kode yang ditulis "Terapkan ke slip gaji" dari snapshot Gaji Dokter (SIRUS) — GajiDokterSirus::terapkan().
+     * Pendapatannya TIDAK masuk dasar PPh 21 SIAP: PPh-nya sudah dihitung SIRUS (NPPN 50% × 5% = 2,5% bruto) dan
+     * ikut ditulis sebagai baris PPH21_DOKTER, jadi tanpa pengecualian ini jasa dokter dipajaki dua kali.
+     */
+    public const KODE_DOKTER_SIRUS = ['JASA_DOKTER', 'POKOK_DOKTER', 'TAMBAHAN_DOKTER', 'POT_RS', 'PPH21_DOKTER', 'POT_DOKTER'];
 
     /** Kolom parameter → kode baris tetap per bulan. */
     public const PENDAPATAN_RUTIN = [
@@ -106,9 +119,9 @@ class GajiKaryawan
     /** Urutan cetak per kode (pendapatan dulu, PPh 21 paling akhir). */
     private const URUTAN = [
         'POKOK' => 1, 'MAKAN' => 2, 'TRANSPORT' => 3, 'STRUKTURAL' => 4, 'PROFESI' => 5, 'JASA_MEDIK' => 6,
-        'LEMBUR' => 7, 'BONUS' => 8, 'RAPEL' => 9, 'KOREKSI' => 10,
+        'LEMBUR' => 7, 'BONUS' => 8, 'RAPEL' => 9, 'KOREKSI' => 10, 'JASA_DOKTER' => 11, 'POKOK_DOKTER' => 12, 'TAMBAHAN_DOKTER' => 13,
         'ASURANSI' => 21, 'ORGANISASI' => 22, 'ARISAN' => 23, 'KOPERASI' => 24, 'INFAQ' => 25, 'BPJS' => 26, 'BPJS_TK' => 27,
-        'ANGSURAN' => 28, 'ANGS_KOP' => 29, 'ANGS_BANK' => 30, 'KASBON' => 31, 'PPH21' => 99,
+        'ANGSURAN' => 28, 'ANGS_KOP' => 29, 'ANGS_BANK' => 30, 'KASBON' => 31, 'POT_RS' => 40, 'PPH21_DOKTER' => 41, 'POT_DOKTER' => 42, 'PPH21' => 99,
     ];
 
     public static function label(string $jenis, string $kode): string
@@ -311,8 +324,10 @@ class GajiKaryawan
         $pendapatan = (float) $detail->where('jenis', 'D')->sum('nilai');
 
         // PPh 21: ditimpa petugas → dipertahankan; selain itu dari persen snapshot.
+        // Dasar = pendapatan TANPA baris dari slip dokter SIRUS (PPh-nya sudah dihitung SIRUS — lihat KODE_DOKTER_SIRUS).
+        $dasarPph = (float) $detail->where('jenis', 'D')->whereNotIn('kode', self::KODE_DOKTER_SIRUS)->sum('nilai');
         $pphManual = $detail->where('kode', 'PPH21')->firstWhere('nilai_manual', '1');
-        $pph21 = $pphManual ? -abs((float) $pphManual->nilai) : -floor((float) $slip->pph21_persen / 100 * max(0, $pendapatan));
+        $pph21 = $pphManual ? -abs((float) $pphManual->nilai) : -floor((float) $slip->pph21_persen / 100 * max(0, $dasarPph));
 
         DB::table('siaptxn_gaji_dtls')->where('gaji_id', $gajiId)->where('kode', 'PPH21')->where('nilai_manual', '0')->delete();
         if (!$pphManual && $pph21 < 0) {
