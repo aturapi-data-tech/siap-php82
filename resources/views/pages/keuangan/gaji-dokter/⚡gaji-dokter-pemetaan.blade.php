@@ -179,7 +179,7 @@ new class extends Component {
                                         <div class="flex-1">
                                             <x-combobox wireModel="empNama" wireModelId="empId" :options="$this->karyawanOpsi" inputId="gdp-emp" placeholder="Ketik nama / ID karyawan, lalu pilih…" judulDaftar="daftar karyawan" maxlength="100" />
                                         </div>
-                                        <x-secondary-button type="button" wire:click="batalEdit" class="!px-3">Batal</x-secondary-button>
+                                        <x-secondary-button type="button" wire:click="batalEdit" class="whitespace-nowrap shrink-0">Batal</x-secondary-button>
                                     </div>
                                 @elseif ($row->emp_id)
                                     <span class="font-semibold">{{ $row->emp_name }}</span><span class="block font-mono text-xs text-muted">{{ $row->emp_id }}{{ $row->emp_aktif === '1' ? '' : ' · karyawan nonaktif' }}</span>
@@ -190,10 +190,23 @@ new class extends Component {
                             <td class="text-xs">{{ ['OTO' => 'Otomatis (nama cocok)', 'MANUAL' => 'Manual'][$row->cara_map] ?? '–' }}</td>
                             <td class="text-right">
                                 @if ($editDrId !== $row->dr_id)
-                                    <div class="inline-flex items-center gap-1">
-                                        <x-secondary-button type="button" wire:click="mulaiEdit('{{ $row->dr_id }}')" class="!px-3 !py-1.5 text-xs">{{ $row->emp_id ? 'Ganti' : 'Petakan' }}</x-secondary-button>
+                                    {{-- Ukuran TIDAK ditimpa: ikut bawaan komponen supaya seragam dengan tombol lain (docs/standar-komponen-tombol.md).
+                                         Petakan/Ganti = outline (aksi alternatif / buka panel), Lepas = confirm danger-soft (destruktif ringan). --}}
+                                    <div class="inline-flex flex-nowrap items-center gap-1.5">
+                                        <x-outline-button type="button" class="gap-2 whitespace-nowrap shrink-0" wire:click="mulaiEdit('{{ $row->dr_id }}')" wire:loading.attr="disabled" wire:target="mulaiEdit('{{ $row->dr_id }}')">
+                                            @if ($row->emp_id)
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                                Ganti
+                                            @else
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                                                Petakan
+                                            @endif
+                                        </x-outline-button>
                                         @if ($row->emp_id)
-                                            <x-confirm-button variant="danger-soft" action="lepas('{{ $row->dr_id }}')" title="Lepas pemetaan" message="Lepas pemetaan {{ $row->dr_name }} dari {{ $row->emp_name }}? Snapshot yang sudah tersimpan tidak berubah." confirmText="Ya, lepas" cancelText="Batal" class="!px-3 !py-1.5 text-xs">Lepas</x-confirm-button>
+                                            <x-confirm-button variant="danger-soft" action="lepas('{{ $row->dr_id }}')" title="Lepas pemetaan" message="Lepas pemetaan {{ $row->dr_name }} dari {{ $row->emp_name }}? Snapshot yang sudah tersimpan tidak berubah." confirmText="Ya, lepas" cancelText="Batal" class="gap-2 whitespace-nowrap shrink-0">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1M3 3l18 18" /></svg>
+                                                Lepas
+                                            </x-confirm-button>
                                         @endif
                                     </div>
                                 @endif
