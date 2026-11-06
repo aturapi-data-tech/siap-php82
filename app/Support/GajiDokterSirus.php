@@ -301,13 +301,16 @@ class GajiDokterSirus
      * Yang ditulis = angka SIRUS apa adanya: Jasa, gaji pokok dokter (bila ada), tambahan sebagai pendapatan; Potongan RS,
      * PPh 21 SIRUS, potongan lain sebagai potongan → diterima di SIAP = diterima di SIRUS untuk bagian dokter.
      * Bekas terapkan pada karyawan yang kini tidak lagi punya snapshot/pemetaan di periode itu dibersihkan.
-     * @return array{diperbarui: int, dibersihkan: int, periodeGaji: string, final: array<int, string>, tanpaSlip: array<int, string>, tanpaMap: array<int, string>}
+     * Dokter terpetakan yang BELUM punya slip bulan itu dibuatkan slip Draft kosong (pokok/tunjangan 0, PPh 0) — Generate
+     * melewati karyawan tanpa parameter gaji, dan dokter spesialis umumnya memang hanya digaji lewat jasa SIRUS. Bila
+     * kelak parameternya diisi, Generate memperbarui slip itu tanpa menghapus baris dokter. Karyawan nonaktif dilaporkan.
+     * @return array{diperbarui: int, dibuatkan: int, dibersihkan: int, periodeGaji: string, final: array<int, string>, tanpaSlip: array<int, string>, tanpaMap: array<int, string>}
      */
     public static function terapkan(string $periode, ?int $userId): array
     {
         $rows = self::daftar($periode);
         $periodeGaji = $periode; // bulan kerja slip SIAP
-        $hasil = ['diperbarui' => 0, 'dibersihkan' => 0, 'periodeGaji' => $periodeGaji, 'final' => [], 'tanpaSlip' => [], 'tanpaMap' => []];
+        $hasil = ['diperbarui' => 0, 'dibuatkan' => 0, 'dibersihkan' => 0, 'periodeGaji' => $periodeGaji, 'final' => [], 'tanpaSlip' => [], 'tanpaMap' => []];
         $label = self::namaPeriode($periode);
 
         $terpetakan = $rows->filter(fn($r) => $r->emp_id_map !== null);
@@ -315,13 +318,23 @@ class GajiDokterSirus
         $slipList = DB::table('siaptxn_gaji_hdrs')->where('periode', $periodeGaji)
             ->whereIn('emp_id', $terpetakan->pluck('emp_id_map')->map(fn($e) => (string) $e)->all() ?: [''])
             ->get(['gaji_id', 'emp_id', 'gaji_status'])->keyBy('emp_id');
+        $karyawan = DB::table('siapmst_employers')->whereIn('emp_id', $terpetakan->pluck('emp_id_map')->map(fn($e) => (string) $e)->all() ?: [''])
+            ->get(['emp_id', 'emp_unit_id', 'active_status'])->keyBy('emp_id');
         $dipakai = [];
 
         foreach ($terpetakan as $row) {
             $slip = $slipList[$row->emp_id_map] ?? null;
             if (!$slip) {
-                $hasil['tanpaSlip'][] = $row->dr_name;
-                continue;
+                $em = $karyawan[$row->emp_id_map] ?? null;
+                if (!$em || $em->active_status !== '1') {
+                    $hasil['tanpaSlip'][] = $row->dr_name;
+                    continue;
+                }
+                DB::table('siaptxn_gaji_hdrs')->insert(['emp_id' => $row->emp_id_map, 'periode' => $periodeGaji, 'unit_id' => $em->emp_unit_id,
+                    'hari_hadir' => 0, 'gaji_pokok' => 0, 'tarif_makan' => 0, 'tarif_transport' => 0, 'pph21_persen' => 0,
+                    'gaji_status' => GajiKaryawan::STATUS_DRAFT, 'updated_by' => $userId, 'created_at' => now(), 'updated_at' => now()]);
+                $slip = DB::table('siaptxn_gaji_hdrs')->where('emp_id', $row->emp_id_map)->where('periode', $periodeGaji)->first(['gaji_id', 'emp_id', 'gaji_status']);
+                $hasil['dibuatkan']++;
             }
             $dipakai[] = (int) $slip->gaji_id;
             if ($slip->gaji_status === GajiKaryawan::STATUS_FINAL) {
