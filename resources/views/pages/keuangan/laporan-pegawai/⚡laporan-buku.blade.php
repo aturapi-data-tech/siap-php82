@@ -121,6 +121,15 @@ new class extends Component {
         return UnitKerja::aktif();
     }
 
+    /** Opsi LOV karyawan (x-combobox) — semua peserta bulan ini: id = emp_id, nama = nama, kelas = ID · unit. */
+    #[Computed]
+    public function karyawanOpsi(): array
+    {
+        return LaporanPegawai::karyawan($this->periode(), null)
+            ->map(fn($row) => ['id' => $row->emp_id, 'nama' => $row->emp_name, 'kelas' => $row->emp_id . ($row->unit_name ? ' · ' . $row->unit_name : '')])
+            ->all();
+    }
+
     #[Computed]
     public function laporan(): array
     {
@@ -185,9 +194,11 @@ new class extends Component {
                     <x-secondary-button type="button" wire:click="geserBulan(1)" class="!px-3" title="Bulan berikutnya" aria-label="Bulan berikutnya">›</x-secondary-button>
                 </div>
             </div>
-            <div class="w-44">
-                <x-input-label for="lapb-cari" value="Cari Karyawan" />
-                <x-text-input id="lapb-cari" type="text" wire:model.live.debounce.300ms="searchKeyword" placeholder="ID / nama" class="block w-full mt-1" />
+            <div class="w-72" x-on:input.debounce.300ms="$wire.$refresh()">
+                <x-input-label for="lapb-cari" value="Karyawan" />
+                <div class="mt-1">
+                    <x-combobox wireModel="searchKeyword" :options="$this->karyawanOpsi" inputId="lapb-cari" placeholder="Ketik nama / ID, atau pilih dari daftar…" judulDaftar="daftar karyawan" maxlength="100" />
+                </div>
             </div>
             <div class="w-48">
                 <x-input-label for="lapb-unit" value="Unit" />

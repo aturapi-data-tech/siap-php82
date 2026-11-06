@@ -19,12 +19,19 @@ use Illuminate\Support\Facades\DB;
  *   sewa modal / bulan  = pokok × % sewa
  *   pokok / bulan       = pokok ÷ lama bulan
  *   angsuran / bulan    = BULATKAN KE ATAS (pokok / bulan + sewa modal) ke kelipatan pembulatan (mis. 1.000)
+ *   angsuran_tetap      = bila diisi (jadwal bank), menimpa rumus di atas — angsuran / bulan = angsuran_tetap
  *   angsuran ke-n       = selisih bulan kerja dengan bulan awal + 1; berjalan selama 1 ≤ n ≤ lama bulan
  *   pelunasan dipercepat: lunas_periode = bulan kerja pertama yang TIDAK dipotong lagi.
  *
- * "Terapkan ke Slip" (gaji.kelola) menulis satu baris potongan per pinjaman berjalan ke slip Draft bulan itu
+ * BUKU PEMBAYARAN (siaptxn_pinjaman_bayars): satu baris per angsuran terbayar, dikenali lewat `periode` angsurannya.
+ *   - GAJI  : dipotong di slip `dipotong_periode` (otomatis saat Terapkan; tunggakan / bulan depan lewat tombol Tagih).
+ *   - TUNAI / TRANSFER / LAIN : dibayar di luar gaji → angsuran itu TIDAK dipotong di slip. Boleh dobel (beberapa periode
+ *     sekaligus), boleh di muka (periode mendatang). Tunggakan = angsuran yang sudah lewat tanpa pembayaran apa pun.
+ *   - Pinjaman lunas bila semua angsuran (lama_bulan) terbayar, atau ditandai Lunasi (pelunasan dipercepat).
+ *
+ * "Terapkan ke Slip" (gaji.kelola) menulis satu baris potongan per angsuran yang ditagih bulan itu ke slip Draft
  * (kode sesuai sumber: ANGS_KOP / ANGS_BANK / ANGSURAN, keterangan "Koperasi ke-5/15"). Aman diulang: baris kode itu
- * diganti, bukan ditambah; pinjaman yang sudah lunas otomatis berhenti. Satu-satunya sumber angsuran slip —
+ * diganti, bukan ditambah; angsuran yang sudah dibayar di luar gaji dilewati. Satu-satunya sumber angsuran slip —
  * Form Bagian (Excel) tidak lagi punya kolom angsuran koperasi / bank.
  */
 class PinjamanKaryawan
@@ -34,11 +41,26 @@ class PinjamanKaryawan
 
     public const PEMBULATAN_PILIHAN = [1, 100, 1000, 10000];
 
+    /** Sumber pembayaran angsuran. GAJI = dipotong slip (otomatis); selain itu dicatat Keuangan di tab Pembayaran. */
+    public const SUMBER_BAYAR = ['GAJI' => 'Potong gaji', 'TUNAI' => 'Tunai', 'TRANSFER' => 'Transfer', 'LAIN' => 'Lainnya'];
+
     /** Ketentuan awal (dipakai migrasi). */
     public const SUMBER_BAWAAN = [
         ['sumber_kode' => 'KOP', 'nama' => 'Koperasi An-Nashir', 'persen_sewa' => 0.8, 'pembulatan' => 1000, 'kode_potongan' => 'ANGS_KOP', 'urutan' => 1],
         ['sumber_kode' => 'BRI', 'nama' => 'Bank BRI', 'persen_sewa' => 0, 'pembulatan' => 1000, 'kode_potongan' => 'ANGS_BANK', 'urutan' => 2],
         ['sumber_kode' => 'RINJANI', 'nama' => 'Rinjani', 'persen_sewa' => 0, 'pembulatan' => 1000, 'kode_potongan' => 'ANGSURAN', 'urutan' => 3],
+    ];
+
+    /** Bank-bank umum yang disiapkan NONAKTIF (migrasi 2026_11_06_120000) — nyalakan di tabel Ketentuan saat dipakai. */
+    public const BANK_TAMBAHAN = [
+        ['sumber_kode' => 'BSI', 'nama' => 'Bank Syariah Indonesia', 'persen_sewa' => 0, 'pembulatan' => 1, 'kode_potongan' => 'ANGS_BANK', 'urutan' => 10],
+        ['sumber_kode' => 'MANDIRI', 'nama' => 'Bank Mandiri', 'persen_sewa' => 0, 'pembulatan' => 1, 'kode_potongan' => 'ANGS_BANK', 'urutan' => 11],
+        ['sumber_kode' => 'BNI', 'nama' => 'Bank BNI', 'persen_sewa' => 0, 'pembulatan' => 1, 'kode_potongan' => 'ANGS_BANK', 'urutan' => 12],
+        ['sumber_kode' => 'BCA', 'nama' => 'Bank BCA', 'persen_sewa' => 0, 'pembulatan' => 1, 'kode_potongan' => 'ANGS_BANK', 'urutan' => 13],
+        ['sumber_kode' => 'BTN', 'nama' => 'Bank BTN', 'persen_sewa' => 0, 'pembulatan' => 1, 'kode_potongan' => 'ANGS_BANK', 'urutan' => 14],
+        ['sumber_kode' => 'JATIM', 'nama' => 'Bank Jatim', 'persen_sewa' => 0, 'pembulatan' => 1, 'kode_potongan' => 'ANGS_BANK', 'urutan' => 15],
+        ['sumber_kode' => 'BPR', 'nama' => 'BPR', 'persen_sewa' => 0, 'pembulatan' => 1, 'kode_potongan' => 'ANGS_BANK', 'urutan' => 16],
+        ['sumber_kode' => 'PEGADAIAN', 'nama' => 'Pegadaian', 'persen_sewa' => 0, 'pembulatan' => 1, 'kode_potongan' => 'ANGSURAN', 'urutan' => 20],
     ];
 
     public const LAMA_MAKS = 240;
@@ -132,22 +154,52 @@ class PinjamanKaryawan
         return ($kini->year - $awal->year) * 12 + ($kini->month - $awal->month) + 1;
     }
 
+    /** Bulan kerja angsuran ke-$n (1 = bulan awal). */
+    public static function periodeKe(string $bulanAwal, int $n): string
+    {
+        return Carbon::createFromFormat('!Y-m', $bulanAwal)->addMonthsNoOverflow($n - 1)->format('Y-m');
+    }
+
     /**
-     * Posisi satu pinjaman pada bulan kerja. status: belum | berjalan | lunas | dilunasi (pelunasan dipercepat).
-     * @return array{ke: int, sisa: int, aktif: bool, status: string}
+     * Posisi satu pinjaman pada bulan kerja, memperhitungkan buku pembayaran.
+     *   status : belum | berjalan | lunas (semua angsuran terbayar, ATAU total nominal terbayar ≥ total hutang, ATAU masa habis)
+     *            | dilunasi (pelunasan dipercepat)
+     *   aktif  : angsuran bulan ini masih harus ditagih lewat gaji (berjalan & belum dibayar di luar gaji)
+     *   terbayar / tunggakan (periode lewat tanpa pembayaran) / bayar_bulan_ini (baris pembayaran periode ini, bila ada)
+     * @param array<string, object> $bayar periode => baris pembayaran pinjaman ini
+     * @return array{ke: int, sisa: int, aktif: bool, status: string, terbayar: int, tunggakan: array<int, string>, bayar_bulan_ini: ?object, luar_gaji_bulan_ini: bool}
      */
-    public static function posisi(object $pinjaman, string $periode): array
+    public static function posisi(object $pinjaman, string $periode, array $bayar = []): array
     {
         $ke = self::angsuranKe((string) $pinjaman->bulan_awal, $periode);
         $lama = (int) $pinjaman->lama_bulan;
+        $terbayar = count($bayar);
+        $terbayarNominal = (float) array_sum(array_map(fn($b) => (float) $b->jumlah, $bayar));
+        $totalHutang = (float) ($pinjaman->angsuran ?? 0) * $lama; // angsuran diisi lengkapi() sebelum posisi()
+        $lunasNominal = $totalHutang > 0 && $terbayarNominal >= $totalHutang - 0.5;
+        $tunggakan = [];
+        if (!$lunasNominal) {
+            for ($n = 1; $n <= min($ke - 1, $lama); $n++) {
+                $periodeN = self::periodeKe((string) $pinjaman->bulan_awal, $n);
+                if (!isset($bayar[$periodeN]) && ($pinjaman->lunas_periode === null || $periodeN < $pinjaman->lunas_periode)) {
+                    $tunggakan[] = $periodeN;
+                }
+            }
+        }
         $status = match (true) {
             $pinjaman->lunas_periode !== null && $periode >= $pinjaman->lunas_periode => 'dilunasi',
+            $terbayar >= $lama || $lunasNominal => 'lunas',
             $ke < 1    => 'belum',
             $ke > $lama => 'lunas',
             default    => 'berjalan',
         };
+        $bayarIni = $bayar[$periode] ?? null;
+        $luarGaji = $bayarIni !== null && $bayarIni->sumber !== 'GAJI';
 
-        return ['ke' => $ke, 'sisa' => $status === 'berjalan' ? $lama - $ke : 0, 'aktif' => $status === 'berjalan', 'status' => $status];
+        return ['ke' => $ke, 'sisa' => $status === 'berjalan' ? max(0, $lama - max($ke, $terbayar)) : 0,
+            'aktif' => $status === 'berjalan' && !$luarGaji, 'status' => $status,
+            'terbayar' => $terbayar, 'terbayar_nominal' => $terbayarNominal, 'total_hutang' => $totalHutang, 'lunas_nominal' => $lunasNominal,
+            'tunggakan' => $tunggakan, 'bayar_bulan_ini' => $bayarIni, 'luar_gaji_bulan_ini' => $luarGaji];
     }
 
     public static function periodeValid(?string $periode): bool
@@ -166,24 +218,37 @@ class PinjamanKaryawan
             ->select('p.*', 'em.emp_name', 'em.active_status as emp_aktif', 'un.unit_name', 's.nama as sumber_nama', 's.pembulatan', 's.kode_potongan');
     }
 
-    public static function ambil(int $id): ?object
+    public static function ambil(int $id, ?string $periode = null): ?object
     {
         $row = self::query()->where('p.pinjaman_id', $id)->first();
 
-        return $row ? self::lengkapi($row, null) : null;
+        return $row ? self::lengkapi($row, $periode, $periode ? self::bayarSemua()[$id] ?? [] : []) : null;
     }
 
-    /** Tambahkan hitungan (sewa, angsuran, total) dan posisi pada $periode ke satu baris. */
-    private static function lengkapi(object $row, ?string $periode): object
+    /** Seluruh buku pembayaran: pinjaman_id => [periode => baris]. @return array<int, array<string, object>> */
+    public static function bayarSemua(): array
+    {
+        $hasil = [];
+        foreach (DB::table('siaptxn_pinjaman_bayars')->orderBy('periode')->get() as $row) {
+            $hasil[(int) $row->pinjaman_id][$row->periode] = $row;
+        }
+
+        return $hasil;
+    }
+
+    /** Tambahkan hitungan (sewa, angsuran, total) dan posisi pada $periode ke satu baris. angsuran_tetap > 0 menimpa rumus. */
+    private static function lengkapi(object $row, ?string $periode, array $bayar = []): object
     {
         $hitung = self::hitung((float) $row->pokok, (float) $row->persen_sewa, (int) $row->lama_bulan, (int) $row->pembulatan);
+        $tetap = (float) ($row->angsuran_tetap ?? 0);
         $row->sewa = $hitung['sewa'];
         $row->pokok_bulan = $hitung['pokok_bulan'];
-        $row->angsuran = $hitung['angsuran'];
-        $row->total = $hitung['total'];
+        $row->angsuran = $tetap > 0 ? $tetap : $hitung['angsuran'];
+        $row->angsuran_ditetapkan = $tetap > 0;
+        $row->total = $row->angsuran * max(1, (int) $row->lama_bulan);
         $row->bulan_akhir = Carbon::createFromFormat('!Y-m', (string) $row->bulan_awal)->addMonthsNoOverflow((int) $row->lama_bulan - 1)->format('Y-m');
         if ($periode !== null) {
-            foreach (self::posisi($row, $periode) as $kunci => $nilai) {
+            foreach (self::posisi($row, $periode, $bayar) as $kunci => $nilai) {
                 $row->$kunci = $nilai;
             }
         }
@@ -204,8 +269,9 @@ class PinjamanKaryawan
                 $kata = mb_strtoupper(trim($cari));
                 $query->where(fn($sub) => $sub->whereRaw('UPPER(em.emp_id) LIKE ?', ["%{$kata}%"])->orWhereRaw('UPPER(em.emp_name) LIKE ?', ["%{$kata}%"]));
             })
-            ->orderBy('em.emp_name')->orderBy('p.bulan_awal')->get()
-            ->map(fn($row) => self::lengkapi($row, $periode));
+            ->orderBy('em.emp_name')->orderBy('p.bulan_awal')->get();
+        $bayarSemua = self::bayarSemua();
+        $rows = $rows->map(fn($row) => self::lengkapi($row, $periode, $bayarSemua[(int) $row->pinjaman_id] ?? []));
 
         return $rows->filter(fn($row) => match ($status) {
             'berjalan' => $row->status === 'berjalan' || $row->status === 'belum',
@@ -214,9 +280,16 @@ class PinjamanKaryawan
         })->values();
     }
 
+    /** Pinjaman sudah punya pembayaran tercatat → data pokoknya terkunci (hanya keterangan & pelunasan yang boleh diubah, tidak bisa dihapus). */
+    public static function punyaRiwayat(int $id): bool
+    {
+        return DB::table('siaptxn_pinjaman_bayars')->where('pinjaman_id', $id)->exists();
+    }
+
     /**
-     * Tambah ($id null) / ubah satu pinjaman. @return array{ok: bool, pesan: string, id: int|null}
-     * @param array{emp_id: string, sumber_kode: string, pokok: mixed, persen_sewa: mixed, lama_bulan: mixed, bulan_awal: string, lunas_periode: ?string, keterangan: ?string} $data
+     * Tambah ($id null) / ubah satu pinjaman. Pinjaman yang sudah punya riwayat pembayaran: hanya keterangan & lunas_periode
+     * yang diubah (kolom lain diabaikan — data valid). @return array{ok: bool, pesan: string, id: int|null}
+     * @param array{emp_id: string, sumber_kode: string, pokok: mixed, persen_sewa: mixed, lama_bulan: mixed, bulan_awal: string, lunas_periode: ?string, keterangan: ?string, angsuran_tetap?: mixed} $data
      */
     public static function simpan(?int $id, array $data, ?int $userId): array
     {
@@ -247,18 +320,27 @@ class PinjamanKaryawan
         if ($lunas !== null && (!self::periodeValid($lunas) || $lunas <= $data['bulan_awal'])) {
             return $gagal('Bulan pelunasan harus mm/yyyy setelah bulan awal.');
         }
+        $tetap = $data['angsuran_tetap'] ?? null;
+        $tetap = $tetap === '' || $tetap === null ? 0 : $tetap;
+        if (!is_numeric($tetap) || (float) $tetap < 0 || (float) $tetap > 999999999999) {
+            return $gagal('Angsuran tetap harus angka ≥ 0 (0 = pakai rumus).');
+        }
 
         $baris = [
             'emp_id' => $empId, 'sumber_kode' => $sumber->sumber_kode, 'pokok' => round((float) $data['pokok'], 2),
             'persen_sewa' => round((float) $data['persen_sewa'], 3), 'lama_bulan' => (int) $lama, 'bulan_awal' => $data['bulan_awal'],
             'lunas_periode' => $lunas, 'keterangan' => mb_substr(trim((string) ($data['keterangan'] ?? '')), 0, 200) ?: null,
+            'angsuran_tetap' => (float) $tetap > 0 ? round((float) $tetap, 2) : null,
             'updated_by' => $userId, 'updated_at' => now(),
         ];
         if ($id) {
+            if (self::punyaRiwayat($id)) {
+                $baris = ['lunas_periode' => $lunas, 'keterangan' => $baris['keterangan'], 'updated_by' => $userId, 'updated_at' => now()];
+            }
             if (DB::table('siaptxn_pinjamans')->where('pinjaman_id', $id)->update($baris) === 0) {
                 return $gagal('Pinjaman tidak ditemukan.');
             }
-            return ['ok' => true, 'pesan' => 'Pinjaman diperbarui.', 'id' => $id];
+            return ['ok' => true, 'pesan' => self::punyaRiwayat($id) ? 'Keterangan / pelunasan diperbarui (data pokok pinjaman terkunci karena sudah ada pembayaran).' : 'Pinjaman diperbarui.', 'id' => $id];
         }
         // insert() biasa — pinjaman_id dari trigger/sequence (insertGetId memicu warning yajra); id = terbesar milik karyawan itu.
         DB::table('siaptxn_pinjamans')->insert([...$baris, 'created_by' => $userId, 'created_at' => now()]);
@@ -311,30 +393,284 @@ class PinjamanKaryawan
         return DB::table('siaptxn_pinjamans')->where('pinjaman_id', $id)->update(['lunas_periode' => null, 'updated_by' => $userId, 'updated_at' => now()]) > 0;
     }
 
-    /** Hapus pinjaman (salah input). Baris angsuran yang sudah ada di slip dibersihkan saat Terapkan berikutnya. */
-    public static function hapus(int $id): bool
+    /** Hapus pinjaman (salah input, sebelum ada pembayaran). @return string|null pesan galat */
+    public static function hapus(int $id): ?string
     {
-        return DB::table('siaptxn_pinjamans')->where('pinjaman_id', $id)->delete() > 0;
+        if (self::punyaRiwayat($id)) {
+            return 'Pinjaman sudah punya pembayaran tercatat — tidak bisa dihapus. Pakai Lunasi bila selesai.';
+        }
+
+        return DB::table('siaptxn_pinjamans')->where('pinjaman_id', $id)->delete() > 0 ? null : 'Pinjaman tidak ditemukan.';
+    }
+
+    /**
+     * Riwayat pembayaran SATU KARYAWAN: semua pinjamannya (urut berjalan dulu) + baris pembayaran + sisa (kurang berapa).
+     * @return Collection<int, object> tiap pinjaman punya ->riwayat (Collection), ->sisa_angsuran, ->sisa_nominal
+     */
+    public static function riwayatKaryawan(string $empId, string $periode): Collection
+    {
+        $bayarSemua = self::bayarSemua();
+
+        return self::daftar($periode, null, 'semua')->where('emp_id', $empId)
+            ->sortBy(fn($row) => ($row->status === 'berjalan' || $row->status === 'belum' ? '0' : '1') . $row->bulan_awal)->values()
+            ->map(function ($row) use ($bayarSemua) {
+                $row->riwayat = collect($bayarSemua[(int) $row->pinjaman_id] ?? [])->values()->map(function ($b) use ($row) {
+                    $b->ke = self::angsuranKe((string) $row->bulan_awal, $b->periode);
+                    return $b;
+                });
+                $selesai = in_array($row->status, ['lunas', 'dilunasi'], true);
+                $row->sisa_angsuran = $selesai ? 0 : max(0, (int) $row->lama_bulan - $row->terbayar);
+                $row->sisa_nominal = $selesai ? 0.0 : max(0.0, $row->total_hutang - $row->terbayar_nominal); // kurang = total hutang − yang sudah dibayar (nominal)
+
+                return $row;
+            });
     }
 
     // ─── Slip ─────────────────────────────────────────────────────────────────
 
     /**
-     * Tagihan bulan kerja: pinjaman berjalan milik karyawan AKTIF (non-aktif keluar dari hitungan, seperti JM).
-     * @return array<string, array<int, array{pinjaman_id: int, kode: string, nilai: float, keterangan: string, ke: int, lama: int}>> emp_id => baris
+     * Tagihan bulan kerja (yang akan / sudah dipotong di slip bulan itu), milik karyawan AKTIF:
+     *   - angsuran bulan ini dari pinjaman berjalan yang belum dibayar di luar gaji (baris GAJI dibuat saat Terapkan);
+     *   - baris GAJI yang ditagih di bulan ini lewat tombol Tagih (tunggakan periode lewat / bulan depan di muka).
+     * @return array<string, array<int, array{pinjaman_id: int, periode: string, sumber_kode: string, kode: string, nilai: float, keterangan: string, ke: int, lama: int}>> emp_id => baris
      */
     public static function tagihan(string $periode): array
     {
         $hasil = [];
-        foreach (self::daftar($periode, null, 'berjalan') as $row) {
-            if (!$row->aktif || $row->emp_aktif !== '1') {
+        $semua = self::daftar($periode, null, 'semua')->keyBy('pinjaman_id');
+        $bayarSemua = self::bayarSemua();
+        foreach ($semua as $row) {
+            if ($row->emp_aktif !== '1') {
                 continue;
             }
-            $hasil[$row->emp_id][] = ['pinjaman_id' => (int) $row->pinjaman_id, 'kode' => $row->kode_potongan, 'nilai' => (float) $row->angsuran,
-                'keterangan' => "{$row->sumber_nama} ke-{$row->ke}/{$row->lama_bulan}", 'ke' => $row->ke, 'lama' => (int) $row->lama_bulan];
+            $bayar = $bayarSemua[(int) $row->pinjaman_id] ?? [];
+            $periodeDitagih = [];
+            if ($row->aktif && !isset($bayar[$periode])) {
+                $periodeDitagih[$periode] = (float) $row->angsuran; // otomatis: angsuran bulan ini
+            }
+            foreach ($bayar as $periodeBayar => $b) {
+                if ($b->sumber === 'GAJI' && $b->dipotong_periode === $periode) {
+                    $periodeDitagih[$periodeBayar] = (float) $b->jumlah > 0 ? (float) $b->jumlah : (float) $row->angsuran;
+                }
+            }
+            ksort($periodeDitagih);
+            foreach ($periodeDitagih as $periodeBayar => $nilai) {
+                $ke = self::angsuranKe((string) $row->bulan_awal, $periodeBayar);
+                $tanda = $periodeBayar < $periode ? ' (tunggakan)' : ($periodeBayar > $periode ? ' (di muka)' : '');
+                $hasil[$row->emp_id][] = ['pinjaman_id' => (int) $row->pinjaman_id, 'periode' => $periodeBayar, 'sumber_kode' => $row->sumber_kode,
+                    'kode' => $row->kode_potongan, 'nilai' => $nilai, 'keterangan' => "{$row->sumber_nama} ke-{$ke}/{$row->lama_bulan}{$tanda}",
+                    'ke' => $ke, 'lama' => (int) $row->lama_bulan];
+            }
         }
 
         return $hasil;
+    }
+
+    // ─── Buku pembayaran ──────────────────────────────────────────────────────
+
+    /** Slip bulan kerja karyawan sudah Final? */
+    public static function slipFinal(string $periode, string $empId): bool
+    {
+        return DB::table('siaptxn_gaji_hdrs')->where('periode', $periode)->where('emp_id', $empId)->value('gaji_status') === GajiKaryawan::STATUS_FINAL;
+    }
+
+    /** Riwayat pembayaran satu pinjaman (urut periode) + angsuran ke-n. @return Collection<int, object> */
+    public static function riwayatBayar(int $pinjamanId): Collection
+    {
+        $pinjaman = DB::table('siaptxn_pinjamans')->where('pinjaman_id', $pinjamanId)->first(['bulan_awal']);
+
+        return DB::table('siaptxn_pinjaman_bayars as b')->leftJoin('users as u', 'u.id', '=', 'b.created_by')
+            ->where('b.pinjaman_id', $pinjamanId)->orderBy('b.periode')
+            ->get(['b.*', 'u.name as oleh'])
+            ->map(function ($row) use ($pinjaman) {
+                $row->ke = $pinjaman ? self::angsuranKe((string) $pinjaman->bulan_awal, $row->periode) : 0;
+                return $row;
+            });
+    }
+
+    /** Pembayaran LUAR GAJI terbaru (semua pinjaman), untuk tab Pembayaran. @return Collection<int, object> */
+    public static function pembayaranLuarGaji(int $batas = 100): Collection
+    {
+        return DB::table('siaptxn_pinjaman_bayars as b')
+            ->join('siaptxn_pinjamans as p', 'p.pinjaman_id', '=', 'b.pinjaman_id')
+            ->join('siapmst_employers as em', 'em.emp_id', '=', 'p.emp_id')
+            ->join('siapmst_pinjaman_sumbers as s', 's.sumber_kode', '=', 'p.sumber_kode')
+            ->leftJoin('users as u', 'u.id', '=', 'b.created_by')
+            ->where('b.sumber', '!=', 'GAJI')
+            ->orderByDesc('b.tanggal_bayar')->orderByDesc('b.bayar_id')->limit($batas)
+            ->get(['b.*', 'p.emp_id', 'p.bulan_awal', 'p.lama_bulan', 'em.emp_name', 's.nama as sumber_nama', 'u.name as oleh'])
+            ->map(function ($row) {
+                $row->ke = self::angsuranKe((string) $row->bulan_awal, $row->periode);
+                return $row;
+            });
+    }
+
+    /**
+     * Catat pembayaran LUAR GAJI untuk satu atau beberapa angsuran (dobel / di muka): satu baris per periode.
+     * Periode yang sudah dipotong di slip FINAL tidak bisa diganti; yang baru ditagih di slip Draft diganti (slip
+     * dibersihkan saat Terapkan berikutnya).
+     * @param array<int, string> $periodeList bulan kerja angsuran (YYYY-MM)
+     * @return array{dibuat: int, dilewati: array<int, string>}
+     */
+    public static function catatBayar(int $pinjamanId, array $periodeList, string $sumber, float $jumlah, ?string $tanggalBayar, ?string $keterangan, ?int $userId): array
+    {
+        $hasil = ['dibuat' => 0, 'dilewati' => []];
+        $pinjaman = self::ambil($pinjamanId);
+        if (!$pinjaman || !isset(self::SUMBER_BAYAR[$sumber]) || $sumber === 'GAJI' || $jumlah <= 0 || $jumlah > 999999999999) {
+            $hasil['dilewati'][] = 'Data pembayaran tidak valid.';
+            return $hasil;
+        }
+        $tanggal = $tanggalBayar ? Carbon::createFromFormat('!Y-m-d', $tanggalBayar) : now()->startOfDay();
+        DB::transaction(function () use ($pinjamanId, $pinjaman, $periodeList, $sumber, $jumlah, $tanggal, $keterangan, $userId, &$hasil) {
+            foreach (array_unique($periodeList) as $periode) {
+                $ke = self::periodeValid($periode) ? self::angsuranKe((string) $pinjaman->bulan_awal, $periode) : 0;
+                if ($ke < 1 || $ke > (int) $pinjaman->lama_bulan) {
+                    $hasil['dilewati'][] = "{$periode}: di luar masa angsuran (ke-1 s/d ke-{$pinjaman->lama_bulan}).";
+                    continue;
+                }
+                $ada = DB::table('siaptxn_pinjaman_bayars')->where('pinjaman_id', $pinjamanId)->where('periode', $periode)->first();
+                if ($ada) {
+                    if ($ada->sumber !== 'GAJI') {
+                        $hasil['dilewati'][] = "{$periode} (ke-{$ke}): sudah dibayar " . (self::SUMBER_BAYAR[$ada->sumber] ?? $ada->sumber) . '.';
+                        continue;
+                    }
+                    if (self::slipFinal((string) $ada->dipotong_periode, (string) $pinjaman->emp_id)) {
+                        $hasil['dilewati'][] = "{$periode} (ke-{$ke}): sudah dipotong di slip Final " . self::labelPeriode((string) $ada->dipotong_periode) . '.';
+                        continue;
+                    }
+                    DB::table('siaptxn_pinjaman_bayars')->where('bayar_id', $ada->bayar_id)->delete(); // tagihan gaji Draft diganti pembayaran luar gaji
+                }
+                DB::table('siaptxn_pinjaman_bayars')->insert([
+                    'pinjaman_id' => $pinjamanId, 'periode' => $periode, 'sumber' => $sumber, 'dipotong_periode' => null,
+                    'jumlah' => round($jumlah, 2), 'tanggal_bayar' => Absensi::tanggalSql($tanggal),
+                    'keterangan' => mb_substr(trim((string) $keterangan), 0, 200) ?: null,
+                    'created_by' => $userId, 'created_at' => now(), 'updated_at' => now(),
+                ]);
+                $hasil['dibuat']++;
+            }
+        });
+
+        return $hasil;
+    }
+
+    /**
+     * Tagih angsuran periode lain di slip bulan kerja $dipotongPeriode (tunggakan yang lewat, atau bulan depan di muka):
+     * baris GAJI dengan dipotong_periode = bulan kerja itu. Ditulis ke slip saat Terapkan.
+     * @return array{dibuat: int, dilewati: array<int, string>}
+     */
+    public static function tagihDiSlip(int $pinjamanId, array $periodeList, string $dipotongPeriode, ?int $userId): array
+    {
+        $hasil = ['dibuat' => 0, 'dilewati' => []];
+        $pinjaman = self::ambil($pinjamanId);
+        if (!$pinjaman || !self::periodeValid($dipotongPeriode)) {
+            $hasil['dilewati'][] = 'Pinjaman / bulan kerja tidak valid.';
+            return $hasil;
+        }
+        if (self::slipFinal($dipotongPeriode, (string) $pinjaman->emp_id)) {
+            $hasil['dilewati'][] = 'Slip ' . self::labelPeriode($dipotongPeriode) . ' sudah Final — buka ke Draft dulu.';
+            return $hasil;
+        }
+        foreach (array_unique($periodeList) as $periode) {
+            $ke = self::periodeValid($periode) ? self::angsuranKe((string) $pinjaman->bulan_awal, $periode) : 0;
+            if ($ke < 1 || $ke > (int) $pinjaman->lama_bulan) {
+                $hasil['dilewati'][] = "{$periode}: di luar masa angsuran.";
+                continue;
+            }
+            if (DB::table('siaptxn_pinjaman_bayars')->where('pinjaman_id', $pinjamanId)->where('periode', $periode)->exists()) {
+                $hasil['dilewati'][] = "{$periode} (ke-{$ke}): sudah terbayar / sudah ditagih.";
+                continue;
+            }
+            DB::table('siaptxn_pinjaman_bayars')->insert([
+                'pinjaman_id' => $pinjamanId, 'periode' => $periode, 'sumber' => 'GAJI', 'dipotong_periode' => $dipotongPeriode,
+                'jumlah' => (float) $pinjaman->angsuran, 'tanggal_bayar' => null, 'keterangan' => $periode < $dipotongPeriode ? 'tunggakan ditagih di slip' : 'ditagih di muka',
+                'created_by' => $userId, 'created_at' => now(), 'updated_at' => now(),
+            ]);
+            $hasil['dibuat']++;
+        }
+
+        return $hasil;
+    }
+
+    /** Hapus satu baris pembayaran. Baris GAJI yang slipnya sudah Final tidak bisa dihapus. @return string|null pesan galat */
+    public static function hapusBayar(int $bayarId): ?string
+    {
+        $row = DB::table('siaptxn_pinjaman_bayars as b')->join('siaptxn_pinjamans as p', 'p.pinjaman_id', '=', 'b.pinjaman_id')
+            ->where('b.bayar_id', $bayarId)->first(['b.*', 'p.emp_id']);
+        if (!$row) {
+            return 'Pembayaran tidak ditemukan.';
+        }
+        if ($row->sumber === 'GAJI' && $row->dipotong_periode && self::slipFinal((string) $row->dipotong_periode, (string) $row->emp_id)) {
+            return 'Sudah dipotong di slip Final ' . self::labelPeriode((string) $row->dipotong_periode) . ' — tidak bisa dihapus.';
+        }
+        DB::table('siaptxn_pinjaman_bayars')->where('bayar_id', $bayarId)->delete();
+
+        return null;
+    }
+
+    /**
+     * Isi riwayat angsuran yang sudah dipotong gaji SEBELUM buku pembayaran dipakai (mis. pinjaman hasil impor):
+     * semua periode ≤ $sampaiPeriode (dan < lunas_periode) yang belum punya baris → GAJI, dipotong di bulannya sendiri.
+     * @return int jumlah baris dibuat
+     */
+    public static function isiRiwayatGaji(string $sampaiPeriode, ?int $userId, ?int $hanyaPinjamanId = null): int
+    {
+        $dibuat = 0;
+        $bayarSemua = self::bayarSemua();
+        $loanList = DB::table('siaptxn_pinjamans')->when($hanyaPinjamanId, fn($query) => $query->where('pinjaman_id', $hanyaPinjamanId))->get();
+        foreach ($loanList as $row) {
+            $hitung = self::hitung((float) $row->pokok, (float) $row->persen_sewa, (int) $row->lama_bulan,
+                (int) (DB::table('siapmst_pinjaman_sumbers')->where('sumber_kode', $row->sumber_kode)->value('pembulatan') ?? 1000));
+            $angsuran = (float) ($row->angsuran_tetap ?? 0) > 0 ? (float) $row->angsuran_tetap : $hitung['angsuran'];
+            for ($n = 1; $n <= (int) $row->lama_bulan; $n++) {
+                $periode = self::periodeKe((string) $row->bulan_awal, $n);
+                if ($periode > $sampaiPeriode || ($row->lunas_periode !== null && $periode >= $row->lunas_periode) || isset($bayarSemua[(int) $row->pinjaman_id][$periode])) {
+                    continue;
+                }
+                DB::table('siaptxn_pinjaman_bayars')->insert([
+                    'pinjaman_id' => (int) $row->pinjaman_id, 'periode' => $periode, 'sumber' => 'GAJI', 'dipotong_periode' => $periode,
+                    'jumlah' => $angsuran, 'tanggal_bayar' => Absensi::tanggalSql(Carbon::createFromFormat('!Y-m', $periode)->endOfMonth()),
+                    'keterangan' => 'riwayat sebelum SIAP', 'created_by' => $userId, 'created_at' => now(), 'updated_at' => now(),
+                ]);
+                $dibuat++;
+            }
+        }
+
+        return $dibuat;
+    }
+
+    public static function labelPeriode(string $periode): string
+    {
+        return self::periodeValid($periode) ? substr($periode, 5, 2) . '/' . substr($periode, 0, 4) : $periode;
+    }
+
+    /**
+     * Sinkronkan baris GAJI otomatis bulan kerja $periode dengan keadaan buku: pinjaman berjalan yang belum punya baris
+     * periode itu → baris GAJI (dipotong bulan ini); baris GAJI otomatis (periode = dipotong) milik pinjaman yang tidak lagi
+     * ditagih (lunas / dilunasi / dihapus / karyawan non-aktif) → dihapus. Slip Final tidak disentuh.
+     */
+    private static function sinkronBayarGaji(string $periode, ?int $userId): void
+    {
+        $semua = self::daftar($periode, null, 'semua');
+        $final = DB::table('siaptxn_gaji_hdrs')->where('periode', $periode)->where('gaji_status', GajiKaryawan::STATUS_FINAL)->pluck('emp_id')->flip();
+        $bayarSemua = self::bayarSemua();
+        foreach ($semua as $row) {
+            if (isset($final[$row->emp_id])) {
+                continue;
+            }
+            $id = (int) $row->pinjaman_id;
+            $adaIni = $bayarSemua[$id][$periode] ?? null;
+            $ditagih = $row->aktif && $row->emp_aktif === '1';
+            if ($ditagih && !$adaIni) {
+                DB::table('siaptxn_pinjaman_bayars')->insert([
+                    'pinjaman_id' => $id, 'periode' => $periode, 'sumber' => 'GAJI', 'dipotong_periode' => $periode,
+                    'jumlah' => (float) $row->angsuran, 'created_by' => $userId, 'created_at' => now(), 'updated_at' => now(),
+                ]);
+            } elseif (!$ditagih && $adaIni && $adaIni->sumber === 'GAJI' && $adaIni->dipotong_periode === $periode && $adaIni->keterangan === null) {
+                DB::table('siaptxn_pinjaman_bayars')->where('bayar_id', $adaIni->bayar_id)->delete();
+            } elseif ($ditagih && $adaIni && $adaIni->sumber === 'GAJI' && $adaIni->dipotong_periode === $periode && abs((float) $adaIni->jumlah - (float) $row->angsuran) >= 0.01) {
+                DB::table('siaptxn_pinjaman_bayars')->where('bayar_id', $adaIni->bayar_id)->update(['jumlah' => (float) $row->angsuran, 'updated_at' => now()]); // ketentuan / pinjaman diubah
+            }
+        }
     }
 
     /**
@@ -345,6 +681,7 @@ class PinjamanKaryawan
      */
     public static function terapkan(string $periode, ?int $userId): array
     {
+        self::sinkronBayarGaji($periode, $userId);
         $tagihan = self::tagihan($periode);
         $hasil = ['diperbarui' => 0, 'dibersihkan' => 0, 'final' => [], 'tanpaSlip' => []];
         $kodeList = array_keys(self::KODE_POTONGAN);
@@ -444,10 +781,14 @@ class PinjamanKaryawan
             $hasil[$kode] = ['jumlah' => 0, 'angsuran' => 0.0, 'pokok' => 0.0];
         }
         foreach (self::daftar($periode, null, 'berjalan') as $row) {
-            if ($row->aktif && $row->emp_aktif === '1') {
+            if ($row->status === 'berjalan' && $row->emp_aktif === '1') {
                 $hasil[$row->sumber_kode]['jumlah']++;
-                $hasil[$row->sumber_kode]['angsuran'] += (float) $row->angsuran;
                 $hasil[$row->sumber_kode]['pokok'] += (float) $row->pokok;
+            }
+        }
+        foreach (self::tagihan($periode) as $barisList) {
+            foreach ($barisList as $baris) {
+                $hasil[$baris['sumber_kode']]['angsuran'] += $baris['nilai'];
             }
         }
 

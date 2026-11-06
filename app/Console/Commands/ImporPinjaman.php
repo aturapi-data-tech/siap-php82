@@ -31,6 +31,7 @@ class ImporPinjaman extends Command
         {--tahun-lunas=2026 : Tahun untuk catatan "LUNAS <BLN>" / "MELUNASI BULAN n"}
         {--alias=* : Pemetaan nama tak cocok, format "Nama di Excel=EMP_ID"}
         {--tanpa-tutup-lama : Jangan tandai pinjaman lama yang tumpang tindih sebagai dilunasi oleh pinjaman baru}
+        {--riwayat-sampai= : Tandai angsuran s/d bulan kerja ini (YYYY-MM) sebagai sudah dipotong gaji sebelum SIAP}
         {--simpan : Tulis ke buku pinjaman (tanpa ini hanya pratinjau)}';
 
     protected $description = 'Isi buku pinjaman karyawan dari workbook koperasi (sheet 1% / 0,8%)';
@@ -151,6 +152,10 @@ class ImporPinjaman extends Command
                 $ditutup += PinjamanKaryawan::tutupPinjamanLama($row->emp_id, $sumber->sumber_kode, $row->bulan_awal, (int) $row->pinjaman_id, null);
             }
             $this->info("{$ditutup} pinjaman lama yang tumpang tindih ditandai dilunasi oleh pinjaman baru.");
+        }
+        if (PinjamanKaryawan::periodeValid($this->option('riwayat-sampai'))) {
+            $riwayat = PinjamanKaryawan::isiRiwayatGaji($this->option('riwayat-sampai'), null);
+            $this->info("{$riwayat} angsuran s/d {$this->option('riwayat-sampai')} dicatat sebagai riwayat potong gaji sebelum SIAP.");
         }
 
         return $gagal > 0 ? self::FAILURE : self::SUCCESS;

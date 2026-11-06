@@ -223,9 +223,10 @@ new class extends Component {
                         Pinjaman dicatat <b>sekali</b>; angsuran tiap bulan dihitung sendiri, posisi "ke-n / lama" bergeser otomatis, dan berhenti saat lunas.</p>
                     <h3 class="mt-4">Ketentuan (sekali, atau bila berubah)</h3>
                     <ul class="mt-1 text-sm">
-                        <li>Tabel <b>Ketentuan sumber pinjaman</b> (tab Entry, sebelah kanan form): tiap sumber (Koperasi, BRI, …) punya <b>% sewa modal / bulan</b>, <b>pembulatan</b> angsuran, dan <b>baris slip</b> tujuan (Angsuran Koperasi / Angsuran Bank / Angsuran lain). Sumber baru ditambah di baris bawah tabel.</li>
+                        <li>Tab <b>Ketentuan</b>: tiap sumber (Koperasi, BRI, …) punya <b>% sewa modal / bulan</b>, <b>pembulatan</b> angsuran, dan <b>baris slip</b> tujuan (Angsuran Koperasi / Angsuran Bank / Angsuran lain). Sumber baru ditambah di baris bawah tabel.</li>
                         <li>Perubahan ketentuan berlaku untuk pinjaman <b>baru</b>. Pinjaman lama tetap pada % saat pinjam (tersimpan di pinjamannya; ubah lewat tombol Edit bila memang disepakati).</li>
-                        <li>Rumus (sama dengan Excel koperasi): sewa modal / bln = pokok × %; angsuran / bln = (pokok ÷ lama + sewa modal) dibulatkan ke atas ke kelipatan pembulatan.</li>
+                        <li>Rumus (sama dengan Excel koperasi): sewa modal / bln = pokok × %; angsuran / bln = (pokok ÷ lama + sewa modal) dibulatkan ke atas ke kelipatan pembulatan. Pinjaman bank yang angsurannya sudah ditetapkan bank: isi <b>Angsuran tetap</b> di pinjamannya — menimpa rumus.</li>
+                        <li>Bank-bank umum (BSI, Mandiri, BNI, BCA, BTN, Bank Jatim, BPR, Pegadaian) sudah disiapkan <b>nonaktif</b>; nyalakan sakelar Aktif saat ada karyawan yang meminjam di sana. Bank lain ditambah lewat baris "Tambah sumber baru".</li>
                     </ul>
                     <h3 class="mt-4">Saat ada yang pinjam</h3>
                     <ol class="mt-1 text-sm">
@@ -241,7 +242,11 @@ new class extends Component {
                     <ul class="mt-3 text-sm">
                         <li><b>Terapkan aman diulang</b> — angsuran di slip diganti, bukan ditambah. Tanda "N slip Draft belum sesuai buku pinjaman" muncul bila ada pinjaman baru / lunas / diubah setelah diterapkan.</li>
                         <li><b>Pelunasan dipercepat</b>: tombol <b>Lunasi</b> → mulai bulan kerja terpilih tidak dipotong lagi; riwayat tetap ada (saringan Status: Lunas). Salah tandai → <b>Batal lunas</b>.</li>
-                        <li><b>Hapus</b> hanya untuk salah input. Slip <b>Final</b> tidak disentuh.</li>
+                        <li><b>Bayar di luar gaji</b> (tunai / transfer): tab <b>Pembayaran</b> (atau tombol <b>Bayar</b> di Buku) → pilih peminjam dan pinjamannya, isi angsuran ke- dari…sampai (bisa beberapa sekaligus: dobel / di muka), cara bayar, tanggal, jumlah. Angsuran yang tercatat di sini <b>tidak dipotong</b> di slip; bila slip bulan itu sudah berisi angsurannya, klik Terapkan ulang. Potongan lewat gaji tidak perlu dicatat — otomatis.</li>
+                        <li><b>Tunggakan</b> (angsuran lewat tanpa pembayaran) tampil merah di kolom posisi. Tombol <b>Tagih tunggakan</b> menambahkannya ke slip bulan kerja terpilih (potongan dobel), masuk slip saat Terapkan. Bayar di muka untuk bulan depan dilakukan lewat tab Pembayaran (tunai / transfer), bukan lewat slip.</li>
+                        <li>Pinjaman hasil impor: angsuran s/d bulan sebelum SIAP dipakai dicatat sebagai "riwayat sebelum SIAP" supaya tidak tampak sebagai tunggakan.</li>
+                        <li><b>Hapus</b> hanya untuk salah input sebelum ada pembayaran. Pinjaman yang sudah punya pembayaran <b>terkunci</b>: tidak bisa dihapus, Edit hanya untuk keterangan &amp; bulan pelunasan. Slip <b>Final</b> tidak disentuh.</li>
+                        <li><b>Riwayat per orang</b>: tab Pembayaran → pilih karyawan → semua pinjamannya tampil beserta tiap angsuran yang terbayar, sumbernya, dan <b>kurang berapa</b> (sisa angsuran × angsuran).</li>
                         <li>Karyawan non-aktif keluar dari tagihan (pinjamannya tetap tercatat sebagai riwayat).</li>
                         <li>Angsuran koperasi / bank tidak ada lagi di Form Bagian (Excel). Form Koperasi hanya untuk <b>iuran</b>. Angsuran lama yang masih berupa baris "Angsuran" manual di rincian slip tidak disentuh menu ini.</li>
                     </ul>
