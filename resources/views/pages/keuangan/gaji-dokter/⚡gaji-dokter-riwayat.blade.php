@@ -22,7 +22,7 @@ new class extends Component {
 };
 ?>
 
-<div class="mt-4 max-w-5xl">
+<div class="mt-4">
     <div class="flex flex-col bg-canvas border border-hairline shadow-sm rounded-2xl dark:border-gray-700 dark:bg-gray-900">
         <div class="px-4 pt-3">
             <h2 class="font-semibold text-ink dark:text-gray-100">Riwayat penarikan dari SIRUS</h2>
