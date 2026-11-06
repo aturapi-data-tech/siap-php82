@@ -293,9 +293,11 @@ class GajiDokterSirus
     // ─── Terapkan ke slip Gaji Karyawan ───────────────────────────────────────
 
     /**
-     * Tulis snapshot versi terbaru tiap dokter TERPETAKAN ke slip Draft Gaji Karyawan periode bulan gaji SIRUS
-     * (= bulan jasa + 1). Pola JasaMedik::terapkan: AMAN DIULANG — baris berkode KODE_DOKTER_SIRUS dihapus lalu ditulis
+     * Tulis snapshot versi terbaru tiap dokter TERPETAKAN ke slip Draft Gaji Karyawan periode BULAN KERJA = bulan jasa.
+     * (Slip SIAP bulan kerja Oktober dibayar awal November = "jasa Oktober, gaji November" di SIRUS — periode yang sama,
+     * beda sebutan.) Pola JasaMedik::terapkan: AMAN DIULANG — baris berkode KODE_DOKTER_SIRUS dihapus lalu ditulis
      * ulang dari snapshot terbaru, slip dihitung ulang; slip Final dilewati; dokter tanpa slip / tanpa pemetaan dilaporkan.
+     * Baris ditulis dengan otomatis = '0' (seperti Jasa Medik) supaya Generate ulang slip tidak menghapusnya.
      * Yang ditulis = angka SIRUS apa adanya: Jasa, gaji pokok dokter (bila ada), tambahan sebagai pendapatan; Potongan RS,
      * PPh 21 SIRUS, potongan lain sebagai potongan → diterima di SIAP = diterima di SIRUS untuk bagian dokter.
      * Bekas terapkan pada karyawan yang kini tidak lagi punya snapshot/pemetaan di periode itu dibersihkan.
@@ -304,7 +306,7 @@ class GajiDokterSirus
     public static function terapkan(string $periode, ?int $userId): array
     {
         $rows = self::daftar($periode);
-        $periodeGaji = Carbon::createFromFormat('!Y-m', $periode)->addMonthNoOverflow()->format('Y-m');
+        $periodeGaji = $periode; // bulan kerja slip SIAP
         $hasil = ['diperbarui' => 0, 'dibersihkan' => 0, 'periodeGaji' => $periodeGaji, 'final' => [], 'tanpaSlip' => [], 'tanpaMap' => []];
         $label = self::namaPeriode($periode);
 
@@ -340,7 +342,7 @@ class GajiDokterSirus
                 ];
                 foreach ($baris as [$jenis, $kode, $nilai, $keterangan]) {
                     if (abs($nilai) >= 0.5) {
-                        GajiKaryawan::simpanBaris($gajiId, ['jenis' => $jenis, 'kode' => $kode, 'nilai' => $nilai, 'otomatis' => '1', 'keterangan' => mb_substr($keterangan, 0, 100)]);
+                        GajiKaryawan::simpanBaris($gajiId, ['jenis' => $jenis, 'kode' => $kode, 'nilai' => $nilai, 'otomatis' => '0', 'keterangan' => mb_substr($keterangan, 0, 100)]);
                     }
                 }
                 DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->where('dr_id', $row->dr_id)

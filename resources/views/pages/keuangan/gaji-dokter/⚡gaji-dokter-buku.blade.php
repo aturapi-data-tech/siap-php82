@@ -107,19 +107,21 @@ new class extends Component {
             return;
         }
         $h = GajiDokterSirus::terapkan($this->periode(), auth()->id());
-        $labelGaji = GajiDokterSirus::namaPeriode($h['periodeGaji']);
-        $pesan = "Jasa dokter {$this->bulan} diterapkan ke {$h['diperbarui']} slip gaji {$labelGaji}.";
+        $labelKerja = GajiDokterSirus::namaPeriode($h['periodeGaji']);
+        // Daftar nama dipangkas — toast bukan tempat 30 nama; rinciannya terlihat di badge tiap baris.
+        $ringkas = fn(array $nama) => implode(', ', array_slice($nama, 0, 4)) . (count($nama) > 4 ? ' dan ' . (count($nama) - 4) . ' lainnya' : '');
+        $pesan = "Jasa dokter {$this->bulan} diterapkan ke {$h['diperbarui']} slip gaji bulan kerja {$labelKerja}.";
         if ($h['dibersihkan'] > 0) {
             $pesan .= " {$h['dibersihkan']} slip dibersihkan dari bekas terapkan lama.";
         }
         if ($h['final'] !== []) {
-            $pesan .= ' Dilewati (slip Final): ' . implode(', ', $h['final']) . '.';
+            $pesan .= ' Dilewati karena slip Final (' . count($h['final']) . '): ' . $ringkas($h['final']) . '.';
         }
         if ($h['tanpaSlip'] !== []) {
-            $pesan .= ' Belum punya slip ' . $labelGaji . ' (generate dulu di Gaji Karyawan): ' . implode(', ', $h['tanpaSlip']) . '.';
+            $pesan .= ' ' . count($h['tanpaSlip']) . " dokter belum punya slip {$labelKerja} — Generate dulu di Gaji Karyawan: " . $ringkas($h['tanpaSlip']) . '.';
         }
         if ($h['tanpaMap'] !== []) {
-            $pesan .= ' Belum dipetakan: ' . count($h['tanpaMap']) . ' dokter.';
+            $pesan .= ' ' . count($h['tanpaMap']) . ' dokter belum dipetakan.';
         }
         $this->dispatch('toast', type: $h['diperbarui'] > 0 ? 'success' : 'warning', message: $pesan);
         $this->segarkan();
@@ -235,7 +237,7 @@ new class extends Component {
             @if ($total['jumlah'] > 0)
                 {{-- Terapkan = pola "Terapkan ke Slip" Pembagian Jasa Medik: aman diulang (baris lama ditimpa), slip Final dilewati. --}}
                 <x-confirm-button variant="secondary" action="terapkan()" title="Terapkan ke slip gaji"
-                    message="Tulis jasa dokter bulan jasa {{ $bulan }} (snapshot versi terbaru) ke slip Draft Gaji Karyawan {{ $labelGaji }} untuk dokter yang sudah dipetakan? Jasa, gaji pokok dokter, tambahan, Potongan RS, dan PPh 21 ditulis apa adanya dari SIRUS; baris hasil terapkan sebelumnya ditimpa. Slip yang sudah Final dilewati." confirmText="Ya, terapkan" cancelText="Batal">
+                    message="Tulis jasa dokter bulan jasa {{ $bulan }} (snapshot versi terbaru) ke slip Draft Gaji Karyawan bulan kerja {{ $labelJasa }} (dibayar {{ $labelGaji }}) untuk dokter yang sudah dipetakan? Slip bulan kerja itu harus sudah di-Generate. Jasa, gaji pokok dokter, tambahan, Potongan RS, dan PPh 21 ditulis apa adanya dari SIRUS; baris hasil terapkan sebelumnya ditimpa. Slip yang sudah Final dilewati." confirmText="Ya, terapkan" cancelText="Batal">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
                     Terapkan ke slip gaji
                 </x-confirm-button>
@@ -311,7 +313,7 @@ new class extends Component {
                             <x-badge variant="success">Semua dokter terpetakan</x-badge>
                         @endif
                         @if ($total['berubah'] > 0)<x-badge variant="warning">{{ $total['berubah'] }} slip pernah berubah sejak pertama diambil</x-badge>@endif
-                        @if ($total['diterapkan'] > 0)<x-badge variant="success">{{ $total['diterapkan'] }} sudah di slip gaji {{ $labelGaji }}</x-badge>@endif
+                        @if ($total['diterapkan'] > 0)<x-badge variant="success">{{ $total['diterapkan'] }} sudah di slip gaji bulan kerja {{ $labelJasa }}</x-badge>@endif
                         @if ($total['diterapkan_lama'] > 0)<x-badge variant="warning">{{ $total['diterapkan_lama'] }} slip gaji masih memakai versi lama — Terapkan ulang</x-badge>@endif
                         @if ($total['diterapkan'] === 0 && $total['diterapkan_lama'] === 0)<x-badge variant="gray">Belum diterapkan ke slip gaji</x-badge>@endif
                     </div>
@@ -364,7 +366,7 @@ new class extends Component {
                                     @if ($row->emp_id_map)
                                         <span class="truncate"><span class="text-muted dark:text-gray-400">Karyawan SIAP:</span> <span class="text-body dark:text-gray-200">{{ $row->emp_name }}</span> <span class="font-mono text-muted dark:text-gray-400">{{ $row->emp_id_map }}</span></span>
                                         @if ($row->diterapkan_versi === (int) $row->versi)
-                                            <x-badge variant="success" title="Ditulis ke slip gaji {{ $labelGaji }} {{ \Carbon\Carbon::parse($row->diterapkan_at_slip)->format('d/m/Y H:i') }}">di slip gaji</x-badge>
+                                            <x-badge variant="success" title="Ditulis ke slip gaji bulan kerja {{ $labelJasa }} pada {{ \Carbon\Carbon::parse($row->diterapkan_at_slip)->format('d/m/Y H:i') }}">di slip gaji</x-badge>
                                         @elseif ($row->diterapkan_versi !== null)
                                             <x-badge variant="warning" title="Slip gaji masih memakai versi {{ $row->diterapkan_versi }}; snapshot sudah versi {{ $row->versi }} — klik Terapkan ke slip gaji">slip pakai v{{ $row->diterapkan_versi }}</x-badge>
                                         @else
