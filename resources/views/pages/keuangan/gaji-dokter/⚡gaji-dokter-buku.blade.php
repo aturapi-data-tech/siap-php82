@@ -256,7 +256,7 @@ new class extends Component {
                     Ambil dari SIRUS
                 </x-confirm-button>
             @else
-                <x-badge variant="danger">API SIRUS belum diatur di .env (SIRUS_API_URL / USER / PASSWORD)</x-badge>
+                <x-badge variant="danger">API SIRUS belum diatur di .env (SIAP_API_URL / USER / PASSWORD)</x-badge>
             @endif
             <x-toolbar-refresh-reset :label="null" />
         </div>

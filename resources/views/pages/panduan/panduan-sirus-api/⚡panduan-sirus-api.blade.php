@@ -111,11 +111,11 @@ App\Support\GajiDokterSirus                         /api/siap  (prefix di host S
                     <h2>Status sambungan</h2>
                     <div class="grid grid-cols-1 gap-3 mt-3 text-sm sm:grid-cols-3">
                         <div class="p-3 border rounded-xl border-hairline bg-surface-soft dark:bg-gray-800 dark:border-gray-700">
-                            <div class="text-xs text-muted">SIRUS_API_URL</div>
+                            <div class="text-xs text-muted">SIAP_API_URL</div>
                             <div class="font-mono text-ink dark:text-gray-100">{{ $url !== '' ? $url : '— belum diisi —' }}</div>
                         </div>
                         <div class="p-3 border rounded-xl border-hairline bg-surface-soft dark:bg-gray-800 dark:border-gray-700">
-                            <div class="text-xs text-muted">SIRUS_API_USER</div>
+                            <div class="text-xs text-muted">SIAP_API_USER</div>
                             <div class="font-mono text-ink dark:text-gray-100">{{ $user !== '' ? $user : '— belum diisi —' }}</div>
                         </div>
                         <div class="p-3 border rounded-xl border-hairline bg-surface-soft dark:bg-gray-800 dark:border-gray-700">
@@ -131,7 +131,7 @@ App\Support\GajiDokterSirus                         /api/siap  (prefix di host S
                             </x-primary-button>
                             <span class="text-xs text-muted">Login + ambil master dokter (baca saja, tidak menyimpan apa pun).</span>
                         @else
-                            <x-badge variant="danger">API belum diatur — isi SIRUS_API_URL / USER / PASSWORD di .env lalu php artisan config:clear</x-badge>
+                            <x-badge variant="danger">API belum diatur — isi SIAP_API_URL / USER / PASSWORD di .env lalu php artisan config:clear</x-badge>
                         @endif
                     </div>
                     @if ($hasilUji)
@@ -150,9 +150,9 @@ App\Support\GajiDokterSirus                         /api/siap  (prefix di host S
                         <li><b>Di server SIAP</b>: isi tiga baris di <code>.env</code> lalu <code>php artisan config:clear</code>:</li>
                     </ol>
                     <pre class="p-4 mt-2 overflow-x-auto text-xs leading-relaxed border rounded-xl bg-surface-soft border-hairline text-ink dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700"># .env SIAP
-SIRUS_API_URL=https://sirus.rsimadinah.local      # host SIRUS biasa (atau SIAP_API_HOST bila SIRUS mengaturnya), tanpa /api/siap
-SIRUS_API_USER=siap-gaji                          # akun users SIRUS ber-role "Api Siap"
-SIRUS_API_PASSWORD=&lt;password dari siap-api:akun&gt;</pre>
+SIAP_API_URL=https://sirus.rsimadinah.local      # host SIRUS biasa (atau SIAP_API_HOST bila SIRUS mengaturnya), tanpa /api/siap
+SIAP_API_USER=siap-gaji                          # akun users SIRUS ber-role "Api Siap"
+SIAP_API_PASSWORD=&lt;password dari siap-api:akun&gt;</pre>
                     <ol class="mt-3 text-sm" start="3">
                         <li>Klik <b>Uji sambungan</b> di atas. Berhasil → buka {!! $tautan('keuangan.gaji-dokter', 'Gaji Dokter (SIRUS)') !!} dan <b>Ambil dari SIRUS</b> untuk satu bulan jasa.</li>
                         <li>Setelah terbukti, admin SIRUS mengisi <code>SIAP_API_IP_WHITELIST</code> dengan IP server SIAP supaya pintu API hanya terbuka untuk SIAP.</li>
@@ -235,13 +235,13 @@ SIRUS_API_PASSWORD=&lt;password dari siap-api:akun&gt;</pre>
                     <table class="mt-3 text-sm ds-table">
                         <thead><tr><th>Pesan di SIAP</th><th>Artinya</th><th>Tindakan</th></tr></thead>
                         <tbody>
-                            <tr><td>API SIRUS belum diatur (…di .env)</td><td><code>SIRUS_API_URL</code> / <code>USER</code> / <code>PASSWORD</code> kosong</td><td>isi <code>.env</code> SIAP, <code>php artisan config:clear</code></td></tr>
+                            <tr><td>API SIRUS belum diatur (…di .env)</td><td><code>SIAP_API_URL</code> / <code>USER</code> / <code>PASSWORD</code> kosong</td><td>isi <code>.env</code> SIAP, <code>php artisan config:clear</code></td></tr>
                             <tr><td>Gagal login API SIRUS: Username / password API salah, akun nonaktif, atau bukan akun API SIAP.</td><td>SIRUS menolak akun</td><td>minta admin SIRUS cek akun <i>siap-gaji</i> (aktif, role Api Siap) atau jalankan ulang <code>siap-api:akun</code>, lalu perbarui password di <code>.env</code> SIAP</td></tr>
                             <tr><td>Gagal login API SIRUS: HTTP 503 / API SIAP tidak aktif</td><td><code>SIAP_API_JWT_SECRET</code> di SIRUS kosong</td><td>admin SIRUS mengisi rahasia + <code>config:clear</code></td></tr>
-                            <tr><td>Gagal login API SIRUS: HTTP 404</td><td>URL salah (host Mobile JKN, atau SIRUS mengatur <code>SIAP_API_HOST</code> lain), atau route SIRUS tidak dimuat (rahasia &lt; 32 karakter)</td><td>cek <code>SIRUS_API_URL</code> (host SIRUS / SIAP_API_HOST, tanpa <code>/api/siap</code>), cek rahasia di SIRUS</td></tr>
+                            <tr><td>Gagal login API SIRUS: HTTP 404</td><td>URL salah (host Mobile JKN, atau SIRUS mengatur <code>SIAP_API_HOST</code> lain), atau route SIRUS tidak dimuat (rahasia &lt; 32 karakter)</td><td>cek <code>SIAP_API_URL</code> (host SIRUS / SIAP_API_HOST, tanpa <code>/api/siap</code>), cek rahasia di SIRUS</td></tr>
                             <tr><td>HTTP 403 / IP tidak diizinkan</td><td>IP server SIAP tidak ada di whitelist SIRUS</td><td>admin SIRUS menambah IP ke <code>SIAP_API_IP_WHITELIST</code></td></tr>
                             <tr><td>HTTP 429</td><td>terlalu banyak permintaan dalam semenit</td><td>tunggu semenit; jangan klik Ambil berulang-ulang</td></tr>
-                            <tr><td>cURL error / timed out</td><td>SIRUS tidak terjangkau dari server SIAP (jaringan, DNS, sertifikat)</td><td><code>curl -I SIRUS_API_URL</code> dari server SIAP; cek firewall / HTTPS</td></tr>
+                            <tr><td>cURL error / timed out</td><td>SIRUS tidak terjangkau dari server SIAP (jaringan, DNS, sertifikat)</td><td><code>curl -I SIAP_API_URL</code> dari server SIAP; cek firewall / HTTPS</td></tr>
                             <tr><td>SIRUS belum punya slip gaji dokter untuk bulan jasa …</td><td>SIRUS belum menggaji bulan itu, atau salah pilih bulan (jasa ≠ gaji)</td><td>pilih bulan jasa yang benar; tunggu SIRUS memproses</td></tr>
                             <tr><td>N dokter belum dipetakan ke karyawan</td><td>nama tidak cocok otomatis</td><td>tab Pemetaan → Petakan manual, atau biarkan bila bukan karyawan</td></tr>
                             <tr><td>Badge "pernah berubah" / versi N</td><td>SIRUS mengubah angka setelah tarikan sebelumnya</td><td>Rincian → Bandingkan dengan versi sebelumnya; konfirmasi ke SIRUS bila perlu</td></tr>

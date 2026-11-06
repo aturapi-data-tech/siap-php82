@@ -28,11 +28,12 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
-    // SIRUS — API gaji dokter (baca saja, JWT). Kredensial = yang diatur di .env SIRUS (SIAP_API_*).
+    // API SIAP ↔ SIRUS (gaji dokter, baca saja, JWT). Kunci .env dinamai SIAP_API_* di kedua sisi:
+    // di sini URL host SIRUS + akun user SIRUS ber-role Api Siap (dibuat `php artisan siap-api:akun` di SIRUS).
     'sirus' => [
-        'url' => env('SIRUS_API_URL'),
-        'user' => env('SIRUS_API_USER'),
-        'password' => env('SIRUS_API_PASSWORD'),
+        'url' => env('SIAP_API_URL'),
+        'user' => env('SIAP_API_USER'),
+        'password' => env('SIAP_API_PASSWORD'),
     ],
 
     'slack' => [

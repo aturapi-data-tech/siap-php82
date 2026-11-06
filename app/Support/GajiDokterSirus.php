@@ -14,7 +14,7 @@ use RuntimeException;
  *
  * SIRUS menghitung gaji dokter spesialis (uang periksa, jasa tindakan, visite, operasi, kapita, potongan RS, PPh 21)
  * di modulnya sendiri. SIAP tidak menghitung ulang: menarik hasilnya lewat API baca-saja (JWT; akun = user SIRUS ber-role
- * 'Api Siap', kredensialnya di .env: SIRUS_API_URL / SIRUS_API_USER / SIRUS_API_PASSWORD) dan menyimpannya sebagai snapshot.
+ * 'Api Siap', kredensialnya di .env: SIAP_API_URL / SIAP_API_USER / SIAP_API_PASSWORD) dan menyimpannya sebagai snapshot.
  *
  * VERSI: tiap Ambil, slip tiap dokter diberi checksum (header + detail + lampiran). Sama → hanya diambil_at
  * diperbarui; beda → versi baru, versi lama tetap tersimpan (terbaru = '0'). Jadi angka yang pernah diproses
@@ -43,7 +43,7 @@ class GajiDokterSirus
     private static function token(bool $segar = false): string
     {
         if (!self::aktif()) {
-            throw new RuntimeException('API SIRUS belum diatur (SIRUS_API_URL / SIRUS_API_USER / SIRUS_API_PASSWORD di .env).');
+            throw new RuntimeException('API SIRUS belum diatur (SIAP_API_URL / SIAP_API_USER / SIAP_API_PASSWORD di .env).');
         }
         if ($segar) {
             Cache::forget('sirus-api-token');
