@@ -133,8 +133,9 @@ new class extends Component {
 
     public function lunaskan(int $id): void
     {
-        if (!PinjamanKaryawan::lunaskan($id, $this->periode(), auth()->id())) {
-            $this->dispatch('toast', type: 'error', message: 'Pelunasan harus setelah bulan awal angsuran.');
+        $galat = PinjamanKaryawan::lunaskan($id, $this->periode(), auth()->id());
+        if ($galat !== null) {
+            $this->dispatch('toast', type: 'error', message: $galat);
             return;
         }
         $this->dispatch('toast', type: 'success', message: "Ditandai lunas: mulai bulan kerja {$this->bulan} tidak dipotong lagi. Klik Terapkan ke Slip bila slip bulan ini sudah berisi angsurannya.");
@@ -340,13 +341,16 @@ new class extends Component {
                             </td>
                             <td class="whitespace-nowrap">
                                 <span class="font-semibold">{{ $row->sumber_nama }}</span> <span class="font-mono">{{ $rp($row->pokok) }}</span>
-                                <span class="block font-mono text-xs text-muted">{{ $persen($row->persen_sewa) }}% ({{ $rp($row->sewa) }}/bln) · {{ $row->lama_bulan }} bln · {{ substr($row->bulan_awal, 5, 2) }}/{{ substr($row->bulan_awal, 0, 4) }} – {{ substr($row->bulan_akhir, 5, 2) }}/{{ substr($row->bulan_akhir, 0, 4) }}</span>
+                                <span class="block font-mono text-xs text-muted">{{ $persen($row->persen_sewa) }}% ({{ $rp($row->sewa) }}/bln) · {{ substr($row->bulan_awal, 5, 2) }}/{{ substr($row->bulan_awal, 0, 4) }} – {{ substr($row->bulan_akhir, 5, 2) }}/{{ substr($row->bulan_akhir, 0, 4) }}</span>
                                 @if ($row->lunas_periode)<span class="block text-xs text-info-deep dark:text-info">dilunasi {{ substr($row->lunas_periode, 5, 2) }}/{{ substr($row->lunas_periode, 0, 4) }}</span>@endif
                             </td>
                             <td class="font-mono font-semibold text-right whitespace-nowrap">{{ $rp($row->angsuran) }}<span class="block text-[11px] font-normal text-muted">{{ $row->angsuran_ditetapkan ? 'tetap · ' : '' }}total {{ $rp($row->total) }}</span></td>
                             <td class="text-xs whitespace-nowrap">
+                                @php $selesai = in_array($row->status, ['lunas', 'dilunasi'], true); $sisaKali = $selesai ? 0 : max(0, (int) $row->lama_bulan - $row->terbayar); $sisaRp = $selesai ? 0 : max(0, $row->total_hutang - $row->terbayar_nominal); @endphp
                                 <x-badge :variant="$warnaStatus">{{ $teksStatus }}</x-badge>
-                                <span class="font-mono">@if ($row->status === 'berjalan')ke-{{ $row->ke }}/{{ $row->lama_bulan }} · sisa {{ $row->sisa }} · @endif terbayar {{ $row->terbayar }}/{{ $row->lama_bulan }}</span>
+                                @if ($row->status === 'berjalan')<span class="font-mono">angsuran ke-<b>{{ $row->ke }}</b>/{{ $row->lama_bulan }}</span>@endif
+                                <span class="block mt-0.5 font-mono">dibayar {{ $row->terbayar }}× = <b>{{ $rp($row->terbayar_nominal) }}</b></span>
+                                <span class="block font-mono {{ $sisaRp > 0 ? 'text-ink dark:text-gray-100' : 'text-success-deep dark:text-success' }}">sisa {{ $sisaKali }}× = <b>{{ $rp($sisaRp) }}</b></span>
                                 @if ($row->tunggakan !== [])
                                     <span class="block font-semibold text-danger-deep dark:text-danger" title="{{ implode(', ', array_map(fn($p) => PinjamanKaryawan::labelPeriode($p), $row->tunggakan)) }}">tunggakan {{ count($row->tunggakan) }} bln</span>
                                 @endif

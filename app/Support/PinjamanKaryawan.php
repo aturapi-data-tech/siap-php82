@@ -320,6 +320,9 @@ class PinjamanKaryawan
         if ($lunas !== null && (!self::periodeValid($lunas) || $lunas <= $data['bulan_awal'])) {
             return $gagal('Bulan pelunasan harus mm/yyyy setelah bulan awal.');
         }
+        if ($lunas !== null && self::slipFinal($lunas, $empId)) {
+            return $gagal('Slip ' . self::labelPeriode($lunas) . ' sudah Final (angsuran bulan itu sudah terpotong) — bulan pelunasan harus sesudahnya.');
+        }
         $tetap = $data['angsuran_tetap'] ?? null;
         $tetap = $tetap === '' || $tetap === null ? 0 : $tetap;
         if (!is_numeric($tetap) || (float) $tetap < 0 || (float) $tetap > 999999999999) {
@@ -349,15 +352,23 @@ class PinjamanKaryawan
         return ['ok' => true, 'pesan' => 'Pinjaman dicatat.', 'id' => $idBaru];
     }
 
-    /** Pelunasan dipercepat: mulai bulan kerja $periode tidak dipotong lagi. */
-    public static function lunaskan(int $id, string $periode, ?int $userId): bool
+    /**
+     * Pelunasan dipercepat: mulai bulan kerja $periode tidak dipotong lagi.
+     * Ditolak bila slip bulan itu sudah Final (angsurannya sudah terpotong & dibayar) — pilih bulan berikutnya.
+     * @return string|null pesan galat
+     */
+    public static function lunaskan(int $id, string $periode, ?int $userId): ?string
     {
-        $row = DB::table('siaptxn_pinjamans')->where('pinjaman_id', $id)->first(['bulan_awal']);
+        $row = DB::table('siaptxn_pinjamans')->where('pinjaman_id', $id)->first(['emp_id', 'bulan_awal']);
         if (!$row || !self::periodeValid($periode) || $periode <= $row->bulan_awal) {
-            return false;
+            return 'Pelunasan harus setelah bulan awal angsuran.';
         }
+        if (self::slipFinal($periode, (string) $row->emp_id)) {
+            return 'Slip ' . self::labelPeriode($periode) . ' sudah Final (angsuran bulan itu sudah terpotong) — tandai lunas mulai bulan berikutnya.';
+        }
+        DB::table('siaptxn_pinjamans')->where('pinjaman_id', $id)->update(['lunas_periode' => $periode, 'updated_by' => $userId, 'updated_at' => now()]);
 
-        return DB::table('siaptxn_pinjamans')->where('pinjaman_id', $id)->update(['lunas_periode' => $periode, 'updated_by' => $userId, 'updated_at' => now()]) > 0;
+        return null;
     }
 
     /**

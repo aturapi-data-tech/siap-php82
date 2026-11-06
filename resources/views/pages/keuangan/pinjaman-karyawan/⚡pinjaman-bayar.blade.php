@@ -192,15 +192,15 @@ new class extends Component {
         $jumlahKe = max(0, (int) ($form['sampai_ke'] ?? 0) - (int) ($form['dari_ke'] ?? 0) + 1);
         $total = (is_numeric($form['jumlah'] ?? null) ? (float) $form['jumlah'] : 0) * $jumlahKe;
     @endphp
-    <div class="flex flex-col gap-4 mt-4">
-        {{-- FORM PEMBAYARAN --}}
-        <div class="flex flex-col w-full bg-canvas border border-hairline shadow-sm rounded-2xl dark:border-gray-700 dark:bg-gray-900">
+    <div class="grid grid-cols-1 gap-4 mt-4 xl:grid-cols-5 items-start">
+        {{-- FORM PEMBAYARAN (kiri) --}}
+        <div class="flex flex-col bg-canvas border border-hairline shadow-sm rounded-2xl xl:col-span-2 dark:border-gray-700 dark:bg-gray-900">
             <div class="px-4 pt-3">
                 <h2 class="font-semibold text-ink dark:text-gray-100">Catat pembayaran di luar gaji</h2>
                 <p class="text-xs text-muted">Tunai / transfer untuk satu atau beberapa angsuran sekaligus (dobel, di muka). Angsuran yang tercatat di sini <b>tidak dipotong</b> di slip. Potongan lewat gaji tidak perlu dicatat — otomatis saat Terapkan ke Slip.</p>
             </div>
-            <div class="grid grid-cols-1 gap-4 px-4 py-4 sm:grid-cols-2 xl:grid-cols-4">
-                <div class="sm:col-span-2 xl:col-span-4">
+            <div class="grid grid-cols-1 gap-4 px-4 py-4 sm:grid-cols-2">
+                <div class="sm:col-span-2">
                     <x-input-label for="pb-emp" value="Karyawan" />
                     <div class="mt-1">
                         <x-combobox wireModel="empNama" wireModelId="empId" :options="$this->karyawanOpsi" inputId="pb-emp" placeholder="Ketik nama / ID peminjam, lalu pilih dari daftar…" judulDaftar="daftar peminjam" maxlength="100" />
@@ -225,7 +225,7 @@ new class extends Component {
                 </div>
 
                 @if ($pinjaman)
-                    <div class="p-3 text-sm border rounded-xl border-hairline bg-surface-soft sm:col-span-2 xl:col-span-4 dark:bg-gray-800 dark:border-gray-700" wire:key="ringkas-{{ $pinjaman->pinjaman_id }}">
+                    <div class="p-3 text-sm border rounded-xl border-hairline bg-surface-soft sm:col-span-2 dark:bg-gray-800 dark:border-gray-700" wire:key="ringkas-{{ $pinjaman->pinjaman_id }}">
                         <span class="font-semibold">{{ $pinjaman->sumber_nama }}</span> · pokok {{ $rp($pinjaman->pokok) }} · {{ $pinjaman->lama_bulan }} bln · angsuran <b class="font-mono">{{ $rp($pinjaman->angsuran) }}</b>/bln ·
                         terbayar <b>{{ $pinjaman->terbayar }}/{{ $pinjaman->lama_bulan }}</b>
                         @if ($pinjaman->tunggakan !== [])
@@ -260,12 +260,12 @@ new class extends Component {
                             <x-input-label for="pb-jumlah" value="Jumlah per angsuran (Rp)" />
                             <x-text-input-number id="pb-jumlah" wire:model="form.jumlah" class="w-full mt-1" />
                         </div>
-                        <div class="sm:col-span-2 xl:col-span-3">
+                        <div>
                             <x-input-label for="pb-ket" value="Keterangan" />
                             <x-text-input id="pb-ket" wire:model="form.keterangan" maxlength="200" placeholder="mis. bayar 2 bulan sekaligus" class="w-full mt-1" />
                         </div>
                     </div>
-                    <div class="flex flex-wrap items-center justify-between gap-2 sm:col-span-2 xl:col-span-4" role="status" aria-live="polite">
+                    <div class="flex flex-wrap items-center justify-between gap-2 sm:col-span-2" role="status" aria-live="polite">
                         <span class="text-sm">{{ $jumlahKe }} angsuran × {{ $rp(is_numeric($form['jumlah'] ?? null) ? (float) $form['jumlah'] : 0) }} = <b class="font-mono">{{ $rp($total) }}</b></span>
                         <div class="flex gap-2">
                             <x-secondary-button type="button" wire:click="keBuku">Ke Buku Pinjaman</x-secondary-button>
@@ -280,8 +280,8 @@ new class extends Component {
 
         </div>
 
-        {{-- RIWAYAT: per orang bila karyawan dipilih, selain itu pembayaran luar gaji terbaru --}}
-        <div class="flex flex-col bg-canvas border border-hairline shadow-sm rounded-2xl dark:border-gray-700 dark:bg-gray-900">
+        {{-- RIWAYAT (kanan): per orang bila karyawan dipilih, selain itu pembayaran luar gaji terbaru --}}
+        <div class="flex flex-col bg-canvas border border-hairline shadow-sm rounded-2xl xl:col-span-3 dark:border-gray-700 dark:bg-gray-900">
             @if ($empId !== '')
                 @php $riwayatOrang = $this->riwayatOrang; $totalSisa = $riwayatOrang->sum('sisa_nominal'); @endphp
                 <div class="px-4 pt-3 pb-4" wire:key="riwayat-orang-{{ $empId }}">
@@ -289,7 +289,7 @@ new class extends Component {
                         <h3 class="text-sm font-semibold text-ink dark:text-gray-100">Riwayat pembayaran {{ $empNama }} <span class="font-normal text-muted">— potong gaji &amp; luar gaji</span></h3>
                         <span class="text-sm">Kurang: <b class="font-mono">{{ $rp($totalSisa) }}</b> ({{ $riwayatOrang->sum('sisa_angsuran') }} angsuran, {{ $riwayatOrang->where('sisa_angsuran', '>', 0)->count() }} pinjaman)</span>
                     </div>
-                    <div class="grid grid-cols-1 gap-3 mt-3 lg:grid-cols-2 xl:grid-cols-3">
+                    <div class="grid grid-cols-1 gap-3 mt-3 lg:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
                     @forelse ($riwayatOrang as $pj)
                         <div class="flex flex-col border rounded-xl border-hairline dark:border-gray-700 {{ $pinjamanId === (int) $pj->pinjaman_id ? 'ring-2 ring-brand-green/40 dark:ring-brand-lime/40' : '' }}" wire:key="riwayat-pj-{{ $pj->pinjaman_id }}">
                             <div class="px-3 py-2 text-sm bg-surface-soft rounded-t-xl dark:bg-gray-800">
@@ -300,7 +300,13 @@ new class extends Component {
                                 <div class="text-xs text-muted">pokok {{ $rp($pj->pokok) }} · {{ $pj->lama_bulan }} bln · mulai {{ $lbl($pj->bulan_awal) }} · angsuran <span class="font-mono">{{ $rp($pj->angsuran) }}</span></div>
                                 <div class="mt-1 font-mono text-xs">
                                     terbayar <b>{{ $pj->terbayar }}/{{ $pj->lama_bulan }}</b> = {{ $rp($pj->terbayar_nominal) }}
-                                    @if ($pj->sisa_angsuran > 0)<span class="block font-semibold text-danger-deep dark:text-danger">kurang {{ $pj->sisa_angsuran }} × {{ $rp($pj->angsuran) }} = {{ $rp($pj->sisa_nominal) }}</span>@else<span class="block text-success-deep dark:text-success">tidak ada kekurangan</span>@endif
+                                    @if ($pj->sisa_angsuran > 0)
+                                        <span class="block font-semibold text-danger-deep dark:text-danger">kurang {{ $pj->sisa_angsuran }} × {{ $rp($pj->angsuran) }} = {{ $rp($pj->sisa_nominal) }}</span>
+                                    @elseif ($pj->status === 'dilunasi')
+                                        <span class="block text-info-deep dark:text-info">sisa {{ max(0, (int) $pj->lama_bulan - $pj->terbayar) }}× tidak ditagih — dilunasi {{ $lbl($pj->lunas_periode) }}{{ $pj->keterangan && str_contains($pj->keterangan, 'pinjaman baru') ? ' (ditutup pinjaman baru)' : '' }}</span>
+                                    @else
+                                        <span class="block text-success-deep dark:text-success">lunas — tidak ada kekurangan</span>
+                                    @endif
                                     @if ($pj->tunggakan !== [])<span class="block text-danger-deep dark:text-danger">tunggakan {{ implode(', ', array_map($lbl, $pj->tunggakan)) }}</span>@endif
                                 </div>
                             </div>
@@ -318,8 +324,11 @@ new class extends Component {
                                                 </td>
                                                 <td class="font-mono text-right text-xs whitespace-nowrap">{{ $rp($b->jumlah) }}</td>
                                                 <td class="text-right">
-                                                    <x-confirm-button variant="danger-soft" action="hapusBayar({{ $b->bayar_id }})" title="Hapus pembayaran" class="!px-1.5 !py-0.5 text-[11px]"
-                                                        message="Hapus catatan pembayaran angsuran ke-{{ $b->ke }} ({{ $lbl($b->periode) }})? Angsuran itu kembali ditagih lewat gaji bila masih berjalan." confirmText="Ya, hapus" cancelText="Batal">✕</x-confirm-button>
+                                                    @php $bisaHapus = $b->sumber !== 'GAJI' || ($b->keterangan !== null && $b->keterangan !== 'riwayat sebelum SIAP'); @endphp
+                                                    @if ($bisaHapus)
+                                                        <x-confirm-button variant="danger-soft" action="hapusBayar({{ $b->bayar_id }})" title="{{ $b->sumber === 'GAJI' ? 'Batalkan tagihan ini dari slip' : 'Hapus catatan pembayaran' }}" class="!px-1.5 !py-0.5 text-[11px]"
+                                                            message="{{ $b->sumber === 'GAJI' ? 'Batalkan tagihan angsuran ke-' . $b->ke . ' (' . $lbl($b->periode) . ') dari slip ' . $lbl($b->dipotong_periode) . '? Angsuran itu kembali ditagih pada bulannya sendiri.' : 'Hapus catatan pembayaran angsuran ke-' . $b->ke . ' (' . $lbl($b->periode) . ')? Angsuran itu kembali ditagih lewat gaji bila masih berjalan.' }}" confirmText="Ya, hapus" cancelText="Batal">✕</x-confirm-button>
+                                                    @endif
                                                 </td>
                                             </tr>
                                         @empty
