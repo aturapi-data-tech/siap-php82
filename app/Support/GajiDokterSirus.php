@@ -62,11 +62,23 @@ class GajiDokterSirus
     }
 
     /** GET ber-Bearer; token kedaluwarsa (401) dicoba ulang sekali dengan token baru. */
-    private static function get(string $path, array $query = []): array
+    public static function get(string $path, array $query = []): array
+    {
+        return self::panggil('get', $path, $query);
+    }
+
+    /** PUT ber-Bearer (tahap 1: kirim struktur gaji dokter ke SIRUS). */
+    public static function put(string $path, array $data = []): array
+    {
+        return self::panggil('put', $path, $data);
+    }
+
+    private static function panggil(string $metode, string $path, array $muatan): array
     {
         $url = rtrim(config('services.sirus.url'), '/') . '/api/siap/' . ltrim($path, '/');
         foreach ([false, true] as $tokenSegar) {
-            $respon = Http::acceptJson()->timeout(120)->withToken(self::token($tokenSegar))->get($url, $query);
+            $klien = Http::acceptJson()->timeout(120)->withToken(self::token($tokenSegar));
+            $respon = $metode === 'put' ? $klien->put($url, $muatan) : $klien->get($url, $muatan);
             if ($respon->status() === 401 && !$tokenSegar) {
                 continue;
             }
@@ -209,7 +221,7 @@ class GajiDokterSirus
                     'potongan_lain_total' => $slipSirus['potongan_lain_total'], 'tambahan_total' => $slipSirus['tambahan_total'], 'gaji_diterima' => $slipSirus['gaji_diterima'],
                     'gaji_status' => $slipSirus['gaji_status'],
                     'tanggal_bayar' => $slipSirus['tanggal_bayar'] ? Absensi::tanggalSql(Carbon::parse($slipSirus['tanggal_bayar'])) : null,
-                    'update_date_sirus' => $slipSirus['update_date'], 'checksum' => $checksum, 'jumlah_lampiran' => count($lampiranSirus),
+                    'update_date_sirus' => $slipSirus['update_date'], 'checksum' => $checksum, 'jumlah_lampiran' => count($lampiranSirus), 'sumber' => 'SIRUS',
                     'diambil_at' => now(), 'diambil_oleh' => $userId, 'created_at' => now(), 'updated_at' => now(),
                 ]);
                 $gdId = (int) DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->where('dr_id', $slipSirus['dr_id'])->where('versi', $versi)->value('gd_id');
@@ -225,7 +237,7 @@ class GajiDokterSirus
                         'keterangan' => mb_substr((string) $row['keterangan'], 0, 200) ?: null, 'klaim' => mb_substr((string) $row['klaim'], 0, 60) ?: null,
                         'klaim_status' => mb_substr((string) $row['klaim_status'], 0, 20) ?: null, 'no_sep' => mb_substr((string) $row['no_sep'], 0, 30) ?: null,
                         'txn_no' => mb_substr((string) $row['txn_no'], 0, 30) ?: null, 'nominal' => $row['nominal'], 'pasien' => $row['pasien'],
-                        'masuk_slip' => $row['masuk_slip'] ? '1' : '0',
+                        'masuk_slip' => $row['masuk_slip'] ? '1' : '0', 'grup' => mb_substr((string) ($row['group'] ?? ''), 0, 10) ?: null,
                     ], $potonganLampiran));
                 }
                 $hasilAmbilGajiSirus['lampiran'] += count($lampiranSirus);
@@ -392,6 +404,227 @@ class GajiDokterSirus
         }
 
         return $hasilTerapkanKeSlipGaji;
+    }
+
+    // ─── Tahap 2 & 3: hitungan SIAP (GajiDokterHitung) ───────────────────────
+
+    /**
+     * Struktur yang dipakai menghitung satu snapshot: baris struktur SIAP bila ada; kalau belum ada, direka dari snapshot itu
+     * sendiri (parameter header + tunjangan/potongan rutin/kapita yang terbaca di detail) supaya pembanding tetap adil.
+     * @return array{struktur: array, asal: string}
+     */
+    public static function strukturUntukSnapshot(object $header, Collection $detail): array
+    {
+        if (DB::table('siapmst_gdok_strukturs')->where('dr_id', $header->dr_id)->exists()) {
+            return ['struktur' => GajiDokterStruktur::ambil($header->dr_id), 'asal' => 'struktur'];
+        }
+        $struktur = GajiDokterStruktur::rapikan(['basic_salary' => $header->nilai_gaji_pokok, 'npwp_status' => $header->npwp_status, 'skema_gaji_pokok' => $header->skema_gaji_pokok,
+            'potongan_rs_basis' => $header->potongan_rs_basis, 'potongan_rs_persen' => $header->potongan_rs_persen, 'pph21_persen' => $header->pph21_persen]);
+        foreach (GajiDokterStruktur::TUNJANGAN_RUTIN as $kolom => $kode) {
+            $struktur[$kolom] = (float) $detail->where('jenis', 'J')->where('kode', $kode)->sum('nilai');
+        }
+        foreach (GajiDokterStruktur::POTONGAN_RUTIN as $kolom => $kode) {
+            $struktur[$kolom] = abs((float) $detail->where('jenis', 'P')->where('kode', $kode)->where('nilai_manual', '!=', '1')->sum('nilai'));
+        }
+        foreach (['ri', 'rj'] as $jalur) {
+            $kapita = $detail->where('jenis', 'J')->firstWhere('kode', 'KAPITA ' . strtoupper($jalur));
+            if ($kapita && (int) $kapita->jumlah_pasien > 0) {
+                $struktur["tarif_per_kapita_{$jalur}"] = round((float) $kapita->nilai / (int) $kapita->jumlah_pasien, 2);
+            }
+        }
+
+        return ['struktur' => $struktur, 'asal' => 'snapshot'];
+    }
+
+    /** Baris manual (kasbon, bonus, …) satu dokter satu bulan jasa — ikut dihitung mesin SIAP. */
+    public static function manualList(string $periode, string $drId): Collection
+    {
+        return DB::table('siaptxn_gdok_manuals')->where('periode', $periode)->where('dr_id', $drId)->orderBy('jenis')->orderBy('manual_id')->get();
+    }
+
+    /**
+     * Tahap 2 — hitung ulang satu snapshot dengan mesin SIAP (lampiran snapshot + struktur) lalu bandingkan dengan angka SIRUS-nya.
+     * @return array{hasil: array, banding: array, strukturAsal: string}|null
+     */
+    public static function ujiHitungSnapshot(int $gdId): ?array
+    {
+        $header = DB::table('siaptxn_gdok_hdrs')->where('gd_id', $gdId)->first();
+        if (!$header) {
+            return null;
+        }
+        $detail = self::detail($gdId);
+        ['struktur' => $struktur, 'asal' => $asal] = self::strukturUntukSnapshot($header, $detail);
+        // Baris manual di snapshot SIRUS (nilai_manual = 1, bukan RS/PPH21) ikut sebagai masukan manual supaya pembandingnya setara.
+        $manualSnapshot = $detail->filter(fn($baris) => in_array($baris->jenis, ['P', 'T'], true) && $baris->nilai_manual === '1' && !in_array($baris->kode, ['RS', 'PPH21'], true))
+            ->map(fn($baris) => ['jenis' => $baris->jenis, 'kode' => $baris->kode, 'keterangan' => $baris->label, 'nilai' => abs((float) $baris->nilai)]);
+        $manualSiap = $header->sumber === 'SIAP' ? self::manualList($header->periode, $header->dr_id) : $manualSnapshot;
+        $hasilHitung = GajiDokterHitung::hitung($struktur, self::lampiran($gdId), $manualSiap);
+
+        return ['hasil' => $hasilHitung, 'banding' => GajiDokterHitung::banding($hasilHitung, $header, $detail), 'strukturAsal' => $asal];
+    }
+
+    /** Tahap 2 — uji semua snapshot terbaru satu bulan jasa. @return Collection<int, object> */
+    public static function ujiHitung(string $periode): Collection
+    {
+        return DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->where('terbaru', '1')->orderBy('dr_name')->get(['gd_id', 'dr_id', 'dr_name', 'versi', 'sumber'])
+            ->map(function ($row) {
+                $uji = self::ujiHitungSnapshot((int) $row->gd_id);
+
+                return (object) ['gd_id' => (int) $row->gd_id, 'dr_id' => $row->dr_id, 'dr_name' => $row->dr_name, 'versi' => (int) $row->versi, 'sumber' => $row->sumber,
+                    'cocok' => $uji['banding']['cocok'] ?? false, 'strukturAsal' => $uji['strukturAsal'] ?? '-',
+                    'selisihHeader' => $uji['banding']['header'] ?? [], 'selisihDetail' => $uji['banding']['detail'] ?? [], 'ringkasSiap' => $uji['hasil']['ringkas'] ?? []];
+            });
+    }
+
+    private static function checksumSiap(array $ringkas, array $detail, array $baris): string
+    {
+        $komponen = array_map(fn($row) => [$row['jenis'], $row['kode'], round((float) $row['nilai'], 2), (int) $row['jumlah_pasien']], $detail);
+        usort($komponen, fn($kiri, $kanan) => strcmp($kiri[0] . $kiri[1], $kanan[0] . $kanan[1]));
+        $lampiranInti = array_map(fn($row) => [$row['komponen'], $row['txn_no'], round((float) $row['nominal'], 2)], $baris);
+        usort($lampiranInti, fn($kiri, $kanan) => strcmp($kiri[0] . $kiri[1], $kanan[0] . $kanan[1]));
+
+        return md5(json_encode([array_map(fn($nilai) => round((float) $nilai, 2), $ringkas), $komponen, $lampiranInti]));
+    }
+
+    /**
+     * Tahap 3 — PROSES SLIP di SIAP: tarik transaksi mentah bulan jasa dari SIRUS (GET …/transaksi), hitung dengan struktur SIAP
+     * (+ baris manual), simpan sebagai snapshot ber-sumber SIAP dengan aturan versi yang sama dengan Ambil (sama → tetap,
+     * berubah → versi baru). Slip yang sudah Final di SIAP dilewati. Dokter tanpa struktur di SIAP memakai struktur SIRUS
+     * yang ikut dikirim (dilaporkan).
+     * @return array{jumlah: int, baru: int, berubah: int, sama: int, final: array<int, string>, tanpaStruktur: array<int, string>, tanpaMap: array<int, string>, catatan: array<int, string>}
+     */
+    public static function prosesSiap(string $periode, ?int $userId, ?string $drId = null): array
+    {
+        if (!self::periodeValid($periode)) {
+            throw new RuntimeException('Periode tidak valid.');
+        }
+        [$tahun, $bulan] = explode('-', $periode);
+        self::segarkanDokter($userId);
+        $dataTransaksi = self::get("gaji-dokter/{$tahun}/{$bulan}/transaksi", $drId ? ['dr_id' => $drId] : []);
+        $empIdPerDokter = DB::table('siapmst_dokter_sirus')->pluck('emp_id', 'dr_id');
+        $periodeGaji = Carbon::createFromFormat('!Y-m', $periode)->addMonthNoOverflow()->format('Y-m');
+        $hasilProses = ['jumlah' => 0, 'baru' => 0, 'berubah' => 0, 'sama' => 0, 'final' => [], 'tanpaStruktur' => [], 'tanpaMap' => [], 'catatan' => []];
+
+        foreach ($dataTransaksi['dokter'] ?? [] as $dokter) {
+            $drIdDokter = (string) $dokter['dr_id'];
+            $namaDokter = trim((string) $dokter['dr_name']) !== '' ? $dokter['dr_name'] : '(tanpa nama) ' . $drIdDokter;
+            $hasilProses['jumlah']++;
+            $adaStruktur = DB::table('siapmst_gdok_strukturs')->where('dr_id', $drIdDokter)->exists();
+            $struktur = $adaStruktur ? GajiDokterStruktur::ambil($drIdDokter) : GajiDokterStruktur::rapikan((array) ($dokter['struktur'] ?? []));
+            if (!$adaStruktur) {
+                $hasilProses['tanpaStruktur'][] = $namaDokter;
+            }
+            $empId = $empIdPerDokter[$drIdDokter] ?? null;
+            if ($empId === null) {
+                $hasilProses['tanpaMap'][] = $namaDokter;
+            }
+            $hasilHitung = GajiDokterHitung::hitung($struktur, $dokter['baris'] ?? [], self::manualList($periode, $drIdDokter));
+            foreach ($hasilHitung['catatan'] as $catatan) {
+                $hasilProses['catatan'][] = "{$namaDokter}: {$catatan}";
+            }
+            $baris = array_map(fn($row) => [...$row, 'masuk_slip' => !in_array((string) ($row['group'] ?? ''), $hasilHitung['grupKapita'], true)], $dokter['baris'] ?? []);
+            $checksum = self::checksumSiap($hasilHitung['ringkas'], $hasilHitung['detail'], $baris);
+            $snapshotTerbaru = DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->where('dr_id', $drIdDokter)->where('terbaru', '1')->first();
+            if ($snapshotTerbaru && $snapshotTerbaru->sumber === 'SIAP' && $snapshotTerbaru->gaji_status === 'F') {
+                $hasilProses['final'][] = $namaDokter;
+                continue;
+            }
+            if ($snapshotTerbaru && $snapshotTerbaru->checksum === $checksum) {
+                DB::table('siaptxn_gdok_hdrs')->where('gd_id', $snapshotTerbaru->gd_id)->update(['diambil_at' => now(), 'diambil_oleh' => $userId, 'emp_id' => $empId, 'updated_at' => now()]);
+                $hasilProses['sama']++;
+                continue;
+            }
+            self::simpanSnapshotSiap($periode, $periodeGaji, $drIdDokter, $namaDokter, $empId, $struktur, $hasilHitung, $baris, $checksum, $snapshotTerbaru, $userId);
+            $snapshotTerbaru ? $hasilProses['berubah']++ : $hasilProses['baru']++;
+        }
+
+        DB::table('siaptxn_gdok_ambils')->insert(['periode' => $periode, 'diambil_at' => now(), 'diambil_oleh' => $userId, 'jumlah_slip' => $hasilProses['jumlah'],
+            'baru' => $hasilProses['baru'], 'berubah' => $hasilProses['berubah'], 'sama' => $hasilProses['sama'], 'lampiran_baris' => array_sum(array_map(fn($dokter) => count($dokter['baris'] ?? []), $dataTransaksi['dokter'] ?? [])),
+            'keterangan' => trim('Proses Slip di SIAP. ' . ($hasilProses['tanpaMap'] !== [] ? count($hasilProses['tanpaMap']) . ' dokter belum dipetakan. ' : '') . ($hasilProses['tanpaStruktur'] !== [] ? count($hasilProses['tanpaStruktur']) . ' dokter memakai struktur SIRUS.' : '')) ?: null,
+            'created_at' => now(), 'updated_at' => now()]);
+
+        return $hasilProses;
+    }
+
+    private static function simpanSnapshotSiap(string $periode, string $periodeGaji, string $drId, string $namaDokter, ?string $empId, array $struktur, array $hasilHitung, array $baris, string $checksum, ?object $snapshotTerbaru, ?int $userId): int
+    {
+        return DB::transaction(function () use ($periode, $periodeGaji, $drId, $namaDokter, $empId, $struktur, $hasilHitung, $baris, $checksum, $snapshotTerbaru, $userId) {
+            if ($snapshotTerbaru) {
+                DB::table('siaptxn_gdok_hdrs')->where('gd_id', $snapshotTerbaru->gd_id)->update(['terbaru' => '0', 'updated_at' => now()]);
+            }
+            $versi = $snapshotTerbaru ? (int) $snapshotTerbaru->versi + 1 : 1;
+            DB::table('siaptxn_gdok_hdrs')->insert([
+                'periode' => $periode, 'dr_id' => $drId, 'versi' => $versi, 'terbaru' => '1', 'emp_id' => $empId, 'gajidoctor_no' => 0, 'dr_name' => mb_substr($namaDokter, 0, 100),
+                'periode_gaji' => $periodeGaji, 'skema_gaji_pokok' => $struktur['skema_gaji_pokok'], 'nilai_gaji_pokok' => $struktur['basic_salary'],
+                'potongan_rs_basis' => $struktur['potongan_rs_basis'], 'potongan_rs_persen' => $struktur['potongan_rs_persen'], 'pph21_persen' => $struktur['pph21_persen'],
+                'npwp_status' => $struktur['npwp_status'], ...$hasilHitung['ringkas'], 'gaji_status' => 'D', 'tanggal_bayar' => null, 'update_date_sirus' => null,
+                'checksum' => $checksum, 'jumlah_lampiran' => count($baris), 'sumber' => 'SIAP', 'diambil_at' => now(), 'diambil_oleh' => $userId, 'created_at' => now(), 'updated_at' => now(),
+            ]);
+            $gdId = (int) DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->where('dr_id', $drId)->where('versi', $versi)->value('gd_id');
+            foreach ($hasilHitung['detail'] as $komponen) {
+                DB::table('siaptxn_gdok_dtls')->insert(['gd_id' => $gdId, 'jenis' => $komponen['jenis'], 'kode' => mb_substr($komponen['kode'], 0, 20), 'label' => mb_substr($komponen['label'], 0, 100),
+                    'keterangan' => null, 'nilai' => $komponen['nilai'], 'nilai_manual' => $komponen['nilai_manual'], 'jumlah_pasien' => $komponen['jumlah_pasien'], 'urutan' => $komponen['urutan']]);
+            }
+            foreach (array_chunk($baris, 200) as $potonganLampiran) {
+                DB::table('siaptxn_gdok_lamps')->insert(array_map(fn($row) => [
+                    'gd_id' => $gdId, 'komponen' => mb_substr((string) $row['komponen'], 0, 20), 'label' => mb_substr((string) ($row['label'] ?? GajiDokterStruktur::labelKomponen((string) $row['komponen'])), 0, 100),
+                    'tgl' => mb_substr((string) ($row['tgl'] ?? ''), 0, 10), 'reg_no' => mb_substr((string) ($row['reg_no'] ?? ''), 0, 20) ?: null, 'nama' => mb_substr((string) ($row['nama'] ?? ''), 0, 100) ?: null,
+                    'keterangan' => mb_substr((string) ($row['keterangan'] ?? ''), 0, 200) ?: null, 'klaim' => mb_substr((string) ($row['klaim'] ?? ''), 0, 60) ?: null,
+                    'klaim_status' => mb_substr((string) ($row['klaim_status'] ?? ''), 0, 20) ?: null, 'no_sep' => mb_substr((string) ($row['no_sep'] ?? ''), 0, 30) ?: null,
+                    'txn_no' => mb_substr((string) ($row['txn_no'] ?? ''), 0, 30) ?: null, 'nominal' => $row['nominal'], 'pasien' => $row['pasien'],
+                    'masuk_slip' => $row['masuk_slip'] ? '1' : '0', 'grup' => mb_substr((string) ($row['group'] ?? $row['grup'] ?? ''), 0, 10) ?: null,
+                ], $potonganLampiran));
+            }
+
+            return $gdId;
+        });
+    }
+
+    /**
+     * Tahap 3 — hitung ulang satu snapshot SIAP tanpa memanggil SIRUS: transaksi diambil dari lampiran snapshot itu sendiri
+     * (dipakai setelah baris manual / struktur diubah). Menghasilkan versi baru bila angkanya berubah.
+     * @return array{gd_id: int, berubah: bool, pesan: ?string}
+     */
+    public static function hitungUlangSiap(int $gdId, ?int $userId): array
+    {
+        $header = DB::table('siaptxn_gdok_hdrs')->where('gd_id', $gdId)->first();
+        if (!$header) {
+            return ['gd_id' => $gdId, 'berubah' => false, 'pesan' => 'Snapshot tidak ditemukan.'];
+        }
+        if ($header->gaji_status === 'F') {
+            return ['gd_id' => $gdId, 'berubah' => false, 'pesan' => 'Slip sudah Final — buka kunci dulu.'];
+        }
+        $struktur = GajiDokterStruktur::ambil($header->dr_id);
+        $lampiran = self::lampiran($gdId)->map(fn($row) => ['komponen' => $row->komponen, 'group' => $row->grup ?? (GajiDokterStruktur::GRUP_KOMPONEN[$row->komponen] ?? ''), 'label' => $row->label,
+            'tgl' => $row->tgl, 'reg_no' => $row->reg_no, 'nama' => $row->nama, 'keterangan' => $row->keterangan, 'klaim' => $row->klaim, 'klaim_status' => $row->klaim_status,
+            'no_sep' => $row->no_sep, 'txn_no' => $row->txn_no, 'nominal' => (float) $row->nominal, 'pasien' => (int) $row->pasien])->values()->all();
+        $hasilHitung = GajiDokterHitung::hitung($struktur, $lampiran, self::manualList($header->periode, $header->dr_id));
+        $baris = array_map(fn($row) => [...$row, 'masuk_slip' => !in_array((string) $row['group'], $hasilHitung['grupKapita'], true)], $lampiran);
+        $checksum = self::checksumSiap($hasilHitung['ringkas'], $hasilHitung['detail'], $baris);
+        $terbaru = DB::table('siaptxn_gdok_hdrs')->where('periode', $header->periode)->where('dr_id', $header->dr_id)->where('terbaru', '1')->first();
+        if ($terbaru && $terbaru->checksum === $checksum && $terbaru->sumber === 'SIAP') {
+            return ['gd_id' => (int) $terbaru->gd_id, 'berubah' => false, 'pesan' => null];
+        }
+        $gdIdBaru = self::simpanSnapshotSiap($header->periode, $header->periode_gaji ?: Carbon::createFromFormat('!Y-m', $header->periode)->addMonthNoOverflow()->format('Y-m'),
+            $header->dr_id, $header->dr_name, $header->emp_id, $struktur, $hasilHitung, $baris, $checksum, $terbaru, $userId);
+
+        return ['gd_id' => $gdIdBaru, 'berubah' => true, 'pesan' => null];
+    }
+
+    /** Tahap 3 — kunci / buka kunci slip SIAP (hanya snapshot ber-sumber SIAP, versi terbaru). @return string|null pesan galat */
+    public static function ubahStatusSiap(int $gdId, string $status, ?int $userId): ?string
+    {
+        $header = DB::table('siaptxn_gdok_hdrs')->where('gd_id', $gdId)->first();
+        if (!$header || $header->terbaru !== '1') {
+            return 'Hanya versi terbaru yang bisa diubah statusnya.';
+        }
+        if ($header->sumber !== 'SIAP') {
+            return 'Slip ini dihitung SIRUS — status Final diatur di SIRUS.';
+        }
+        DB::table('siaptxn_gdok_hdrs')->where('gd_id', $gdId)->update(['gaji_status' => $status === 'F' ? 'F' : 'D',
+            'difinalkan_at' => $status === 'F' ? now() : null, 'difinalkan_oleh' => $status === 'F' ? $userId : null, 'updated_at' => now()]);
+
+        return null;
     }
 
     public static function namaPeriode(?string $periode): string

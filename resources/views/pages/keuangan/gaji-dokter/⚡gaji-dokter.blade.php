@@ -8,6 +8,7 @@ use Livewire\Attributes\Url;
  *
  *   BUKU     : pages::keuangan.gaji-dokter.gaji-dokter-buku     — slip gaji dokter per bulan jasa (snapshot versi terbaru), Ambil dari SIRUS, rincian & banding versi / bulan lalu.
  *   PEMETAAN : pages::keuangan.gaji-dokter.gaji-dokter-pemetaan — dokter SIRUS ↔ karyawan SIAP (LOV), segarkan master dokter.
+ *   STRUKTUR : pages::keuangan.gaji-dokter.gaji-dokter-struktur — struktur gaji per dokter + mode pemindahan ke SIAP (tahap 1–3).
  *   RIWAYAT  : pages::keuangan.gaji-dokter.gaji-dokter-riwayat  — jejak tiap penarikan (baru / berubah / sama).
  *
  * Modal Rincian & Lampiran = komponen terpisah yang dipasang di sini SEJAJAR tab (pola Slip Gaji Dokter SIRUS), dibuka lewat event:
@@ -19,7 +20,7 @@ use Livewire\Attributes\Url;
  */
 new class extends Component {
     #[Url(as: 'tab')]
-    public string $tab = 'buku'; // buku | pemetaan | riwayat
+    public string $tab = 'buku'; // buku | pemetaan | struktur | riwayat
 
     public function boot(): void
     {
@@ -28,14 +29,14 @@ new class extends Component {
 
     public function mount(): void
     {
-        if (!in_array($this->tab, ['buku', 'pemetaan', 'riwayat'], true)) {
+        if (!in_array($this->tab, ['buku', 'pemetaan', 'struktur', 'riwayat'], true)) {
             $this->tab = 'buku';
         }
     }
 
     public function setTab(string $tab): void
     {
-        if (!in_array($tab, ['buku', 'pemetaan', 'riwayat'], true)) {
+        if (!in_array($tab, ['buku', 'pemetaan', 'struktur', 'riwayat'], true)) {
             return;
         }
         $this->tab = $tab;
@@ -57,6 +58,9 @@ new class extends Component {
                     <x-tab :active="$tab === 'pemetaan'" wire:click="setTab('pemetaan')">
                         <svg class="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>Pemetaan Dokter
                     </x-tab>
+                    <x-tab :active="$tab === 'struktur'" wire:click="setTab('struktur')">
+                        <svg class="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>Struktur Gaji
+                    </x-tab>
                     <x-tab :active="$tab === 'riwayat'" wire:click="setTab('riwayat')">
                         <svg class="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>Riwayat Ambil
                     </x-tab>
@@ -68,6 +72,8 @@ new class extends Component {
 
             @if ($tab === 'pemetaan')
                 <livewire:pages::keuangan.gaji-dokter.gaji-dokter-pemetaan wire:key="gaji-dokter-pemetaan" />
+            @elseif ($tab === 'struktur')
+                <livewire:pages::keuangan.gaji-dokter.gaji-dokter-struktur wire:key="gaji-dokter-struktur" />
             @elseif ($tab === 'riwayat')
                 <livewire:pages::keuangan.gaji-dokter.gaji-dokter-riwayat wire:key="gaji-dokter-riwayat" />
             @else
@@ -80,4 +86,5 @@ new class extends Component {
          tidak ikut unmount saat ganti tab, dan tombol Lampiran ada di dua tempat (baris Buku & footer Rincian) — pola SIRUS. --}}
     <livewire:pages::keuangan.gaji-dokter.gaji-dokter-rincian wire:key="gaji-dokter-rincian" />
     <livewire:pages::keuangan.gaji-dokter.gaji-dokter-lampiran wire:key="gaji-dokter-lampiran" />
+    <livewire:pages::keuangan.gaji-dokter.gaji-dokter-uji-hitung wire:key="gaji-dokter-uji-hitung" />
 </div>

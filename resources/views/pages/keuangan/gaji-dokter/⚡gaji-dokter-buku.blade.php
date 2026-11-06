@@ -2,11 +2,13 @@
 
 use Livewire\Component;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\On;
 use Livewire\Attributes\Session;
 use Carbon\Carbon;
 use App\Support\Format;
 use App\Support\GajiDokterSirus;
 use App\Support\GajiKaryawan;
+use App\Support\PengaturanGajiDokter;
 
 /**
  * Tab BUKU Gaji Dokter (anak pembungkus gaji-dokter; Rincian & Lampiran = modal terpisah sejajar tab): juga tombol
@@ -74,6 +76,13 @@ new class extends Component {
         $this->segarkanTampilan();
     }
 
+    /** Modal Rincian membuat versi baru (hitung ulang slip SIAP) → daftar ikut segar. */
+    #[On('keuangan.gaji-dokter.slipBerubah')]
+    public function slipBerubah(): void
+    {
+        $this->segarkanTampilan();
+    }
+
     private function segarkanTampilan(): void
     {
         unset($this->rows, $this->ambilTerakhirPeriodeIni, $this->ringkasanPeriode);
@@ -127,6 +136,58 @@ new class extends Component {
             $pesanToast .= ' ' . count($hasilTerapkanKeSlipGaji['tanpaMap']) . ' dokter belum dipetakan.';
         }
         $this->dispatch('toast', type: $hasilTerapkanKeSlipGaji['diperbarui'] > 0 ? 'success' : 'warning', message: $pesanToast);
+        $this->segarkanTampilan();
+    }
+
+    /** Tahap 3 — mesin slip SIAP: hitung slip bulan jasa ini dari transaksi mentah SIRUS + struktur SIAP (GajiDokterSirus::prosesSiap). */
+    public function prosesSlipSiap(): void
+    {
+        if (!$this->bulanValid() || !PengaturanGajiDokter::mesinSiap()) {
+            $this->dispatch('toast', type: 'error', message: 'Mesin slip belum SIAP — ubah di tab Struktur Gaji.');
+            return;
+        }
+        try {
+            $hasilProsesSiap = GajiDokterSirus::prosesSiap($this->periode(), auth()->id());
+        } catch (\Throwable $exception) {
+            $this->dispatch('toast', type: 'error', message: $exception->getMessage());
+            return;
+        }
+        $ringkasNama = fn(array $namaList) => implode(', ', array_slice($namaList, 0, 4)) . (count($namaList) > 4 ? ' dan ' . (count($namaList) - 4) . ' lainnya' : '');
+        $pesanToast = "Proses Slip SIAP {$this->bulan}: {$hasilProsesSiap['jumlah']} dokter — {$hasilProsesSiap['baru']} baru, {$hasilProsesSiap['berubah']} berubah (versi baru), {$hasilProsesSiap['sama']} sama.";
+        if ($hasilProsesSiap['final'] !== []) {
+            $pesanToast .= ' Dilewati karena Final (' . count($hasilProsesSiap['final']) . '): ' . $ringkasNama($hasilProsesSiap['final']) . '.';
+        }
+        if ($hasilProsesSiap['tanpaStruktur'] !== []) {
+            $pesanToast .= ' ' . count($hasilProsesSiap['tanpaStruktur']) . ' dokter belum punya struktur di SIAP (dipakai struktur SIRUS): ' . $ringkasNama($hasilProsesSiap['tanpaStruktur']) . '.';
+        }
+        if ($hasilProsesSiap['tanpaMap'] !== []) {
+            $pesanToast .= ' ' . count($hasilProsesSiap['tanpaMap']) . ' dokter belum dipetakan.';
+        }
+        if ($hasilProsesSiap['catatan'] !== []) {
+            $pesanToast .= ' Catatan: ' . $ringkasNama($hasilProsesSiap['catatan']);
+        }
+        $this->dispatch('toast', type: $hasilProsesSiap['jumlah'] === 0 ? 'warning' : 'success', message: $hasilProsesSiap['jumlah'] === 0 ? "SIRUS tidak punya transaksi dokter untuk bulan jasa {$this->bulan}." : $pesanToast);
+        $this->segarkanTampilan();
+    }
+
+    /** Tahap 2 — buka modal pembanding mesin SIAP vs angka SIRUS untuk semua dokter bulan ini. */
+    public function ujiHitungSiap(): void
+    {
+        $this->dispatch('keuangan.gaji-dokter.openUjiHitung', periode: $this->periode());
+    }
+
+    /** Tahap 3 — kunci / buka kunci slip yang dihitung SIAP. */
+    public function finalkanSiap(int $gdId): void
+    {
+        $pesanGalat = GajiDokterSirus::ubahStatusSiap($gdId, 'F', auth()->id());
+        $this->dispatch('toast', type: $pesanGalat ? 'error' : 'success', message: $pesanGalat ?? 'Slip dikunci Final.');
+        $this->segarkanTampilan();
+    }
+
+    public function bukaKunciSiap(int $gdId): void
+    {
+        $pesanGalat = GajiDokterSirus::ubahStatusSiap($gdId, 'D', auth()->id());
+        $this->dispatch('toast', type: $pesanGalat ? 'error' : 'success', message: $pesanGalat ?? 'Slip dibuka kembali ke Draft.');
         $this->segarkanTampilan();
     }
 
@@ -227,9 +288,18 @@ new class extends Component {
                 </x-select-input>
             </div>
         </div>
+        @php $mesinSiap = PengaturanGajiDokter::mesinSiap(); @endphp
         <div class="flex items-center gap-2 ml-auto">
+            @if (GajiDokterSirus::aktif() && $mesinSiap)
+                {{-- Tahap 3: SIAP menghitung sendiri dari transaksi mentah SIRUS; Ambil dari SIRUS tetap ada sebagai pembanding arsip. --}}
+                <x-confirm-button variant="primary" action="prosesSlipSiap()" title="Proses Slip"
+                    message="Hitung slip gaji dokter bulan jasa {{ $bulan }} di SIAP dari transaksi SIRUS + struktur gaji di tab Struktur Gaji (+ baris manual)? Dokter yang angkanya SAMA tidak berubah; yang BERBEDA mendapat versi baru. Slip yang sudah Final dilewati." confirmText="Ya, proses" cancelText="Batal">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6h7.5v2.25h-7.5V6zM8.25 12h.008v.008H8.25V12zm0 3h.008v.008H8.25V15zm0 3h.008v.008H8.25V18zm3.75-6h.008v.008H12V12zm0 3h.008v.008H12V15zm0 3h.008v.008H12V18zm3.75-6h.008v.008h-.008V12zm0 3h.008v.008h-.008V15zM6.75 2.25h10.5a2.25 2.25 0 012.25 2.25v15a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5v-15A2.25 2.25 0 016.75 2.25z" /></svg>
+                    Proses Slip
+                </x-confirm-button>
+            @endif
             @if (GajiDokterSirus::aktif())
-                <x-confirm-button variant="primary" action="ambilGajiDokterDariSirus()" title="Ambil dari SIRUS"
+                <x-confirm-button :variant="$mesinSiap ? 'secondary' : 'primary'" action="ambilGajiDokterDariSirus()" title="Ambil dari SIRUS"
                     message="Tarik slip gaji dokter bulan jasa {{ $bulan }} dari SIRUS? Dokter yang angkanya SAMA tidak berubah; yang BERBEDA mendapat versi baru (versi lama tetap tersimpan untuk pembanding). Tidak ada data SIRUS yang diubah." confirmText="Ya, ambil" cancelText="Batal">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                     Ambil dari SIRUS
@@ -245,6 +315,16 @@ new class extends Component {
                     Terapkan ke slip gaji
                 </x-confirm-button>
             @endif
+            @if ($totalPeriode['jumlah'] > 0 && !$mesinSiap)
+                {{-- Tahap 2: banding mesin SIAP dengan angka SIRUS sebelum pindah mesin. --}}
+                <x-outline-button type="button" class="gap-2 whitespace-nowrap" wire:click="ujiHitungSiap" wire:loading.attr="disabled" wire:target="ujiHitungSiap" title="Hitung ulang semua dokter bulan ini dengan mesin SIAP dan bandingkan dengan angka SIRUS">
+                    <span wire:loading.remove wire:target="ujiHitungSiap" class="inline-flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                        Uji hitung SIAP
+                    </span>
+                    <span wire:loading wire:target="ujiHitungSiap" class="inline-flex items-center gap-2"><x-loading /> Menghitung…</span>
+                </x-outline-button>
+            @endif
             {{-- Lampiran Semua = outline (tampilan pendamping, bukan aksi utama) — mengikuti saringan yang sedang tampil. --}}
             <x-outline-button type="button" class="gap-2 whitespace-nowrap" wire:click="openLampiranPasienSemuaDokter" wire:loading.attr="disabled" wire:target="openLampiranPasienSemuaDokter" title="Lampiran rincian pasien semua dokter yang tampil">
                 <span wire:loading.remove wire:target="openLampiranPasienSemuaDokter" class="inline-flex items-center gap-2">
@@ -259,7 +339,12 @@ new class extends Component {
 
     <p class="px-4 mb-3 text-sm text-muted dark:text-gray-400">
         Jasa <span class="font-semibold text-body dark:text-gray-200">{{ $labelBulanJasa }}</span> dibayarkan pada gaji
-        <span class="font-semibold text-body dark:text-gray-200">{{ $labelBulanGaji }}</span>. Angka di sini snapshot dari SIRUS &mdash; tidak bisa disunting; Ambil ulang untuk melihat apakah SIRUS berubah.
+        <span class="font-semibold text-body dark:text-gray-200">{{ $labelBulanGaji }}</span>.
+        @if ($mesinSiap)
+            Slip <span class="font-semibold text-body dark:text-gray-200">dihitung di SIAP</span> (Proses Slip) dari transaksi SIRUS + struktur gaji di SIAP; baris manual (kasbon, bonus) diisi lewat Rincian, lalu kunci dengan Final.
+        @else
+            Angka di sini snapshot dari SIRUS &mdash; tidak bisa disunting; Ambil ulang untuk melihat apakah SIRUS berubah.
+        @endif
         @if ($ambilTerakhir)<span class="whitespace-nowrap">Terakhir diambil {{ \Carbon\Carbon::parse($ambilTerakhir->diambil_at)->format('d/m/Y H:i') }} oleh {{ $ambilTerakhir->name ?? '–' }}.</span>@endif
     </p>
 
@@ -356,6 +441,7 @@ new class extends Component {
                                 <div class="font-semibold truncate text-ink dark:text-gray-100" title="{{ $row->dr_name }}">{{ $row->dr_name }}</div>
                                 <div class="flex flex-wrap items-center gap-1.5 mt-1">
                                     <x-badge :variant="$row->gaji_status === 'F' ? 'success' : 'warning'">{{ $row->gaji_status === 'F' ? 'Final' : 'Draft' }}</x-badge>
+                                    @if (($row->sumber ?? 'SIRUS') === 'SIAP')<x-badge variant="brand" title="Dihitung mesin SIAP dari transaksi SIRUS">SIAP</x-badge>@endif
                                     @if ($row->versi_sebelumnya)
                                         <x-badge variant="info" title="Angka berubah di SIRUS sejak pertama diambil — versi lama tersimpan">v{{ $row->versi }}</x-badge>
                                     @endif
@@ -418,6 +504,19 @@ new class extends Component {
                                         </span>
                                         <span wire:loading wire:target="openRincianSlipDokter({{ $row->gd_id }})"><x-loading /> Membuka</span>
                                     </x-outline-button>
+                                    @if (($row->sumber ?? 'SIRUS') === 'SIAP')
+                                        @if ($row->gaji_status === 'F')
+                                            <x-confirm-button variant="warning-soft" action="bukaKunciSiap({{ $row->gd_id }})" title="Buka Kunci" message="Buka kunci slip {{ $row->dr_name }}? Slip bisa diproses ulang dan baris manualnya diubah." confirmText="Ya, buka" cancelText="Batal" class="whitespace-nowrap shrink-0">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" /></svg>
+                                                Buka Kunci
+                                            </x-confirm-button>
+                                        @else
+                                            <x-confirm-button variant="primary" action="finalkanSiap({{ $row->gd_id }})" title="Final" message="Kunci slip {{ $row->dr_name }} sebagai Final? Proses Slip berikutnya melewatinya." confirmText="Ya, kunci" cancelText="Batal" class="whitespace-nowrap shrink-0">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                                Final
+                                            </x-confirm-button>
+                                        @endif
+                                    @endif
                                     <x-icon-button color="gray" type="button" class="!p-2.5 shrink-0" wire:click="openLampiranPasienDokter({{ $row->gd_id }})" wire:loading.attr="disabled" wire:target="openLampiranPasienDokter({{ $row->gd_id }})"
                                         title="Lampiran rincian pasien {{ $row->dr_name }} ({{ $row->jumlah_lampiran }} baris)" aria-label="Lampiran rincian pasien {{ $row->dr_name }}">
                                         <span wire:loading.remove wire:target="openLampiranPasienDokter({{ $row->gd_id }})" class="inline-flex items-center gap-1">
