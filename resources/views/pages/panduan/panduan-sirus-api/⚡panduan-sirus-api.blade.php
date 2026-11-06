@@ -154,7 +154,12 @@ SIAP_API_URL=https://sirus.rsimadinah.local      # host SIRUS biasa (atau SIAP_A
 SIAP_API_USER=siap-gaji                          # akun users SIRUS ber-role "Api Siap"
 SIAP_API_PASSWORD=&lt;password dari siap-api:akun&gt;</pre>
                     <ol class="mt-3 text-sm" start="3">
-                        <li>Klik <b>Uji sambungan</b> di atas. Berhasil → buka {!! $tautan('keuangan.gaji-dokter', 'Gaji Dokter (SIRUS)') !!} dan <b>Ambil dari SIRUS</b> untuk satu bulan jasa.</li>
+                        <li>Klik <b>Uji sambungan</b> di atas. Berhasil → buka {!! $tautan('keuangan.gaji-dokter', 'Gaji Dokter (SIRUS)') !!} dan <b>Ambil dari SIRUS</b> untuk satu bulan jasa — atau dari terminal server untuk banyak bulan sekaligus (sinkronisasi awal):</li>
+                    </ol>
+                    <pre class="p-4 mt-2 overflow-x-auto text-xs leading-relaxed border rounded-xl bg-surface-soft border-hairline text-ink dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700">php artisan gaji:ambil-sirus --uji                     # hanya uji sambungan
+php artisan gaji:ambil-sirus 2026-07                   # satu bulan jasa
+php artisan gaji:ambil-sirus 2026-01 --sampai=2026-10  # rentang bulan jasa (sama dengan tombol Ambil, aman diulang)</pre>
+                    <ol class="mt-3 text-sm" start="4">
                         <li>Setelah terbukti, admin SIRUS mengisi <code>SIAP_API_IP_WHITELIST</code> dengan IP server SIAP supaya pintu API hanya terbuka untuk SIAP.</li>
                     </ol>
                     <h3 class="mt-4">Tentang akun API</h3>
