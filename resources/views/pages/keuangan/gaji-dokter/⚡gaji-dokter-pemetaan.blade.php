@@ -49,10 +49,10 @@ new class extends Component {
     public function segarkan(): void
     {
         try {
-            $hasil = GajiDokterSirus::segarkanDokter(auth()->id());
-            $this->dispatch('toast', type: 'success', message: "Master dokter disegarkan: {$hasil['baru']} dokter baru, {$hasil['oto']} terpetakan otomatis.");
-        } catch (\Throwable $e) {
-            $this->dispatch('toast', type: 'error', message: $e->getMessage());
+            $hasilSegarkanDokterSirus = GajiDokterSirus::segarkanDokter(auth()->id());
+            $this->dispatch('toast', type: 'success', message: "Master dokter disegarkan: {$hasilSegarkanDokterSirus['baru']} dokter baru, {$hasilSegarkanDokterSirus['oto']} terpetakan otomatis.");
+        } catch (\Throwable $exception) {
+            $this->dispatch('toast', type: 'error', message: $exception->getMessage());
         }
         unset($this->rows);
     }
@@ -100,7 +100,7 @@ new class extends Component {
 
         return match ($this->saring) {
             'aktif' => $rows->where('aktif', '1')->values(),
-            'belum' => $rows->filter(fn($r) => $r->aktif === '1' && $r->emp_id === null)->values(),
+            'belum' => $rows->filter(fn($row) => $row->aktif === '1' && $row->emp_id === null)->values(),
             default => $rows,
         };
     }
@@ -114,16 +114,16 @@ new class extends Component {
     #[Computed]
     public function ringkas(): array
     {
-        $semua = GajiDokterSirus::dokterList();
-        $aktif = $semua->where('aktif', '1');
+        $semuaDokter = GajiDokterSirus::dokterList();
+        $aktif = $semuaDokter->where('aktif', '1');
 
-        return ['aktif' => $aktif->count(), 'terpetakan' => $aktif->whereNotNull('emp_id')->count(), 'semua' => $semua->count()];
+        return ['aktif' => $aktif->count(), 'terpetakan' => $aktif->whereNotNull('emp_id')->count(), 'semua' => $semuaDokter->count()];
     }
 };
 ?>
 
 <div class="mt-4">
-    @php $ringkas = $this->ringkas; @endphp
+    @php $ringkasPemetaan = $this->ringkas; @endphp
     <div class="flex flex-wrap items-end gap-3 px-4 py-3 mb-3 border bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
         <div class="w-56">
             <x-input-label for="gdp-cari" value="Cari dokter" />
@@ -140,7 +140,7 @@ new class extends Component {
             </div>
         </div>
         <div class="flex items-center gap-2 ml-auto">
-            <x-badge :variant="$ringkas['terpetakan'] === $ringkas['aktif'] ? 'success' : 'warning'">{{ $ringkas['terpetakan'] }} / {{ $ringkas['aktif'] }} dokter aktif terpetakan</x-badge>
+            <x-badge :variant="$ringkasPemetaan['terpetakan'] === $ringkasPemetaan['aktif'] ? 'success' : 'warning'">{{ $ringkasPemetaan['terpetakan'] }} / {{ $ringkasPemetaan['aktif'] }} dokter aktif terpetakan</x-badge>
             <x-secondary-button type="button" wire:click="segarkan" wire:loading.attr="disabled" wire:target="segarkan">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                 <span wire:loading.remove wire:target="segarkan">Segarkan dari SIRUS</span>
@@ -213,7 +213,7 @@ new class extends Component {
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="py-8 text-center text-muted">{{ $ringkas['semua'] === 0 ? 'Master dokter belum ditarik — klik Segarkan dari SIRUS.' : 'Tidak ada dokter yang cocok dengan saringan.' }}</td></tr>
+                        <tr><td colspan="6" class="py-8 text-center text-muted">{{ $ringkasPemetaan['semua'] === 0 ? 'Master dokter belum ditarik — klik Segarkan dari SIRUS.' : 'Tidak ada dokter yang cocok dengan saringan.' }}</td></tr>
                     @endforelse
                 </tbody>
             </table>

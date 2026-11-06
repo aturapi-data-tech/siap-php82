@@ -86,16 +86,16 @@ new class extends Component {
             return;
         }
         try {
-            $hasil = GajiDokterSirus::ambil($this->periode(), auth()->id());
-        } catch (\Throwable $e) {
-            $this->dispatch('toast', type: 'error', message: $e->getMessage());
+            $hasilAmbilGajiSirus = GajiDokterSirus::ambil($this->periode(), auth()->id());
+        } catch (\Throwable $exception) {
+            $this->dispatch('toast', type: 'error', message: $exception->getMessage());
             return;
         }
-        $pesan = "SIRUS {$this->bulan}: {$hasil['jumlah']} slip — {$hasil['baru']} baru, {$hasil['berubah']} berubah (versi baru), {$hasil['sama']} sama.";
-        if ($hasil['tanpaMap'] !== []) {
-            $pesan .= ' ' . count($hasil['tanpaMap']) . ' dokter belum dipetakan ke karyawan.';
+        $pesanToast = "SIRUS {$this->bulan}: {$hasilAmbilGajiSirus['jumlah']} slip — {$hasilAmbilGajiSirus['baru']} baru, {$hasilAmbilGajiSirus['berubah']} berubah (versi baru), {$hasilAmbilGajiSirus['sama']} sama.";
+        if ($hasilAmbilGajiSirus['tanpaMap'] !== []) {
+            $pesanToast .= ' ' . count($hasilAmbilGajiSirus['tanpaMap']) . ' dokter belum dipetakan ke karyawan.';
         }
-        $this->dispatch('toast', type: $hasil['jumlah'] === 0 ? 'warning' : 'success', message: $hasil['jumlah'] === 0 ? "SIRUS belum punya slip gaji dokter untuk bulan jasa {$this->bulan}." : $pesan);
+        $this->dispatch('toast', type: $hasilAmbilGajiSirus['jumlah'] === 0 ? 'warning' : 'success', message: $hasilAmbilGajiSirus['jumlah'] === 0 ? "SIRUS belum punya slip gaji dokter untuk bulan jasa {$this->bulan}." : $pesanToast);
         $this->segarkan();
     }
 
@@ -106,27 +106,27 @@ new class extends Component {
             $this->dispatch('toast', type: 'error', message: 'Bulan jasa tidak valid.');
             return;
         }
-        $h = GajiDokterSirus::terapkan($this->periode(), auth()->id());
-        $labelKerja = GajiDokterSirus::namaPeriode($h['periodeGaji']);
+        $hasilTerapkanKeSlipGaji = GajiDokterSirus::terapkan($this->periode(), auth()->id());
+        $labelBulanKerja = GajiDokterSirus::namaPeriode($hasilTerapkanKeSlipGaji['periodeGaji']);
         // Daftar nama dipangkas — toast bukan tempat 30 nama; rinciannya terlihat di badge tiap baris.
-        $ringkas = fn(array $nama) => implode(', ', array_slice($nama, 0, 4)) . (count($nama) > 4 ? ' dan ' . (count($nama) - 4) . ' lainnya' : '');
-        $pesan = "Jasa dokter {$this->bulan} diterapkan ke {$h['diperbarui']} slip gaji bulan kerja {$labelKerja}.";
-        if ($h['dibuatkan'] > 0) {
-            $pesan .= " {$h['dibuatkan']} slip dibuatkan baru (dokter tanpa parameter gaji — hanya berisi jasa SIRUS).";
+        $ringkasNama = fn(array $namaList) => implode(', ', array_slice($namaList, 0, 4)) . (count($namaList) > 4 ? ' dan ' . (count($namaList) - 4) . ' lainnya' : '');
+        $pesanToast = "Jasa dokter {$this->bulan} diterapkan ke {$hasilTerapkanKeSlipGaji['diperbarui']} slip gaji bulan kerja {$labelBulanKerja}.";
+        if ($hasilTerapkanKeSlipGaji['dibuatkan'] > 0) {
+            $pesanToast .= " {$hasilTerapkanKeSlipGaji['dibuatkan']} slip dibuatkan baru (dokter tanpa parameter gaji — hanya berisi jasa SIRUS).";
         }
-        if ($h['dibersihkan'] > 0) {
-            $pesan .= " {$h['dibersihkan']} slip dibersihkan dari bekas terapkan lama.";
+        if ($hasilTerapkanKeSlipGaji['dibersihkan'] > 0) {
+            $pesanToast .= " {$hasilTerapkanKeSlipGaji['dibersihkan']} slip dibersihkan dari bekas terapkan lama.";
         }
-        if ($h['final'] !== []) {
-            $pesan .= ' Dilewati karena slip Final (' . count($h['final']) . '): ' . $ringkas($h['final']) . '.';
+        if ($hasilTerapkanKeSlipGaji['final'] !== []) {
+            $pesanToast .= ' Dilewati karena slip Final (' . count($hasilTerapkanKeSlipGaji['final']) . '): ' . $ringkasNama($hasilTerapkanKeSlipGaji['final']) . '.';
         }
-        if ($h['tanpaSlip'] !== []) {
-            $pesan .= ' ' . count($h['tanpaSlip']) . ' dokter dilewati karena karyawannya nonaktif: ' . $ringkas($h['tanpaSlip']) . '.';
+        if ($hasilTerapkanKeSlipGaji['tanpaSlip'] !== []) {
+            $pesanToast .= ' ' . count($hasilTerapkanKeSlipGaji['tanpaSlip']) . ' dokter dilewati karena karyawannya nonaktif: ' . $ringkasNama($hasilTerapkanKeSlipGaji['tanpaSlip']) . '.';
         }
-        if ($h['tanpaMap'] !== []) {
-            $pesan .= ' ' . count($h['tanpaMap']) . ' dokter belum dipetakan.';
+        if ($hasilTerapkanKeSlipGaji['tanpaMap'] !== []) {
+            $pesanToast .= ' ' . count($hasilTerapkanKeSlipGaji['tanpaMap']) . ' dokter belum dipetakan.';
         }
-        $this->dispatch('toast', type: $h['diperbarui'] > 0 ? 'success' : 'warning', message: $pesan);
+        $this->dispatch('toast', type: $hasilTerapkanKeSlipGaji['diperbarui'] > 0 ? 'success' : 'warning', message: $pesanToast);
         $this->segarkan();
     }
 
@@ -144,7 +144,7 @@ new class extends Component {
 
     public function openLampiranSemua(): void
     {
-        $gdIdList = $this->rows->pluck('gd_id')->map(fn($id) => (int) $id)->values()->all();
+        $gdIdList = $this->rows->pluck('gd_id')->map(fn($gdId) => (int) $gdId)->values()->all();
         if ($gdIdList === []) {
             $this->dispatch('toast', type: 'warning', message: 'Belum ada slip yang bisa dilampirkan pada bulan jasa ini.');
             return;
@@ -162,22 +162,22 @@ new class extends Component {
     public function total(): array
     {
         $rows = GajiDokterSirus::daftar($this->periode());
-        $total = ['jumlah' => $rows->count(), 'final' => $rows->where('gaji_status', 'F')->count(), 'tanpa_map' => $rows->whereNull('emp_id_map')->count(), 'berubah' => $rows->where('versi_sebelumnya', true)->count(),
-            'diterapkan' => $rows->filter(fn($r) => $r->diterapkan_versi === (int) $r->versi)->count(),
-            'diterapkan_lama' => $rows->filter(fn($r) => $r->diterapkan_versi !== null && $r->diterapkan_versi !== (int) $r->versi)->count()];
-        foreach (GajiDokterSirus::KOLOM_NOMINAL as $k) {
-            $total[$k] = (float) $rows->sum($k);
+        $totalPeriode = ['jumlah' => $rows->count(), 'final' => $rows->where('gaji_status', 'F')->count(), 'tanpa_map' => $rows->whereNull('emp_id_map')->count(), 'berubah' => $rows->where('versi_sebelumnya', true)->count(),
+            'diterapkan' => $rows->filter(fn($row) => $row->diterapkan_versi === (int) $row->versi)->count(),
+            'diterapkan_lama' => $rows->filter(fn($row) => $row->diterapkan_versi !== null && $row->diterapkan_versi !== (int) $row->versi)->count()];
+        foreach (GajiDokterSirus::KOLOM_NOMINAL as $kolomNominal) {
+            $totalPeriode[$kolomNominal] = (float) $rows->sum($kolomNominal);
         }
 
-        return $total;
+        return $totalPeriode;
     }
 
-    public static function namaPeriode(?string $ym): string
+    public static function namaPeriode(?string $periode): string
     {
-        return $ym && preg_match('/^(\d{4})-(\d{2})$/', $ym, $m)
+        return $periode && preg_match('/^(\d{4})-(\d{2})$/', $periode, $bagianPeriode)
             ? ((['01' => 'Januari', '02' => 'Februari', '03' => 'Maret', '04' => 'April', '05' => 'Mei', '06' => 'Juni', '07' => 'Juli', '08' => 'Agustus',
-                '09' => 'September', '10' => 'Oktober', '11' => 'November', '12' => 'Desember'][$m[2]] ?? $m[2]) . ' ' . $m[1])
-            : (string) $ym;
+                '09' => 'September', '10' => 'Oktober', '11' => 'November', '12' => 'Desember'][$bagianPeriode[2]] ?? $bagianPeriode[2]) . ' ' . $bagianPeriode[1])
+            : (string) $periode;
     }
 
     #[Computed]
@@ -190,14 +190,14 @@ new class extends Component {
 
 <div class="mt-4">
     @php
-        $rp = fn($n) => GajiKaryawan::rupiah($n);
-        $persen = fn($n) => rtrim(rtrim(number_format((float) $n, 2, ',', '.'), '0'), ',');
-        $selisih = fn($n) => $n === null ? '–' : ($n > 0 ? '+' . $rp($n) : ($n < 0 ? '−' . $rp(abs($n)) : '0'));
-        $total = $this->total;
+        $rupiah = fn($nilai) => GajiKaryawan::rupiah($nilai);
+        $formatPersen = fn($nilai) => rtrim(rtrim(number_format((float) $nilai, 2, ',', '.'), '0'), ',');
+        $formatSelisih = fn($nilai) => $nilai === null ? '–' : ($nilai > 0 ? '+' . $rupiah($nilai) : ($nilai < 0 ? '−' . $rupiah(abs($nilai)) : '0'));
+        $totalPeriode = $this->total;
         $ambilTerakhir = $this->ambilTerakhir;
         $periodeJasa = \Carbon\Carbon::createFromFormat('!' . Format::BULAN, $bulan)->format('Y-m');
-        $labelJasa = $this::namaPeriode($periodeJasa);
-        $labelGaji = $this::namaPeriode(\Carbon\Carbon::createFromFormat('!Y-m', $periodeJasa)->addMonthNoOverflow()->format('Y-m'));
+        $labelBulanJasa = $this::namaPeriode($periodeJasa);
+        $labelBulanGaji = $this::namaPeriode(\Carbon\Carbon::createFromFormat('!Y-m', $periodeJasa)->addMonthNoOverflow()->format('Y-m'));
     @endphp
 
     {{-- TOOLBAR — saringan di kiri, aksi di kanan (pola Slip Gaji Dokter SIRUS). --}}
@@ -237,10 +237,10 @@ new class extends Component {
             @else
                 <x-badge variant="danger">API SIRUS belum diatur di .env (SIAP_API_URL / USER / PASSWORD)</x-badge>
             @endif
-            @if ($total['jumlah'] > 0)
+            @if ($totalPeriode['jumlah'] > 0)
                 {{-- Terapkan = pola "Terapkan ke Slip" Pembagian Jasa Medik: aman diulang (baris lama ditimpa), slip Final dilewati. --}}
                 <x-confirm-button variant="secondary" action="terapkan()" title="Terapkan ke slip gaji"
-                    message="Tulis jasa dokter bulan jasa {{ $bulan }} (snapshot versi terbaru) ke slip Draft Gaji Karyawan bulan kerja {{ $labelJasa }} (dibayar {{ $labelGaji }}) untuk dokter yang sudah dipetakan? Dokter yang belum punya slip dibuatkan slip Draft baru. Jasa, gaji pokok dokter, tambahan, Potongan RS, dan PPh 21 ditulis apa adanya dari SIRUS; baris hasil terapkan sebelumnya ditimpa. Slip yang sudah Final dilewati." confirmText="Ya, terapkan" cancelText="Batal">
+                    message="Tulis jasa dokter bulan jasa {{ $bulan }} (snapshot versi terbaru) ke slip Draft Gaji Karyawan bulan kerja {{ $labelBulanJasa }} (dibayar {{ $labelBulanGaji }}) untuk dokter yang sudah dipetakan? Dokter yang belum punya slip dibuatkan slip Draft baru. Jasa, gaji pokok dokter, tambahan, Potongan RS, dan PPh 21 ditulis apa adanya dari SIRUS; baris hasil terapkan sebelumnya ditimpa. Slip yang sudah Final dilewati." confirmText="Ya, terapkan" cancelText="Batal">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
                     Terapkan ke slip gaji
                 </x-confirm-button>
@@ -258,8 +258,8 @@ new class extends Component {
     </div>
 
     <p class="px-4 mb-3 text-sm text-muted dark:text-gray-400">
-        Jasa <span class="font-semibold text-body dark:text-gray-200">{{ $labelJasa }}</span> dibayarkan pada gaji
-        <span class="font-semibold text-body dark:text-gray-200">{{ $labelGaji }}</span>. Angka di sini snapshot dari SIRUS &mdash; tidak bisa disunting; Ambil ulang untuk melihat apakah SIRUS berubah.
+        Jasa <span class="font-semibold text-body dark:text-gray-200">{{ $labelBulanJasa }}</span> dibayarkan pada gaji
+        <span class="font-semibold text-body dark:text-gray-200">{{ $labelBulanGaji }}</span>. Angka di sini snapshot dari SIRUS &mdash; tidak bisa disunting; Ambil ulang untuk melihat apakah SIRUS berubah.
         @if ($ambilTerakhir)<span class="whitespace-nowrap">Terakhir diambil {{ \Carbon\Carbon::parse($ambilTerakhir->diambil_at)->format('d/m/Y H:i') }} oleh {{ $ambilTerakhir->name ?? '–' }}.</span>@endif
     </p>
 
@@ -273,52 +273,52 @@ new class extends Component {
                     <svg class="w-4 h-4 shrink-0 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m4 10V11m4 6V9M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
                     <span class="shrink-0">Ringkasan periode</span>
                     <span class="text-sm font-normal truncate text-muted dark:text-gray-400">
-                        @if ($total['jumlah'] === 0)(belum ada snapshot {{ $labelJasa }})@else({{ $total['jumlah'] }} slip &middot; diterima {{ $rp($total['gaji_diterima']) }})@endif
+                        @if ($totalPeriode['jumlah'] === 0)(belum ada snapshot {{ $labelBulanJasa }})@else({{ $totalPeriode['jumlah'] }} slip &middot; diterima {{ $rupiah($totalPeriode['gaji_diterima']) }})@endif
                     </span>
                 </span>
                 <svg class="w-4 h-4 ml-2 transition-transform shrink-0 text-muted motion-reduce:transition-none" x-bind:class="buka && 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
             </button>
 
             <div x-show="buka" x-cloak>
-                @if ($total['jumlah'] === 0)
-                    <p class="px-4 pb-4 text-sm text-muted dark:text-gray-400">Klik <span class="font-semibold">Ambil dari SIRUS</span> untuk menarik slip gaji dokter bulan jasa {{ $labelJasa }}.</p>
+                @if ($totalPeriode['jumlah'] === 0)
+                    <p class="px-4 pb-4 text-sm text-muted dark:text-gray-400">Klik <span class="font-semibold">Ambil dari SIRUS</span> untuk menarik slip gaji dokter bulan jasa {{ $labelBulanJasa }}.</p>
                 @else
                     {{-- Lima angka dalam satu baris: label kecil di atas nilai, dipisah garis tipis. --}}
                     <div class="grid grid-cols-5 px-4 pb-4 divide-x divide-hairline dark:divide-gray-700">
                         <div class="pr-2">
                             <div class="text-sm text-muted dark:text-gray-400">Slip</div>
-                            <div class="font-semibold t-num text-ink dark:text-gray-100">{{ $total['jumlah'] }}</div>
-                            <div class="text-sm t-num text-muted dark:text-gray-400 whitespace-nowrap">{{ $total['jumlah'] - $total['final'] }} draft &middot; {{ $total['final'] }} final</div>
+                            <div class="font-semibold t-num text-ink dark:text-gray-100">{{ $totalPeriode['jumlah'] }}</div>
+                            <div class="text-sm t-num text-muted dark:text-gray-400 whitespace-nowrap">{{ $totalPeriode['jumlah'] - $totalPeriode['final'] }} draft &middot; {{ $totalPeriode['final'] }} final</div>
                         </div>
                         <div class="px-2">
                             <div class="text-sm text-muted dark:text-gray-400">Jasa</div>
-                            <div class="font-semibold t-num text-ink dark:text-gray-100">{{ $rp($total['jasa_total']) }}</div>
+                            <div class="font-semibold t-num text-ink dark:text-gray-100">{{ $rupiah($totalPeriode['jasa_total']) }}</div>
                         </div>
                         <div class="px-2">
                             <div class="text-sm text-muted dark:text-gray-400">Total Gaji</div>
-                            <div class="font-semibold t-num text-ink dark:text-gray-100">{{ $rp($total['total_gaji']) }}</div>
+                            <div class="font-semibold t-num text-ink dark:text-gray-100">{{ $rupiah($totalPeriode['total_gaji']) }}</div>
                         </div>
                         <div class="px-2">
                             <div class="text-sm text-muted dark:text-gray-400 whitespace-nowrap">Pot. RS + PPh</div>
-                            <div class="font-semibold t-num text-rose-600 dark:text-rose-300">{{ $rp(abs($total['potongan_rs']) + abs($total['pph21'])) }}</div>
+                            <div class="font-semibold t-num text-rose-600 dark:text-rose-300">{{ $rupiah(abs($totalPeriode['potongan_rs']) + abs($totalPeriode['pph21'])) }}</div>
                         </div>
                         <div class="pl-2">
                             <div class="text-sm text-muted dark:text-gray-400">Diterima</div>
-                            <div class="font-semibold t-num text-emerald-700 dark:text-emerald-300">{{ $rp($total['gaji_diterima']) }}</div>
+                            <div class="font-semibold t-num text-emerald-700 dark:text-emerald-300">{{ $rupiah($totalPeriode['gaji_diterima']) }}</div>
                         </div>
                     </div>
                     {{-- Penanda khas SIAP: pemetaan & versi. Menetap (bukan toast). --}}
                     <div class="flex flex-wrap items-center gap-2 px-4 pb-4 -mt-1 text-sm">
-                        @if ($total['tanpa_map'] > 0)
-                            <x-badge variant="warning">{{ $total['tanpa_map'] }} dokter belum dipetakan ke karyawan</x-badge>
+                        @if ($totalPeriode['tanpa_map'] > 0)
+                            <x-badge variant="warning">{{ $totalPeriode['tanpa_map'] }} dokter belum dipetakan ke karyawan</x-badge>
                             <span class="text-muted dark:text-gray-400">&rarr; tab <span class="font-semibold">Pemetaan Dokter</span></span>
                         @else
                             <x-badge variant="success">Semua dokter terpetakan</x-badge>
                         @endif
-                        @if ($total['berubah'] > 0)<x-badge variant="warning">{{ $total['berubah'] }} slip pernah berubah sejak pertama diambil</x-badge>@endif
-                        @if ($total['diterapkan'] > 0)<x-badge variant="success">{{ $total['diterapkan'] }} sudah di slip gaji bulan kerja {{ $labelJasa }}</x-badge>@endif
-                        @if ($total['diterapkan_lama'] > 0)<x-badge variant="warning">{{ $total['diterapkan_lama'] }} slip gaji masih memakai versi lama — Terapkan ulang</x-badge>@endif
-                        @if ($total['diterapkan'] === 0 && $total['diterapkan_lama'] === 0)<x-badge variant="gray">Belum diterapkan ke slip gaji</x-badge>@endif
+                        @if ($totalPeriode['berubah'] > 0)<x-badge variant="warning">{{ $totalPeriode['berubah'] }} slip pernah berubah sejak pertama diambil</x-badge>@endif
+                        @if ($totalPeriode['diterapkan'] > 0)<x-badge variant="success">{{ $totalPeriode['diterapkan'] }} sudah di slip gaji bulan kerja {{ $labelBulanJasa }}</x-badge>@endif
+                        @if ($totalPeriode['diterapkan_lama'] > 0)<x-badge variant="warning">{{ $totalPeriode['diterapkan_lama'] }} slip gaji masih memakai versi lama — Terapkan ulang</x-badge>@endif
+                        @if ($totalPeriode['diterapkan'] === 0 && $totalPeriode['diterapkan_lama'] === 0)<x-badge variant="gray">Belum diterapkan ke slip gaji</x-badge>@endif
                     </div>
                 @endif
             </div>
@@ -361,7 +361,7 @@ new class extends Component {
                                     @endif
                                     <span class="text-sm text-muted dark:text-gray-400">
                                         {{ $row->dr_id }} &middot; <span class="font-mono">{{ $row->skema_gaji_pokok }}/{{ $row->potongan_rs_basis }}</span>
-                                        @if (in_array($row->potongan_rs_basis, ['T', 'J'], true)) {{ $persen($row->potongan_rs_persen) }}% @endif
+                                        @if (in_array($row->potongan_rs_basis, ['T', 'J'], true)) {{ $formatPersen($row->potongan_rs_persen) }}% @endif
                                         &middot; {{ $row->npwp_status === 'Y' ? 'NPWP' : 'tanpa NPWP' }}
                                     </span>
                                 </div>
@@ -369,7 +369,7 @@ new class extends Component {
                                     @if ($row->emp_id_map)
                                         <span class="truncate"><span class="text-muted dark:text-gray-400">Karyawan SIAP:</span> <span class="text-body dark:text-gray-200">{{ $row->emp_name }}</span> <span class="font-mono text-muted dark:text-gray-400">{{ $row->emp_id_map }}</span></span>
                                         @if ($row->diterapkan_versi === (int) $row->versi)
-                                            <x-badge variant="success" title="Ditulis ke slip gaji bulan kerja {{ $labelJasa }} pada {{ \Carbon\Carbon::parse($row->diterapkan_at_slip)->format('d/m/Y H:i') }}">di slip gaji</x-badge>
+                                            <x-badge variant="success" title="Ditulis ke slip gaji bulan kerja {{ $labelBulanJasa }} pada {{ \Carbon\Carbon::parse($row->diterapkan_at_slip)->format('d/m/Y H:i') }}">di slip gaji</x-badge>
                                         @elseif ($row->diterapkan_versi !== null)
                                             <x-badge variant="warning" title="Slip gaji masih memakai versi {{ $row->diterapkan_versi }}; snapshot sudah versi {{ $row->versi }} — klik Terapkan ke slip gaji">slip pakai v{{ $row->diterapkan_versi }}</x-badge>
                                         @else
@@ -383,28 +383,28 @@ new class extends Component {
 
                             {{-- TOTAL GAJI = jasa + gaji pokok --}}
                             <td class="px-6 py-3 text-right align-middle">
-                                <div class="font-semibold t-num text-ink dark:text-gray-100">{{ $rp($row->total_gaji) }}</div>
+                                <div class="font-semibold t-num text-ink dark:text-gray-100">{{ $rupiah($row->total_gaji) }}</div>
                                 <div class="text-sm t-num text-muted dark:text-gray-400">
-                                    jasa {{ $rp($row->jasa_total) }}
-                                    @if ((float) $row->nilai_gaji_pokok > 0) + pokok {{ $rp($row->nilai_gaji_pokok) }} @endif
+                                    jasa {{ $rupiah($row->jasa_total) }}
+                                    @if ((float) $row->nilai_gaji_pokok > 0) + pokok {{ $rupiah($row->nilai_gaji_pokok) }} @endif
                                 </div>
                             </td>
 
                             {{-- POTONGAN = RS + PPh + lain --}}
                             <td class="px-6 py-3 text-right align-middle">
-                                <div class="font-semibold t-num text-rose-600 dark:text-rose-300">-{{ $rp($potonganTotal) }}</div>
+                                <div class="font-semibold t-num text-rose-600 dark:text-rose-300">-{{ $rupiah($potonganTotal) }}</div>
                                 <div class="text-sm t-num text-muted dark:text-gray-400">
-                                    RS {{ $rp(abs((float) $row->potongan_rs)) }} &middot; PPh {{ $rp(abs((float) $row->pph21)) }}
-                                    @if ((float) $row->potongan_lain_total != 0) &middot; lain {{ $rp(abs((float) $row->potongan_lain_total)) }} @endif
+                                    RS {{ $rupiah(abs((float) $row->potongan_rs)) }} &middot; PPh {{ $rupiah(abs((float) $row->pph21)) }}
+                                    @if ((float) $row->potongan_lain_total != 0) &middot; lain {{ $rupiah(abs((float) $row->potongan_lain_total)) }} @endif
                                 </div>
                             </td>
 
                             {{-- DITERIMA + pembanding bulan lalu (khas SIAP) --}}
                             <td class="px-6 py-3 text-right align-middle">
-                                <div class="text-xl font-bold t-num text-emerald-700 dark:text-emerald-300">{{ $rp($row->gaji_diterima) }}</div>
+                                <div class="text-xl font-bold t-num text-emerald-700 dark:text-emerald-300">{{ $rupiah($row->gaji_diterima) }}</div>
                                 <div class="text-sm t-num text-muted dark:text-gray-400">
-                                    @if ((float) $row->tambahan_total > 0)<span class="block">termasuk tambahan {{ $rp($row->tambahan_total) }}</span>@endif
-                                    <span class="{{ $row->selisih_bulan_lalu === null ? '' : ($row->selisih_bulan_lalu < 0 ? 'text-fg-danger-strong' : 'text-fg-success-strong') }}" title="Dibanding gaji diterima bulan jasa sebelumnya">vs bulan lalu {{ $selisih($row->selisih_bulan_lalu) }}</span>
+                                    @if ((float) $row->tambahan_total > 0)<span class="block">termasuk tambahan {{ $rupiah($row->tambahan_total) }}</span>@endif
+                                    <span class="{{ $row->selisih_bulan_lalu === null ? '' : ($row->selisih_bulan_lalu < 0 ? 'text-fg-danger-strong' : 'text-fg-success-strong') }}" title="Dibanding gaji diterima bulan jasa sebelumnya">vs bulan lalu {{ $formatSelisih($row->selisih_bulan_lalu) }}</span>
                                 </div>
                             </td>
 
@@ -432,8 +432,8 @@ new class extends Component {
                     @empty
                         <tr>
                             <td colspan="6" class="px-6 py-16 text-center text-muted dark:text-gray-400">
-                                @if ($total['jumlah'] === 0)
-                                    Belum ada snapshot bulan jasa {{ $labelJasa }}. Klik <span class="font-semibold">Ambil dari SIRUS</span> untuk menariknya.
+                                @if ($totalPeriode['jumlah'] === 0)
+                                    Belum ada snapshot bulan jasa {{ $labelBulanJasa }}. Klik <span class="font-semibold">Ambil dari SIRUS</span> untuk menariknya.
                                 @else
                                     Tidak ada slip yang cocok dengan saringan. <button type="button" wire:click="resetFilters" class="font-semibold underline underline-offset-2 text-brand-green dark:text-brand-lime">Reset saringan</button>
                                 @endif

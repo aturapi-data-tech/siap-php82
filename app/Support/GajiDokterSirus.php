@@ -40,12 +40,12 @@ class GajiDokterSirus
         return (string) config('services.sirus.url', '') !== '' && (string) config('services.sirus.user', '') !== '';
     }
 
-    private static function token(bool $segar = false): string
+    private static function token(bool $tokenSegar = false): string
     {
         if (!self::aktif()) {
             throw new RuntimeException('API SIRUS belum diatur (SIAP_API_URL / SIAP_API_USER / SIAP_API_PASSWORD di .env).');
         }
-        if ($segar) {
+        if ($tokenSegar) {
             Cache::forget('sirus-api-token');
         }
 
@@ -65,9 +65,9 @@ class GajiDokterSirus
     private static function get(string $path, array $query = []): array
     {
         $url = rtrim(config('services.sirus.url'), '/') . '/api/siap/' . ltrim($path, '/');
-        foreach ([false, true] as $segar) {
-            $respon = Http::acceptJson()->timeout(120)->withToken(self::token($segar))->get($url, $query);
-            if ($respon->status() === 401 && !$segar) {
+        foreach ([false, true] as $tokenSegar) {
+            $respon = Http::acceptJson()->timeout(120)->withToken(self::token($tokenSegar))->get($url, $query);
+            if ($respon->status() === 401 && !$tokenSegar) {
                 continue;
             }
             if (!$respon->ok()) {
@@ -83,11 +83,11 @@ class GajiDokterSirus
     public static function ujiSambungan(): array
     {
         try {
-            $data = self::get('dokter');
+            $dataDokter = self::get('dokter');
 
-            return ['ok' => true, 'pesan' => 'Tersambung ke ' . config('services.sirus.url') . ' — ' . count($data['dokter'] ?? []) . ' dokter di master SIRUS.'];
-        } catch (\Throwable $e) {
-            return ['ok' => false, 'pesan' => $e->getMessage()];
+            return ['ok' => true, 'pesan' => 'Tersambung ke ' . config('services.sirus.url') . ' — ' . count($dataDokter['dokter'] ?? []) . ' dokter di master SIRUS.'];
+        } catch (\Throwable $exception) {
+            return ['ok' => false, 'pesan' => $exception->getMessage()];
         }
     }
 
@@ -101,39 +101,39 @@ class GajiDokterSirus
     /** Segarkan master dokter dari SIRUS + pemetaan otomatis (nama cocok persis & tunggal). @return array{baru: int, oto: int} */
     public static function segarkanDokter(?int $userId): array
     {
-        $data = self::get('dokter');
-        $karyawan = DB::table('siapmst_employers')->where('active_status', '1')->get(['emp_id', 'emp_name'])->groupBy(fn($r) => self::normNama($r->emp_name));
-        $ada = DB::table('siapmst_dokter_sirus')->get()->keyBy('dr_id');
-        $hasil = ['baru' => 0, 'oto' => 0];
-        foreach ($data['dokter'] ?? [] as $d) {
-            $nama = trim((string) $d['dr_name']) !== '' ? $d['dr_name'] : '(tanpa nama) ' . $d['dr_id'];
-            $baris = ['dr_name' => mb_substr($nama, 0, 100), 'dr_nik' => $d['dr_nik'] ?: null, 'kd_dr_bpjs' => $d['kd_dr_bpjs'] ?: null,
-                'aktif' => $d['aktif'] ? '1' : '0', 'updated_at' => now()];
-            $lama = $ada[$d['dr_id']] ?? null;
-            if ($lama) {
-                DB::table('siapmst_dokter_sirus')->where('dr_id', $d['dr_id'])->update($baris);
-                if ($lama->emp_id !== null) {
+        $dataDokterSirus = self::get('dokter');
+        $karyawan = DB::table('siapmst_employers')->where('active_status', '1')->get(['emp_id', 'emp_name'])->groupBy(fn($row) => self::normNama($row->emp_name));
+        $dokterTersimpan = DB::table('siapmst_dokter_sirus')->get()->keyBy('dr_id');
+        $hasilSegarkanDokterSirus = ['baru' => 0, 'oto' => 0];
+        foreach ($dataDokterSirus['dokter'] ?? [] as $dokter) {
+            $namaDokter = trim((string) $dokter['dr_name']) !== '' ? $dokter['dr_name'] : '(tanpa nama) ' . $dokter['dr_id'];
+            $kolomDokter = ['dr_name' => mb_substr($namaDokter, 0, 100), 'dr_nik' => $dokter['dr_nik'] ?: null, 'kd_dr_bpjs' => $dokter['kd_dr_bpjs'] ?: null,
+                'aktif' => $dokter['aktif'] ? '1' : '0', 'updated_at' => now()];
+            $dokterLama = $dokterTersimpan[$dokter['dr_id']] ?? null;
+            if ($dokterLama) {
+                DB::table('siapmst_dokter_sirus')->where('dr_id', $dokter['dr_id'])->update($kolomDokter);
+                if ($dokterLama->emp_id !== null) {
                     continue;
                 }
             }
-            $norm = self::normNama($d['dr_name']);
-            $cocok = $norm !== '' ? ($karyawan[$norm] ?? null) : null;
-            $empId = $cocok && $cocok->count() === 1 ? $cocok->first()->emp_id : null;
-            if ($lama) {
+            $namaNormal = self::normNama($dokter['dr_name']);
+            $karyawanCocok = $namaNormal !== '' ? ($karyawan[$namaNormal] ?? null) : null;
+            $empId = $karyawanCocok && $karyawanCocok->count() === 1 ? $karyawanCocok->first()->emp_id : null;
+            if ($dokterLama) {
                 if ($empId) {
-                    DB::table('siapmst_dokter_sirus')->where('dr_id', $d['dr_id'])->update(['emp_id' => $empId, 'cara_map' => 'OTO', 'updated_by' => $userId]);
-                    $hasil['oto']++;
+                    DB::table('siapmst_dokter_sirus')->where('dr_id', $dokter['dr_id'])->update(['emp_id' => $empId, 'cara_map' => 'OTO', 'updated_by' => $userId]);
+                    $hasilSegarkanDokterSirus['oto']++;
                 }
             } else {
-                DB::table('siapmst_dokter_sirus')->insert([...$baris, 'dr_id' => $d['dr_id'], 'emp_id' => $empId, 'cara_map' => $empId ? 'OTO' : null, 'updated_by' => $userId, 'created_at' => now()]);
-                $hasil['baru']++;
+                DB::table('siapmst_dokter_sirus')->insert([...$kolomDokter, 'dr_id' => $dokter['dr_id'], 'emp_id' => $empId, 'cara_map' => $empId ? 'OTO' : null, 'updated_by' => $userId, 'created_at' => now()]);
+                $hasilSegarkanDokterSirus['baru']++;
                 if ($empId) {
-                    $hasil['oto']++;
+                    $hasilSegarkanDokterSirus['oto']++;
                 }
             }
         }
 
-        return $hasil;
+        return $hasilSegarkanDokterSirus;
     }
 
     public static function petakan(string $drId, ?string $empId, ?int $userId): bool
@@ -150,7 +150,7 @@ class GajiDokterSirus
     public static function dokterList(string $cari = ''): Collection
     {
         return DB::table('siapmst_dokter_sirus as d')->leftJoin('siapmst_employers as em', 'em.emp_id', '=', 'd.emp_id')
-            ->when(trim($cari) !== '', fn($q) => $q->whereRaw('UPPER(d.dr_name) LIKE ?', ['%' . mb_strtoupper(trim($cari)) . '%']))
+            ->when(trim($cari) !== '', fn($subQuery) => $subQuery->whereRaw('UPPER(d.dr_name) LIKE ?', ['%' . mb_strtoupper(trim($cari)) . '%']))
             ->orderByDesc('d.aktif')->orderBy('d.dr_name')
             ->get(['d.*', 'em.emp_name', 'em.active_status as emp_aktif']);
     }
@@ -176,80 +176,80 @@ class GajiDokterSirus
         $slipData = self::get("gaji-dokter/{$tahun}/{$bulan}");
         $lampiranData = self::get("gaji-dokter/{$tahun}/{$bulan}/lampiran");
         $lampiranPerDokter = collect($lampiranData['lampiran'] ?? [])->keyBy('dr_id');
-        $peta = DB::table('siapmst_dokter_sirus')->pluck('emp_id', 'dr_id');
-        $hasil = ['jumlah' => 0, 'baru' => 0, 'berubah' => 0, 'sama' => 0, 'lampiran' => 0, 'tanpaMap' => []];
+        $empIdPerDokter = DB::table('siapmst_dokter_sirus')->pluck('emp_id', 'dr_id');
+        $hasilAmbilGajiSirus = ['jumlah' => 0, 'baru' => 0, 'berubah' => 0, 'sama' => 0, 'lampiran' => 0, 'tanpaMap' => []];
 
-        foreach ($slipData['slip'] ?? [] as $slip) {
-            $hasil['jumlah']++;
-            $lampiran = $lampiranPerDokter[$slip['dr_id']]['baris'] ?? [];
-            $checksum = self::checksum($slip, $lampiran);
-            $empId = $peta[$slip['dr_id']] ?? null;
+        foreach ($slipData['slip'] ?? [] as $slipSirus) {
+            $hasilAmbilGajiSirus['jumlah']++;
+            $lampiranSirus = $lampiranPerDokter[$slipSirus['dr_id']]['baris'] ?? [];
+            $checksum = self::checksum($slipSirus, $lampiranSirus);
+            $empId = $empIdPerDokter[$slipSirus['dr_id']] ?? null;
             if ($empId === null) {
-                $hasil['tanpaMap'][] = $slip['dr_name'];
+                $hasilAmbilGajiSirus['tanpaMap'][] = $slipSirus['dr_name'];
             }
-            $terbaru = DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->where('dr_id', $slip['dr_id'])->where('terbaru', '1')->first();
-            if ($terbaru && $terbaru->checksum === $checksum) {
-                DB::table('siaptxn_gdok_hdrs')->where('gd_id', $terbaru->gd_id)->update(['diambil_at' => now(), 'diambil_oleh' => $userId, 'emp_id' => $empId, 'updated_at' => now()]);
-                $hasil['sama']++;
+            $snapshotTerbaru = DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->where('dr_id', $slipSirus['dr_id'])->where('terbaru', '1')->first();
+            if ($snapshotTerbaru && $snapshotTerbaru->checksum === $checksum) {
+                DB::table('siaptxn_gdok_hdrs')->where('gd_id', $snapshotTerbaru->gd_id)->update(['diambil_at' => now(), 'diambil_oleh' => $userId, 'emp_id' => $empId, 'updated_at' => now()]);
+                $hasilAmbilGajiSirus['sama']++;
                 continue;
             }
-            DB::transaction(function () use ($periode, $slip, $lampiran, $checksum, $empId, $terbaru, $userId, &$hasil) {
-                if ($terbaru) {
-                    DB::table('siaptxn_gdok_hdrs')->where('gd_id', $terbaru->gd_id)->update(['terbaru' => '0', 'updated_at' => now()]);
+            DB::transaction(function () use ($periode, $slipSirus, $lampiranSirus, $checksum, $empId, $snapshotTerbaru, $userId, &$hasilAmbilGajiSirus) {
+                if ($snapshotTerbaru) {
+                    DB::table('siaptxn_gdok_hdrs')->where('gd_id', $snapshotTerbaru->gd_id)->update(['terbaru' => '0', 'updated_at' => now()]);
                 }
-                $versi = $terbaru ? (int) $terbaru->versi + 1 : 1;
+                $versi = $snapshotTerbaru ? (int) $snapshotTerbaru->versi + 1 : 1;
                 DB::table('siaptxn_gdok_hdrs')->insert([
-                    'periode' => $periode, 'dr_id' => $slip['dr_id'], 'versi' => $versi, 'terbaru' => '1', 'emp_id' => $empId,
-                    'gajidoctor_no' => (int) $slip['gajidoctor_no'], 'dr_name' => mb_substr(trim((string) $slip['dr_name']) !== '' ? $slip['dr_name'] : '(tanpa nama) ' . $slip['dr_id'], 0, 100),
-                    'periode_gaji' => $slip['tahun_gaji'] . '-' . $slip['bulan_gaji'],
-                    'skema_gaji_pokok' => $slip['skema_gaji_pokok'], 'nilai_gaji_pokok' => $slip['nilai_gaji_pokok'],
-                    'potongan_rs_basis' => $slip['potongan_rs_basis'], 'potongan_rs_persen' => $slip['potongan_rs_persen'],
-                    'pph21_persen' => $slip['pph21_persen'], 'npwp_status' => $slip['npwp_status'],
-                    'jasa_total' => $slip['jasa_total'], 'total_gaji' => $slip['total_gaji'], 'potongan_rs' => $slip['potongan_rs'], 'pph21' => $slip['pph21'],
-                    'potongan_lain_total' => $slip['potongan_lain_total'], 'tambahan_total' => $slip['tambahan_total'], 'gaji_diterima' => $slip['gaji_diterima'],
-                    'gaji_status' => $slip['gaji_status'],
-                    'tanggal_bayar' => $slip['tanggal_bayar'] ? Absensi::tanggalSql(Carbon::parse($slip['tanggal_bayar'])) : null,
-                    'update_date_sirus' => $slip['update_date'], 'checksum' => $checksum, 'jumlah_lampiran' => count($lampiran),
+                    'periode' => $periode, 'dr_id' => $slipSirus['dr_id'], 'versi' => $versi, 'terbaru' => '1', 'emp_id' => $empId,
+                    'gajidoctor_no' => (int) $slipSirus['gajidoctor_no'], 'dr_name' => mb_substr(trim((string) $slipSirus['dr_name']) !== '' ? $slipSirus['dr_name'] : '(tanpa nama) ' . $slipSirus['dr_id'], 0, 100),
+                    'periode_gaji' => $slipSirus['tahun_gaji'] . '-' . $slipSirus['bulan_gaji'],
+                    'skema_gaji_pokok' => $slipSirus['skema_gaji_pokok'], 'nilai_gaji_pokok' => $slipSirus['nilai_gaji_pokok'],
+                    'potongan_rs_basis' => $slipSirus['potongan_rs_basis'], 'potongan_rs_persen' => $slipSirus['potongan_rs_persen'],
+                    'pph21_persen' => $slipSirus['pph21_persen'], 'npwp_status' => $slipSirus['npwp_status'],
+                    'jasa_total' => $slipSirus['jasa_total'], 'total_gaji' => $slipSirus['total_gaji'], 'potongan_rs' => $slipSirus['potongan_rs'], 'pph21' => $slipSirus['pph21'],
+                    'potongan_lain_total' => $slipSirus['potongan_lain_total'], 'tambahan_total' => $slipSirus['tambahan_total'], 'gaji_diterima' => $slipSirus['gaji_diterima'],
+                    'gaji_status' => $slipSirus['gaji_status'],
+                    'tanggal_bayar' => $slipSirus['tanggal_bayar'] ? Absensi::tanggalSql(Carbon::parse($slipSirus['tanggal_bayar'])) : null,
+                    'update_date_sirus' => $slipSirus['update_date'], 'checksum' => $checksum, 'jumlah_lampiran' => count($lampiranSirus),
                     'diambil_at' => now(), 'diambil_oleh' => $userId, 'created_at' => now(), 'updated_at' => now(),
                 ]);
-                $gdId = (int) DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->where('dr_id', $slip['dr_id'])->where('versi', $versi)->value('gd_id');
-                foreach ($slip['detail'] as $d) {
-                    DB::table('siaptxn_gdok_dtls')->insert(['gd_id' => $gdId, 'jenis' => $d['jenis'], 'kode' => mb_substr($d['kode'], 0, 20), 'label' => mb_substr($d['label'], 0, 100),
-                        'keterangan' => mb_substr($d['keterangan'], 0, 100) ?: null, 'nilai' => $d['nilai'], 'nilai_manual' => $d['nilai_manual'] ? '1' : '0',
-                        'jumlah_pasien' => $d['jumlah_pasien'], 'urutan' => $d['urutan']]);
+                $gdId = (int) DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->where('dr_id', $slipSirus['dr_id'])->where('versi', $versi)->value('gd_id');
+                foreach ($slipSirus['detail'] as $komponen) {
+                    DB::table('siaptxn_gdok_dtls')->insert(['gd_id' => $gdId, 'jenis' => $komponen['jenis'], 'kode' => mb_substr($komponen['kode'], 0, 20), 'label' => mb_substr($komponen['label'], 0, 100),
+                        'keterangan' => mb_substr($komponen['keterangan'], 0, 100) ?: null, 'nilai' => $komponen['nilai'], 'nilai_manual' => $komponen['nilai_manual'] ? '1' : '0',
+                        'jumlah_pasien' => $komponen['jumlah_pasien'], 'urutan' => $komponen['urutan']]);
                 }
-                foreach (array_chunk($lampiran, 200) as $potongan) {
-                    DB::table('siaptxn_gdok_lamps')->insert(array_map(fn($b) => [
-                        'gd_id' => $gdId, 'komponen' => mb_substr($b['komponen'], 0, 20), 'label' => mb_substr($b['label'], 0, 100), 'tgl' => mb_substr((string) $b['tgl'], 0, 10),
-                        'reg_no' => mb_substr((string) $b['reg_no'], 0, 20) ?: null, 'nama' => mb_substr((string) $b['nama'], 0, 100) ?: null,
-                        'keterangan' => mb_substr((string) $b['keterangan'], 0, 200) ?: null, 'klaim' => mb_substr((string) $b['klaim'], 0, 60) ?: null,
-                        'klaim_status' => mb_substr((string) $b['klaim_status'], 0, 20) ?: null, 'no_sep' => mb_substr((string) $b['no_sep'], 0, 30) ?: null,
-                        'txn_no' => mb_substr((string) $b['txn_no'], 0, 30) ?: null, 'nominal' => $b['nominal'], 'pasien' => $b['pasien'],
-                        'masuk_slip' => $b['masuk_slip'] ? '1' : '0',
-                    ], $potongan));
+                foreach (array_chunk($lampiranSirus, 200) as $potonganLampiran) {
+                    DB::table('siaptxn_gdok_lamps')->insert(array_map(fn($row) => [
+                        'gd_id' => $gdId, 'komponen' => mb_substr($row['komponen'], 0, 20), 'label' => mb_substr($row['label'], 0, 100), 'tgl' => mb_substr((string) $row['tgl'], 0, 10),
+                        'reg_no' => mb_substr((string) $row['reg_no'], 0, 20) ?: null, 'nama' => mb_substr((string) $row['nama'], 0, 100) ?: null,
+                        'keterangan' => mb_substr((string) $row['keterangan'], 0, 200) ?: null, 'klaim' => mb_substr((string) $row['klaim'], 0, 60) ?: null,
+                        'klaim_status' => mb_substr((string) $row['klaim_status'], 0, 20) ?: null, 'no_sep' => mb_substr((string) $row['no_sep'], 0, 30) ?: null,
+                        'txn_no' => mb_substr((string) $row['txn_no'], 0, 30) ?: null, 'nominal' => $row['nominal'], 'pasien' => $row['pasien'],
+                        'masuk_slip' => $row['masuk_slip'] ? '1' : '0',
+                    ], $potonganLampiran));
                 }
-                $hasil['lampiran'] += count($lampiran);
-                $terbaru ? $hasil['berubah']++ : $hasil['baru']++;
+                $hasilAmbilGajiSirus['lampiran'] += count($lampiranSirus);
+                $snapshotTerbaru ? $hasilAmbilGajiSirus['berubah']++ : $hasilAmbilGajiSirus['baru']++;
             });
         }
 
-        DB::table('siaptxn_gdok_ambils')->insert(['periode' => $periode, 'diambil_at' => now(), 'diambil_oleh' => $userId, 'jumlah_slip' => $hasil['jumlah'],
-            'baru' => $hasil['baru'], 'berubah' => $hasil['berubah'], 'sama' => $hasil['sama'], 'lampiran_baris' => $hasil['lampiran'],
-            'keterangan' => $hasil['tanpaMap'] !== [] ? count($hasil['tanpaMap']) . ' dokter belum dipetakan' : null, 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('siaptxn_gdok_ambils')->insert(['periode' => $periode, 'diambil_at' => now(), 'diambil_oleh' => $userId, 'jumlah_slip' => $hasilAmbilGajiSirus['jumlah'],
+            'baru' => $hasilAmbilGajiSirus['baru'], 'berubah' => $hasilAmbilGajiSirus['berubah'], 'sama' => $hasilAmbilGajiSirus['sama'], 'lampiran_baris' => $hasilAmbilGajiSirus['lampiran'],
+            'keterangan' => $hasilAmbilGajiSirus['tanpaMap'] !== [] ? count($hasilAmbilGajiSirus['tanpaMap']) . ' dokter belum dipetakan' : null, 'created_at' => now(), 'updated_at' => now()]);
 
-        return $hasil;
+        return $hasilAmbilGajiSirus;
     }
 
-    private static function checksum(array $slip, array $lampiran): string
+    private static function checksum(array $slipSirus, array $lampiranSirus): string
     {
-        $kunci = ['gaji_status', 'skema_gaji_pokok', 'nilai_gaji_pokok', 'potongan_rs_basis', 'potongan_rs_persen', 'pph21_persen', 'npwp_status', ...self::KOLOM_NOMINAL];
-        $inti = array_map(fn($k) => is_float($slip[$k] ?? null) ? round($slip[$k], 2) : ($slip[$k] ?? null), array_combine($kunci, $kunci));
-        $detail = array_map(fn($d) => [$d['jenis'], $d['kode'], round((float) $d['nilai'], 2), (int) $d['jumlah_pasien'], (bool) $d['nilai_manual']], $slip['detail']);
-        usort($detail, fn($a, $b) => strcmp($a[0] . $a[1], $b[0] . $b[1]));
-        $lamp = array_map(fn($b) => [$b['komponen'], $b['txn_no'], round((float) $b['nominal'], 2)], $lampiran);
-        usort($lamp, fn($a, $b) => strcmp($a[0] . $a[1], $b[0] . $b[1]));
+        $kolomInti = ['gaji_status', 'skema_gaji_pokok', 'nilai_gaji_pokok', 'potongan_rs_basis', 'potongan_rs_persen', 'pph21_persen', 'npwp_status', ...self::KOLOM_NOMINAL];
+        $angkaHeader = array_map(fn($kolomNominal) => is_float($slipSirus[$kolomNominal] ?? null) ? round($slipSirus[$kolomNominal], 2) : ($slipSirus[$kolomNominal] ?? null), array_combine($kolomInti, $kolomInti));
+        $detailInti = array_map(fn($komponen) => [$komponen['jenis'], $komponen['kode'], round((float) $komponen['nilai'], 2), (int) $komponen['jumlah_pasien'], (bool) $komponen['nilai_manual']], $slipSirus['detail']);
+        usort($detailInti, fn($kiri, $kanan) => strcmp($kiri[0] . $kiri[1], $kanan[0] . $kanan[1]));
+        $lampiranInti = array_map(fn($row) => [$row['komponen'], $row['txn_no'], round((float) $row['nominal'], 2)], $lampiranSirus);
+        usort($lampiranInti, fn($kiri, $kanan) => strcmp($kiri[0] . $kiri[1], $kanan[0] . $kanan[1]));
 
-        return md5(json_encode([$inti, $detail, $lamp]));
+        return md5(json_encode([$angkaHeader, $detailInti, $lampiranInti]));
     }
 
     // ─── Baca snapshot ────────────────────────────────────────────────────────
@@ -261,30 +261,30 @@ class GajiDokterSirus
             ->leftJoin('siapmst_dokter_sirus as d', 'd.dr_id', '=', 'h.dr_id')
             ->leftJoin('siapmst_employers as em', 'em.emp_id', '=', 'd.emp_id')
             ->where('h.periode', $periode)->where('h.terbaru', '1')
-            ->when(trim($cari) !== '', fn($q) => $q->whereRaw('UPPER(h.dr_name) LIKE ?', ['%' . mb_strtoupper(trim($cari)) . '%']))
+            ->when(trim($cari) !== '', fn($subQuery) => $subQuery->whereRaw('UPPER(h.dr_name) LIKE ?', ['%' . mb_strtoupper(trim($cari)) . '%']))
             ->orderBy('h.dr_name')
             ->get(['h.*', 'd.emp_id as emp_id_map', 'd.cara_map', 'em.emp_name']);
         $bulanLalu = Carbon::createFromFormat('!Y-m', $periode)->subMonthNoOverflow()->format('Y-m');
-        $lalu = DB::table('siaptxn_gdok_hdrs')->where('periode', $bulanLalu)->where('terbaru', '1')->get()->keyBy('dr_id');
+        $headerBulanLalu = DB::table('siaptxn_gdok_hdrs')->where('periode', $bulanLalu)->where('terbaru', '1')->get()->keyBy('dr_id');
         // Versi yang pernah ditulis ke slip gaji (bisa versi lama) — penanda "slip memakai v1, snapshot sudah v2".
         $diterapkan = DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->whereNotNull('diterapkan_at')
             ->orderBy('versi')->get(['dr_id', 'versi', 'gaji_id', 'diterapkan_at'])->keyBy('dr_id');
 
-        $rows = $rows->map(function ($row) use ($lalu, $diterapkan) {
+        $rows = $rows->map(function ($row) use ($headerBulanLalu, $diterapkan) {
             $row->versi_sebelumnya = (int) $row->versi > 1;
-            $row->bulan_lalu = $lalu[$row->dr_id] ?? null;
+            $row->bulan_lalu = $headerBulanLalu[$row->dr_id] ?? null;
             $row->selisih_bulan_lalu = $row->bulan_lalu ? (float) $row->gaji_diterima - (float) $row->bulan_lalu->gaji_diterima : null;
-            $t = $diterapkan[$row->dr_id] ?? null;
-            $row->diterapkan_versi = $t ? (int) $t->versi : null;
-            $row->diterapkan_gaji_id = $t ? (int) $t->gaji_id : null;
-            $row->diterapkan_at_slip = $t?->diterapkan_at;
+            $terapkanTerakhir = $diterapkan[$row->dr_id] ?? null;
+            $row->diterapkan_versi = $terapkanTerakhir ? (int) $terapkanTerakhir->versi : null;
+            $row->diterapkan_gaji_id = $terapkanTerakhir ? (int) $terapkanTerakhir->gaji_id : null;
+            $row->diterapkan_at_slip = $terapkanTerakhir?->diterapkan_at;
 
             return $row;
         });
 
         return match ($saring) {
-            'berubah'   => $rows->filter(fn($r) => $r->versi_sebelumnya)->values(),
-            'tanpa_map' => $rows->filter(fn($r) => $r->emp_id_map === null)->values(),
+            'berubah'   => $rows->filter(fn($row) => $row->versi_sebelumnya)->values(),
+            'tanpa_map' => $rows->filter(fn($row) => $row->emp_id_map === null)->values(),
             'final'     => $rows->where('gaji_status', 'F')->values(),
             default     => $rows,
         };
@@ -311,60 +311,60 @@ class GajiDokterSirus
     {
         $rows = self::daftar($periode);
         $periodeGaji = $periode; // bulan kerja slip SIAP
-        $hasil = ['diperbarui' => 0, 'dibuatkan' => 0, 'dibersihkan' => 0, 'periodeGaji' => $periodeGaji, 'final' => [], 'tanpaSlip' => [], 'tanpaMap' => []];
-        $label = self::namaPeriode($periode);
+        $hasilTerapkanKeSlipGaji = ['diperbarui' => 0, 'dibuatkan' => 0, 'dibersihkan' => 0, 'periodeGaji' => $periodeGaji, 'final' => [], 'tanpaSlip' => [], 'tanpaMap' => []];
+        $labelBulanJasa = self::namaPeriode($periode);
 
-        $terpetakan = $rows->filter(fn($r) => $r->emp_id_map !== null);
-        $hasil['tanpaMap'] = $rows->filter(fn($r) => $r->emp_id_map === null)->pluck('dr_name')->values()->all();
+        $terpetakan = $rows->filter(fn($row) => $row->emp_id_map !== null);
+        $hasilTerapkanKeSlipGaji['tanpaMap'] = $rows->filter(fn($row) => $row->emp_id_map === null)->pluck('dr_name')->values()->all();
         $slipList = DB::table('siaptxn_gaji_hdrs')->where('periode', $periodeGaji)
-            ->whereIn('emp_id', $terpetakan->pluck('emp_id_map')->map(fn($e) => (string) $e)->all() ?: [''])
+            ->whereIn('emp_id', $terpetakan->pluck('emp_id_map')->map(fn($empId) => (string) $empId)->all() ?: [''])
             ->get(['gaji_id', 'emp_id', 'gaji_status'])->keyBy('emp_id');
-        $karyawan = DB::table('siapmst_employers')->whereIn('emp_id', $terpetakan->pluck('emp_id_map')->map(fn($e) => (string) $e)->all() ?: [''])
+        $karyawanList = DB::table('siapmst_employers')->whereIn('emp_id', $terpetakan->pluck('emp_id_map')->map(fn($empId) => (string) $empId)->all() ?: [''])
             ->get(['emp_id', 'emp_unit_id', 'active_status'])->keyBy('emp_id');
-        $dipakai = [];
+        $gajiIdDipakai = [];
 
         foreach ($terpetakan as $row) {
             $slip = $slipList[$row->emp_id_map] ?? null;
             if (!$slip) {
-                $em = $karyawan[$row->emp_id_map] ?? null;
-                if (!$em || $em->active_status !== '1') {
-                    $hasil['tanpaSlip'][] = $row->dr_name;
+                $karyawan = $karyawanList[$row->emp_id_map] ?? null;
+                if (!$karyawan || $karyawan->active_status !== '1') {
+                    $hasilTerapkanKeSlipGaji['tanpaSlip'][] = $row->dr_name;
                     continue;
                 }
-                DB::table('siaptxn_gaji_hdrs')->insert(['emp_id' => $row->emp_id_map, 'periode' => $periodeGaji, 'unit_id' => $em->emp_unit_id,
+                DB::table('siaptxn_gaji_hdrs')->insert(['emp_id' => $row->emp_id_map, 'periode' => $periodeGaji, 'unit_id' => $karyawan->emp_unit_id,
                     'hari_hadir' => 0, 'gaji_pokok' => 0, 'tarif_makan' => 0, 'tarif_transport' => 0, 'pph21_persen' => 0,
                     'gaji_status' => GajiKaryawan::STATUS_DRAFT, 'updated_by' => $userId, 'created_at' => now(), 'updated_at' => now()]);
                 $slip = DB::table('siaptxn_gaji_hdrs')->where('emp_id', $row->emp_id_map)->where('periode', $periodeGaji)->first(['gaji_id', 'emp_id', 'gaji_status']);
-                $hasil['dibuatkan']++;
+                $hasilTerapkanKeSlipGaji['dibuatkan']++;
             }
-            $dipakai[] = (int) $slip->gaji_id;
+            $gajiIdDipakai[] = (int) $slip->gaji_id;
             if ($slip->gaji_status === GajiKaryawan::STATUS_FINAL) {
-                $hasil['final'][] = $row->dr_name;
+                $hasilTerapkanKeSlipGaji['final'][] = $row->dr_name;
                 continue;
             }
             $gajiId = (int) $slip->gaji_id;
-            $ket = "SIRUS #{$row->gajidoctor_no} v{$row->versi} · jasa {$label}";
+            $keteranganSumber = "SIRUS #{$row->gajidoctor_no} v{$row->versi} · jasa {$labelBulanJasa}";
             // Per KOMPONEN slip SIRUS (uang periksa, visite, operator, …), bukan satu angka gabungan — rinciannya tetap terbaca di slip
             // karyawan. Jumlahnya sama dengan header: Σ jenis J = jasa_total, Σ P = potongan RS + PPh + lain, Σ T = tambahan.
             $detail = self::detail((int) $row->gd_id);
-            DB::transaction(function () use ($gajiId, $row, $ket, $userId, $periode, $detail) {
+            DB::transaction(function () use ($gajiId, $row, $keteranganSumber, $userId, $periode, $detail) {
                 DB::table('siaptxn_gaji_dtls')->where('gaji_id', $gajiId)->whereIn('kode', GajiKaryawan::KODE_DOKTER_SIRUS)->delete();
-                $baris = [];
-                foreach ($detail as $d) {
-                    $nama = $d->label ?: $d->kode;
-                    $pasien = (int) $d->jumlah_pasien > 0 ? " · {$d->jumlah_pasien} pasien" : '';
-                    $baris[] = match (true) {
-                        $d->jenis === 'J'                     => ['D', 'JASA_DOKTER', (float) $d->nilai, "{$nama}{$pasien} · {$ket}", (int) $d->jumlah_pasien],
-                        $d->jenis === 'T'                     => ['D', 'TAMBAHAN_DOKTER', (float) $d->nilai, "{$nama} · {$ket}", 0],
-                        $d->jenis === 'P' && $d->kode === 'RS'    => ['P', 'POT_RS', (float) $d->nilai, "{$nama} · {$ket}", 0],
-                        $d->jenis === 'P' && $d->kode === 'PPH21' => ['P', 'PPH21_DOKTER', (float) $d->nilai, "{$nama} " . rtrim(rtrim(number_format((float) $row->pph21_persen, 2, ',', '.'), '0'), ',') . '% ' . ($row->npwp_status === 'Y' ? 'NPWP' : 'tanpa NPWP') . " · {$ket}", 0],
-                        default                               => ['P', 'POT_DOKTER', (float) $d->nilai, "{$nama} · {$ket}", 0],
+                $barisSlip = [];
+                foreach ($detail as $komponen) {
+                    $namaKomponen = $komponen->label ?: $komponen->kode;
+                    $keteranganPasien = (int) $komponen->jumlah_pasien > 0 ? " · {$komponen->jumlah_pasien} pasien" : '';
+                    $barisSlip[] = match (true) {
+                        $komponen->jenis === 'J'                     => ['D', 'JASA_DOKTER', (float) $komponen->nilai, "{$namaKomponen}{$keteranganPasien} · {$keteranganSumber}", (int) $komponen->jumlah_pasien],
+                        $komponen->jenis === 'T'                     => ['D', 'TAMBAHAN_DOKTER', (float) $komponen->nilai, "{$namaKomponen} · {$keteranganSumber}", 0],
+                        $komponen->jenis === 'P' && $komponen->kode === 'RS'    => ['P', 'POT_RS', (float) $komponen->nilai, "{$namaKomponen} · {$keteranganSumber}", 0],
+                        $komponen->jenis === 'P' && $komponen->kode === 'PPH21' => ['P', 'PPH21_DOKTER', (float) $komponen->nilai, "{$namaKomponen} " . rtrim(rtrim(number_format((float) $row->pph21_persen, 2, ',', '.'), '0'), ',') . '% ' . ($row->npwp_status === 'Y' ? 'NPWP' : 'tanpa NPWP') . " · {$keteranganSumber}", 0],
+                        default                               => ['P', 'POT_DOKTER', (float) $komponen->nilai, "{$namaKomponen} · {$keteranganSumber}", 0],
                     };
                 }
                 if ((float) $row->nilai_gaji_pokok > 0) {
-                    $baris[] = ['D', 'POKOK_DOKTER', (float) $row->nilai_gaji_pokok, "Gaji pokok dokter skema {$row->skema_gaji_pokok} · {$ket}", 0];
+                    $barisSlip[] = ['D', 'POKOK_DOKTER', (float) $row->nilai_gaji_pokok, "Gaji pokok dokter skema {$row->skema_gaji_pokok} · {$keteranganSumber}", 0];
                 }
-                foreach ($baris as [$jenis, $kode, $nilai, $keterangan, $jumlah]) {
+                foreach ($barisSlip as [$jenis, $kode, $nilai, $keterangan, $jumlah]) {
                     if (abs($nilai) >= 0.5) {
                         GajiKaryawan::simpanBaris($gajiId, ['jenis' => $jenis, 'kode' => $kode, 'nilai' => $nilai, 'jumlah' => $jumlah, 'otomatis' => '0', 'keterangan' => mb_substr($keterangan, 0, 100)]);
                     }
@@ -375,31 +375,31 @@ class GajiDokterSirus
                     ->update(['gaji_id' => $gajiId, 'diterapkan_at' => now(), 'diterapkan_oleh' => $userId, 'updated_at' => now()]);
             });
             GajiKaryawan::hitungUlang($gajiId);
-            $hasil['diperbarui']++;
+            $hasilTerapkanKeSlipGaji['diperbarui']++;
         }
 
         // Bekas terapkan pada slip Draft periode gaji ini yang tidak lagi punya dokter terpetakan (pemetaan dilepas / dokter hilang).
-        $sisaLama = DB::table('siaptxn_gaji_dtls as d')->join('siaptxn_gaji_hdrs as h', 'h.gaji_id', '=', 'd.gaji_id')
+        $gajiIdBekasTerapkan = DB::table('siaptxn_gaji_dtls as d')->join('siaptxn_gaji_hdrs as h', 'h.gaji_id', '=', 'd.gaji_id')
             ->where('h.periode', $periodeGaji)->where('h.gaji_status', GajiKaryawan::STATUS_DRAFT)
             ->whereIn('d.kode', GajiKaryawan::KODE_DOKTER_SIRUS)
-            ->when($dipakai !== [], fn($q) => $q->whereNotIn('h.gaji_id', $dipakai))
+            ->when($gajiIdDipakai !== [], fn($subQuery) => $subQuery->whereNotIn('h.gaji_id', $gajiIdDipakai))
             ->distinct()->pluck('h.gaji_id');
-        foreach ($sisaLama as $gajiId) {
+        foreach ($gajiIdBekasTerapkan as $gajiId) {
             DB::table('siaptxn_gaji_dtls')->where('gaji_id', $gajiId)->whereIn('kode', GajiKaryawan::KODE_DOKTER_SIRUS)->delete();
             DB::table('siaptxn_gdok_hdrs')->where('gaji_id', $gajiId)->update(['gaji_id' => null, 'diterapkan_at' => null, 'diterapkan_oleh' => null]);
             GajiKaryawan::hitungUlang((int) $gajiId);
-            $hasil['dibersihkan']++;
+            $hasilTerapkanKeSlipGaji['dibersihkan']++;
         }
 
-        return $hasil;
+        return $hasilTerapkanKeSlipGaji;
     }
 
-    public static function namaPeriode(?string $ym): string
+    public static function namaPeriode(?string $periode): string
     {
-        return $ym && preg_match('/^(\d{4})-(\d{2})$/', $ym, $m)
+        return $periode && preg_match('/^(\d{4})-(\d{2})$/', $periode, $bagianPeriode)
             ? ((['01' => 'Januari', '02' => 'Februari', '03' => 'Maret', '04' => 'April', '05' => 'Mei', '06' => 'Juni', '07' => 'Juli', '08' => 'Agustus',
-                '09' => 'September', '10' => 'Oktober', '11' => 'November', '12' => 'Desember'][$m[2]] ?? $m[2]) . ' ' . $m[1])
-            : (string) $ym;
+                '09' => 'September', '10' => 'Oktober', '11' => 'November', '12' => 'Desember'][$bagianPeriode[2]] ?? $bagianPeriode[2]) . ' ' . $bagianPeriode[1])
+            : (string) $periode;
     }
 
     public static function periodeTersedia(): Collection
@@ -407,9 +407,9 @@ class GajiDokterSirus
         return DB::table('siaptxn_gdok_hdrs')->where('terbaru', '1')->select('periode', DB::raw('count(*) n'))->groupBy('periode')->orderByDesc('periode')->get();
     }
 
-    public static function riwayatAmbil(int $batas = 30): Collection
+    public static function riwayatAmbil(int $batasBaris = 30): Collection
     {
-        return DB::table('siaptxn_gdok_ambils as a')->leftJoin('users as u', 'u.id', '=', 'a.diambil_oleh')->orderByDesc('a.ambil_id')->limit($batas)->get(['a.*', 'u.name']);
+        return DB::table('siaptxn_gdok_ambils as a')->leftJoin('users as u', 'u.id', '=', 'a.diambil_oleh')->orderByDesc('a.ambil_id')->limit($batasBaris)->get(['a.*', 'u.name']);
     }
 
     /** Semua versi satu dokter satu bulan jasa (terbaru dulu). */
@@ -433,31 +433,31 @@ class GajiDokterSirus
      * dan jumlah baris lampiran.
      * @return array{header: array<string, array{lama: float, baru: float, selisih: float}>, detail: array<int, array{jenis: string, kode: string, label: string, lama: ?float, baru: ?float}>, lampiran: array{lama: int, baru: int}}
      */
-    public static function banding(?object $lama, ?object $baru): array
+    public static function banding(?object $headerLama, ?object $headerBaru): array
     {
-        $hasil = ['header' => [], 'detail' => [], 'lampiran' => ['lama' => (int) ($lama->jumlah_lampiran ?? 0), 'baru' => (int) ($baru->jumlah_lampiran ?? 0)]];
-        foreach (self::KOLOM_NOMINAL as $k) {
-            $a = (float) ($lama->$k ?? 0);
-            $b = (float) ($baru->$k ?? 0);
-            if (abs($a - $b) >= 0.5) {
-                $hasil['header'][$k] = ['lama' => $a, 'baru' => $b, 'selisih' => $b - $a];
+        $hasilBandingVersi = ['header' => [], 'detail' => [], 'lampiran' => ['lama' => (int) ($headerLama->jumlah_lampiran ?? 0), 'baru' => (int) ($headerBaru->jumlah_lampiran ?? 0)]];
+        foreach (self::KOLOM_NOMINAL as $kolomNominal) {
+            $nilaiLama = (float) ($headerLama->$kolomNominal ?? 0);
+            $nilaiBaru = (float) ($headerBaru->$kolomNominal ?? 0);
+            if (abs($nilaiLama - $nilaiBaru) >= 0.5) {
+                $hasilBandingVersi['header'][$kolomNominal] = ['lama' => $nilaiLama, 'baru' => $nilaiBaru, 'selisih' => $nilaiBaru - $nilaiLama];
             }
         }
-        $dLama = $lama ? self::detail((int) $lama->gd_id)->keyBy(fn($d) => $d->jenis . '|' . $d->kode) : collect();
-        $dBaru = $baru ? self::detail((int) $baru->gd_id)->keyBy(fn($d) => $d->jenis . '|' . $d->kode) : collect();
-        foreach ($dLama->keys()->merge($dBaru->keys())->unique() as $kunci) {
-            $x = $dLama[$kunci] ?? null;
-            $y = $dBaru[$kunci] ?? null;
-            if ($x && $y && abs((float) $x->nilai - (float) $y->nilai) < 0.5 && (int) $x->jumlah_pasien === (int) $y->jumlah_pasien) {
+        $detailLama = $headerLama ? self::detail((int) $headerLama->gd_id)->keyBy(fn($komponen) => $komponen->jenis . '|' . $komponen->kode) : collect();
+        $detailBaru = $headerBaru ? self::detail((int) $headerBaru->gd_id)->keyBy(fn($komponen) => $komponen->jenis . '|' . $komponen->kode) : collect();
+        foreach ($detailLama->keys()->merge($detailBaru->keys())->unique() as $kunciKomponen) {
+            $komponenLama = $detailLama[$kunciKomponen] ?? null;
+            $komponenBaru = $detailBaru[$kunciKomponen] ?? null;
+            if ($komponenLama && $komponenBaru && abs((float) $komponenLama->nilai - (float) $komponenBaru->nilai) < 0.5 && (int) $komponenLama->jumlah_pasien === (int) $komponenBaru->jumlah_pasien) {
                 continue;
             }
-            [$jenis, $kode] = explode('|', $kunci, 2);
-            $hasil['detail'][] = ['jenis' => $jenis, 'kode' => $kode, 'label' => ($y ?? $x)->label ?: $kode,
-                'lama' => $x ? (float) $x->nilai : null, 'baru' => $y ? (float) $y->nilai : null,
-                'pasien_lama' => $x ? (int) $x->jumlah_pasien : null, 'pasien_baru' => $y ? (int) $y->jumlah_pasien : null];
+            [$jenis, $kode] = explode('|', $kunciKomponen, 2);
+            $hasilBandingVersi['detail'][] = ['jenis' => $jenis, 'kode' => $kode, 'label' => ($komponenBaru ?? $komponenLama)->label ?: $kode,
+                'lama' => $komponenLama ? (float) $komponenLama->nilai : null, 'baru' => $komponenBaru ? (float) $komponenBaru->nilai : null,
+                'pasien_lama' => $komponenLama ? (int) $komponenLama->jumlah_pasien : null, 'pasien_baru' => $komponenBaru ? (int) $komponenBaru->jumlah_pasien : null];
         }
 
-        return $hasil;
+        return $hasilBandingVersi;
     }
 
     /** Karyawan aktif untuk LOV pemetaan. @return array<int, array{id: string, nama: string, kelas: string}> */
@@ -465,6 +465,6 @@ class GajiDokterSirus
     {
         return DB::table('siapmst_employers as em')->leftJoin('siapmst_unit_kerjas as un', 'un.unit_id', '=', 'em.emp_unit_id')
             ->where('em.active_status', '1')->orderBy('em.emp_name')->get(['em.emp_id', 'em.emp_name', 'un.unit_name'])
-            ->map(fn($r) => ['id' => $r->emp_id, 'nama' => $r->emp_name, 'kelas' => $r->emp_id . ($r->unit_name ? ' · ' . $r->unit_name : '')])->all();
+            ->map(fn($row) => ['id' => $row->emp_id, 'nama' => $row->emp_name, 'kelas' => $row->emp_id . ($row->unit_name ? ' · ' . $row->unit_name : '')])->all();
     }
 }

@@ -86,16 +86,16 @@ new class extends Component {
         unset($this->dataLampiran);
     }
 
-    public function toggleKomponen(string $kunci): void
+    public function toggleKomponen(string $kunciKomponen): void
     {
-        $this->komponenTerbuka = in_array($kunci, $this->komponenTerbuka, true)
-            ? array_values(array_diff($this->komponenTerbuka, [$kunci]))
-            : [...$this->komponenTerbuka, $kunci];
+        $this->komponenTerbuka = in_array($kunciKomponen, $this->komponenTerbuka, true)
+            ? array_values(array_diff($this->komponenTerbuka, [$kunciKomponen]))
+            : [...$this->komponenTerbuka, $kunciKomponen];
     }
 
-    public static function namaPeriode(?string $ym): string
+    public static function namaPeriode(?string $periode): string
     {
-        return $ym && preg_match('/^(\d{4})-(\d{2})$/', $ym, $m) ? (self::NAMA_BULAN[$m[2]] ?? $m[2]) . ' ' . $m[1] : (string) $ym;
+        return $periode && preg_match('/^(\d{4})-(\d{2})$/', $periode, $bagianPeriode) ? (self::NAMA_BULAN[$bagianPeriode[2]] ?? $bagianPeriode[2]) . ' ' . $bagianPeriode[1] : (string) $periode;
     }
 
     /**
@@ -108,24 +108,24 @@ new class extends Component {
         if ($this->gdIdList === []) {
             return collect();
         }
-        $headers = DB::table('siaptxn_gdok_hdrs')->whereIn('gd_id', $this->gdIdList)->get()->keyBy('gd_id');
+        $headerList = DB::table('siaptxn_gdok_hdrs')->whereIn('gd_id', $this->gdIdList)->get()->keyBy('gd_id');
 
-        return collect($this->gdIdList)->map(function ($gdId) use ($headers) {
-            $h = $headers[$gdId] ?? null;
-            if (!$h) {
+        return collect($this->gdIdList)->map(function ($gdId) use ($headerList) {
+            $header = $headerList[$gdId] ?? null;
+            if (!$header) {
                 return null;
             }
-            $baris = GajiDokterSirus::lampiran((int) $gdId);
-            if ($baris->isEmpty()) {
+            $lampiranRows = GajiDokterSirus::lampiran((int) $gdId);
+            if ($lampiranRows->isEmpty()) {
                 return null;
             }
-            $perKomponen = $baris->groupBy('komponen')
-                ->sortBy(fn($g) => ($g->first()->masuk_slip === '1' ? '0' : '1') . ($g->first()->label ?: $g->first()->komponen));
+            $perKomponen = $lampiranRows->groupBy('komponen')
+                ->sortBy(fn($grupKomponen) => ($grupKomponen->first()->masuk_slip === '1' ? '0' : '1') . ($grupKomponen->first()->label ?: $grupKomponen->first()->komponen));
 
-            return ['header' => $h, 'baris' => $baris, 'perKomponen' => $perKomponen,
-                'angka' => self::rekonsiliasi($baris, GajiDokterSirus::detail((int) $gdId)),
-                'versiOpsi' => $this->modeSemua ? collect() : GajiDokterSirus::versiList($h->periode, $h->dr_id)];
-        })->filter()->sortBy(fn($d) => $d['header']->dr_name)->values();
+            return ['header' => $header, 'lampiran' => $lampiranRows, 'perKomponen' => $perKomponen,
+                'angka' => self::rekonsiliasi($lampiranRows, GajiDokterSirus::detail((int) $gdId)),
+                'versiOpsi' => $this->modeSemua ? collect() : GajiDokterSirus::versiList($header->periode, $header->dr_id)];
+        })->filter()->sortBy(fn($komponen) => $komponen['header']->dr_name)->values();
     }
 
     /**
@@ -133,13 +133,13 @@ new class extends Component {
      * (slip memakai jumlah pasien × tarif kepala); jasa slip = jenis J tanpa "TUNJ "; kapita slip = jenis J berkode "KAPITA ".
      * Selisih ditampilkan apa adanya — angka tak cocok justru informasi.
      */
-    public static function rekonsiliasi($baris, $detail): array
+    public static function rekonsiliasi($lampiranRows, $detail): array
     {
-        $totalTransaksi = (float) $baris->where('masuk_slip', '1')->sum('nominal');
-        $totalDasarKapita = (float) $baris->where('masuk_slip', '!=', '1')->sum('nominal');
-        $jasa = $detail->where('jenis', 'J');
-        $jasaSlip = (float) $jasa->reject(fn($d) => str_starts_with((string) $d->kode, 'TUNJ '))->sum('nilai');
-        $kapitaSlip = (float) $jasa->filter(fn($d) => str_starts_with((string) $d->kode, 'KAPITA '))->sum('nilai');
+        $totalTransaksi = (float) $lampiranRows->where('masuk_slip', '1')->sum('nominal');
+        $totalDasarKapita = (float) $lampiranRows->where('masuk_slip', '!=', '1')->sum('nominal');
+        $komponenJasa = $detail->where('jenis', 'J');
+        $jasaSlip = (float) $komponenJasa->reject(fn($komponen) => str_starts_with((string) $komponen->kode, 'TUNJ '))->sum('nilai');
+        $kapitaSlip = (float) $komponenJasa->filter(fn($komponen) => str_starts_with((string) $komponen->kode, 'KAPITA '))->sum('nilai');
 
         return ['totalTransaksi' => $totalTransaksi, 'totalDasarKapita' => $totalDasarKapita, 'jasaSlip' => $jasaSlip, 'kapitaSlip' => $kapitaSlip,
             'selisih' => round($jasaSlip - $totalTransaksi - $kapitaSlip, 2)];
@@ -151,29 +151,29 @@ new class extends Component {
      */
     public function unduhCsv(): mixed
     {
-        $data = $this->dataLampiran;
-        if ($data->isEmpty()) {
+        $dataLampiran = $this->dataLampiran;
+        if ($dataLampiran->isEmpty()) {
             $this->dispatch('toast', type: 'warning', message: 'Tidak ada data untuk diunduh.');
             return null;
         }
-        $pertama = $data->first()['header'];
-        $periode = str_replace('-', '', $pertama->periode);
-        $nama = $this->modeSemua ? "lampiran-pasien-{$periode}-semua.csv" : "lampiran-pasien-{$pertama->dr_id}-{$periode}-v{$pertama->versi}.csv";
+        $headerPertama = $dataLampiran->first()['header'];
+        $periode = str_replace('-', '', $headerPertama->periode);
+        $namaBerkas = $this->modeSemua ? "lampiran-pasien-{$periode}-semua.csv" : "lampiran-pasien-{$headerPertama->dr_id}-{$periode}-v{$headerPertama->versi}.csv";
 
-        return response()->streamDownload(function () use ($data) {
-            $out = fopen('php://output', 'w');
-            fwrite($out, "\xEF\xBB\xBF");
-            fputcsv($out, self::KOLOM_CSV, ';', '"', '\\');
-            foreach ($data as $satu) {
-                $h = $satu['header'];
-                $periodeJasa = self::namaPeriode($h->periode);
-                foreach ($satu['baris'] as $b) {
-                    fputcsv($out, [$h->dr_name, $periodeJasa, $h->versi, $b->label ?: $b->komponen, $b->tgl, $b->reg_no, $b->nama, $b->keterangan, $b->klaim, $b->klaim_status,
-                        $b->no_sep, $b->txn_no, (int) round((float) $b->nominal), $b->masuk_slip === '1' ? 'Ya' : 'Tidak'], ';', '"', '\\');
+        return response()->streamDownload(function () use ($dataLampiran) {
+            $berkasCsv = fopen('php://output', 'w');
+            fwrite($berkasCsv, "\xEF\xBB\xBF");
+            fputcsv($berkasCsv, self::KOLOM_CSV, ';', '"', '\\');
+            foreach ($dataLampiran as $snapshot) {
+                $header = $snapshot['header'];
+                $periodeJasa = self::namaPeriode($header->periode);
+                foreach ($snapshot['lampiran'] as $row) {
+                    fputcsv($berkasCsv, [$header->dr_name, $periodeJasa, $header->versi, $row->label ?: $row->komponen, $row->tgl, $row->reg_no, $row->nama, $row->keterangan, $row->klaim, $row->klaim_status,
+                        $row->no_sep, $row->txn_no, (int) round((float) $row->nominal), $row->masuk_slip === '1' ? 'Ya' : 'Tidak'], ';', '"', '\\');
                 }
             }
-            fclose($out);
-        }, $nama, ['Content-Type' => 'text/csv; charset=UTF-8']);
+            fclose($berkasCsv);
+        }, $namaBerkas, ['Content-Type' => 'text/csv; charset=UTF-8']);
     }
 };
 ?>
