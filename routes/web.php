@@ -76,6 +76,11 @@ Route::middleware(['auth'])->group(function () {
         ->name('keuangan.gaji-karyawan');
     Route::livewire('/keuangan/pembagian-jm', 'pages::keuangan.pembagian-jm.pembagian-jm')
         ->name('keuangan.pembagian-jm');
+    // Laporan kepegawaian bulanan (hari kerja / cuti / lembur) — buka: laporanPegawai.lihat, isi: laporanPegawai.isi, terapkan: gaji.kelola
+    Route::livewire('/keuangan/laporan-pegawai', 'pages::keuangan.laporan-pegawai.laporan-pegawai')
+        ->name('keuangan.laporan-pegawai');
+    Route::livewire('/keuangan/pinjaman-karyawan', 'pages::keuangan.pinjaman-karyawan.pinjaman-karyawan')
+        ->name('keuangan.pinjaman-karyawan');
 
     // ── PANDUAN (cara pakai, semua user) ──
     Route::livewire('/panduan/absensi', 'pages::panduan.panduan-absensi.panduan-absensi')

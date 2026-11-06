@@ -5,7 +5,7 @@ use Livewire\Component;
 /**
  * PANDUAN GAJI — cara pakai modul gaji karyawan SIAP (statis, tanpa mutasi).
  * Daftar komponen, masa berlaku link WA, form bagian, pos JM, dst. dibaca langsung dari App\Support\GajiKaryawan,
- * App\Support\GajiFormBagian & App\Support\JasaMedik
+ * App\Support\GajiFormBagian, App\Support\JasaMedik, App\Support\LaporanPegawai & App\Support\PinjamanKaryawan
  * supaya panduan tidak basi saat aturan diubah. Hanya role gaji.kelola (sama dengan modulnya).
  */
 new class extends Component {
@@ -20,6 +20,8 @@ new class extends Component {
     $gaji = \App\Support\GajiKaryawan::class;
     $formBagian = \App\Support\GajiFormBagian::class;
     $jm = \App\Support\JasaMedik::class;
+    $lap = \App\Support\LaporanPegawai::class;
+    $pinjaman = \App\Support\PinjamanKaryawan::class;
     $tautan = fn(string $route, string $label, array $parameter = []) => \Illuminate\Support\Facades\Route::has($route)
         ? '<a href="' . route($route, $parameter) . '" wire:navigate class="font-semibold text-brand-green underline hover:no-underline dark:text-brand-lime">' . e($label) . '</a>'
         : '<b>' . e($label) . '</b>';
@@ -29,19 +31,21 @@ new class extends Component {
         'parameter' => '1. Parameter gaji (sekali)',
         'generate' => '2. Generate slip bulanan',
         'jm' => '3. Pembagian Jasa Medik',
-        'form-bagian' => '4. Form Bagian (Excel)',
-        'rincian' => '5. Rincian slip',
-        'hari-kerja' => '6. Mengubah hari kerja',
-        'pph' => '7. PPh 21',
-        'final' => '8. Final & buka kembali',
-        'cetak' => '9. Cetak & kirim WhatsApp',
+        'lap' => '4. Laporan Kepegawaian (hari kerja & lembur)',
+        'pinjaman' => '5. Pinjaman Karyawan (angsuran)',
+        'form-bagian' => '6. Form Bagian (Excel)',
+        'rincian' => '7. Rincian slip',
+        'hari-kerja' => '8. Mengubah hari kerja',
+        'pph' => '9. PPh 21',
+        'final' => '10. Final & buka kembali',
+        'cetak' => '11. Cetak & kirim WhatsApp',
         'rumus' => 'Rumus hitungan',
         'faq' => 'Tanya jawab',
     ];
 @endphp
 
 <div>
-    <x-page-title title="Panduan Gaji" subtitle="Cara pakai: parameter gaji → generate slip → jasa medik & form bagian → rincian → final → cetak / kirim WhatsApp" />
+    <x-page-title title="Panduan Gaji" subtitle="Cara pakai: parameter gaji → generate slip → jasa medik → laporan kepegawaian → pinjaman karyawan → form bagian → rincian → final → cetak / kirim WhatsApp" />
 
     <div class="w-full min-h-[calc(100vh-5rem)] bg-surface-soft dark:bg-gray-900">
         <div class="grid grid-cols-1 gap-6 px-6 py-6 mx-auto max-w-7xl lg:grid-cols-4">
@@ -56,7 +60,7 @@ new class extends Component {
                         @endforeach
                     </ul>
                     <p class="pt-3 mt-3 text-xs border-t border-hairline text-muted">
-                        Buka modul: {!! $tautan('keuangan.gaji-karyawan', 'Gaji Karyawan') !!} · {!! $tautan('keuangan.pembagian-jm', 'Pembagian Jasa Medik') !!}
+                        Buka modul: {!! $tautan('keuangan.gaji-karyawan', 'Gaji Karyawan') !!} · {!! $tautan('keuangan.pembagian-jm', 'Pembagian Jasa Medik') !!} · {!! $tautan('keuangan.laporan-pegawai', 'Laporan Kepegawaian') !!} · {!! $tautan('keuangan.pinjaman-karyawan', 'Pinjaman Karyawan') !!}
                     </p>
                 </div>
             </nav>
@@ -67,12 +71,14 @@ new class extends Component {
                 {{-- ALUR --}}
                 <section id="alur" class="p-6 border scroll-mt-24 bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
                     <h2>Gambaran alur</h2>
-                    <div class="grid grid-cols-1 gap-2 mt-4 text-sm sm:grid-cols-3 xl:grid-cols-6">
+                    <div class="grid grid-cols-1 gap-2 mt-4 text-sm sm:grid-cols-3 xl:grid-cols-4">
                         @foreach ([
                             ['Parameter Gaji', 'Master Karyawan › tombol Gaji (+ poin JM)', 'sekali / bila berubah'],
                             ['Generate', 'Slip Draft semua karyawan', 'tiap bulan'],
                             ['Jasa Medik', 'Pembagian JM › Terapkan ke Slip', 'tiap bulan'],
-                            ['Form Bagian', 'Excel: hari kerja, lembur, bon, koperasi …', 'tiap bulan'],
+                            ['Laporan Kepegawaian', 'Hari kerja & lembur isian kepegawaian › Terapkan ke Slip', 'tiap bulan'],
+                            ['Pinjaman Karyawan', 'Buku pinjaman › angsuran bulan ini › Terapkan ke Slip', 'tiap bulan'],
+                            ['Form Bagian', 'Excel: bon, kenaikan gaji, iuran koperasi, BPJS', 'tiap bulan'],
                             ['Final', 'Kunci slip yang sudah benar', 'tiap bulan'],
                             ['Cetak / WA', 'PDF slip atau kirim ke WhatsApp', 'tiap bulan'],
                         ] as $urutan => [$judul, $isi, $kapan])
@@ -95,12 +101,14 @@ new class extends Component {
                     <ol class="mt-3 text-sm">
                         <li><b>Generate</b> slip bulan kerja di {!! $tautan('keuangan.gaji-karyawan', 'Gaji Karyawan') !!} (bagian 2).</li>
                         <li><b>Jasa Medik</b>: di {!! $tautan('keuangan.pembagian-jm', 'Pembagian Jasa Medik') !!} isi nilai dasar per pos, <b>Generate Poin dari Master</b>, lalu <b>Terapkan ke Slip</b> (bagian 3).</li>
-                        <li><b>Form Bagian</b>: ekspor form Excel tiap bagian, kirim ke bagian terkait, lalu impor hasilnya (bagian 4).
-                            Ekspor form <b>Lembur setelah JM diterapkan</b> — dasar upah lembur ikut menghitung JM.</li>
-                        <li>Periksa <b>Rincian</b> slip yang janggal (bagian 5), lalu <b>Final</b> (bagian 8).</li>
-                        <li><b>Cetak</b> / <b>kirim WhatsApp</b> (bagian 9).</li>
+                        <li><b>Laporan Kepegawaian</b>: kolom sudah terisi dari master; kepegawaian mengubah hari kerja / cuti / jam lembur yang berbeda di {!! $tautan('keuangan.laporan-pegawai', 'Laporan Kepegawaian') !!}; Keuangan klik <b>Terapkan ke Slip</b> (bagian 4).
+                            Lakukan <b>setelah JM diterapkan</b> — dasar upah lembur memuat JM.</li>
+                        <li><b>Pinjaman Karyawan</b>: pinjaman baru dicatat di {!! $tautan('keuangan.pinjaman-karyawan', 'Pinjaman Karyawan') !!} saat terjadi; tiap bulan cukup klik <b>Terapkan ke Slip</b> (bagian 5).</li>
+                        <li><b>Form Bagian</b>: ekspor form Excel tiap bagian, kirim ke bagian terkait, lalu impor hasilnya (bagian 6).</li>
+                        <li>Periksa <b>Rincian</b> slip yang janggal (bagian 7), lalu <b>Final</b> (bagian 10).</li>
+                        <li><b>Cetak</b> / <b>kirim WhatsApp</b> (bagian 11).</li>
                     </ol>
-                    <p class="mt-3 text-sm">Langkah 2–4 boleh diulang selama slip masih <b>Draft</b>: Generate, Terapkan JM, dan impor form semuanya <b>mengganti</b> angka (bukan menambah), jadi aman diproses ulang bila ada perubahan.</p>
+                    <p class="mt-3 text-sm">Langkah 2–6 boleh diulang selama slip masih <b>Draft</b>: Generate, Terapkan JM, Terapkan laporan kepegawaian, Terapkan angsuran, dan impor form semuanya <b>mengganti</b> angka (bukan menambah), jadi aman diproses ulang bila ada perubahan.</p>
                 </section>
 
                 {{-- PARAMETER --}}
@@ -116,15 +124,15 @@ new class extends Component {
                         <tbody>
                             <tr><td>Gaji Pokok, Tunjangan Struktural, Tunjangan Profesi</td><td>Nominal tetap per bulan.</td></tr>
                             <tr><td>Tarif Makan, Tarif Transport</td><td>Per <b>hari kerja</b> — dikali hari kerja slip.</td></tr>
-                            <tr><td>Hari Kerja Default</td><td>Pengali tarif makan &amp; transport untuk slip <b>baru</b> (mis. 25). Per slip bisa diubah (bagian 6).</td></tr>
+                            <tr><td>Hari Kerja Default</td><td>Pengali tarif makan &amp; transport untuk slip <b>baru</b> (mis. 25). Per slip bisa diubah (bagian 8).</td></tr>
                             <tr><td>Potongan rutin</td><td>Asuransi, iuran organisasi (PPNI/IBI), arisan, koperasi, infaq, BPJS — nominal tetap per bulan.</td></tr>
-                            <tr><td>PPh 21 (%)</td><td>Persen dari total pendapatan slip (bagian 7). 0 = tanpa PPh.</td></tr>
+                            <tr><td>PPh 21 (%)</td><td>Persen dari total pendapatan slip (bagian 9). 0 = tanpa PPh.</td></tr>
                             <tr><td>Bank &amp; No. Rekening</td><td>Tercetak di slip.</td></tr>
                             <tr><td>Poin Jasa Medik (master)</td><td>Poin karyawan per pos ({{ collect($jm::POS)->pluck('nama')->implode(', ') }}), boleh desimal. Sumber <b>Generate Poin dari Master</b> di menu Pembagian Jasa Medik (bagian 3).</td></tr>
                         </tbody>
                     </table>
                     <p class="mt-3 text-sm">Mengubah parameter <b>tidak mengubah slip yang sudah ada</b> — berlaku untuk slip yang di-generate berikutnya (atau slip Draft yang di-generate ulang).
-                        Jasa medik dihitung di menu Pembagian Jasa Medik; upah lembur, kasbon, angsuran dll. berubah tiap bulan — diisi lewat Form Bagian (Excel) atau rincian slip.</p>
+                        Jasa medik dihitung di menu Pembagian Jasa Medik; hari kerja &amp; upah lembur di menu Laporan Kepegawaian; kasbon, angsuran dll. berubah tiap bulan — diisi lewat Form Bagian (Excel) atau rincian slip.</p>
                     <p class="mt-2 text-sm">No. HP karyawan (untuk kirim WhatsApp) diisi di form <b>Edit</b> Master Karyawan.</p>
                 </section>
 
@@ -183,9 +191,65 @@ new class extends Component {
                     </ul>
                 </section>
 
+                {{-- LAPORAN KEPEGAWAIAN --}}
+                <section id="lap" class="p-6 border scroll-mt-24 bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
+                    <h2>4. Laporan Kepegawaian — {!! $tautan('keuangan.laporan-pegawai', 'buka') !!}</h2>
+                    <p class="mt-2 text-sm">Pengganti sheet <i>Lap Pegawai</i> Excel lama (laporan Kasubbag Kepegawaian). Hari kerja, cuti, dan jam lembur tiap karyawan diisi kepegawaian dari catatan mereka (daftar lembur, catatan kehadiran), lalu ditulis ke slip oleh Keuangan.
+                        Berdiri sendiri seperti Pembagian JM — <b>tidak terhubung</b> ke modul absensi program.
+                        Role <b>HRD</b> mengisi; <b>Keuangan</b> hanya membaca dan menerapkan; <b>Admin</b> keduanya.</p>
+                    <h3 class="mt-4">Tiap bulan</h3>
+                    <ol class="mt-1 text-sm">
+                        <li>Pilih <b>Bulan Kerja</b> (sama dengan bulan slip), pastikan slip sudah di-<b>Generate</b> dan <b>JM sudah diterapkan</b> (dasar upah lembur memuat JM).</li>
+                        <li>Kolom sudah <b>terisi bawaan</b>: hari kerja = hari kerja slip bulan ini (slip baru memakai <b>Hari Kerja Default</b> Master Karyawan → Gaji), cuti &amp; lembur 0. Tidak perlu mengisi satu per satu.</li>
+                        <li>Ubah hanya yang berbeda: <b>Hari Kerja</b>, <b>Cuti</b>, <b>Jam Lembur</b> langsung di kotaknya; klik di luar kotak = tersimpan, nama karyawan bertanda ✎. Angka kecil di bawah kotak Hari Kerja = hari kerja di slip saat ini. Kolom <b>Keterangan</b> untuk catatan ke Keuangan (mis. "lembur laundry", "cuti panjang").</li>
+                        <li>Kolom <b>Upah Lembur</b> = perkiraan dari dasar slip saat ini (pokok + JM + makan + transport).</li>
+                        <li>Keuangan klik <b>Terapkan ke Slip</b> → hari kerja slip disamakan (tunjangan makan &amp; transport dihitung ulang) dan baris <b>Upah Lembur</b> ditulis, mis. "6 jam".</li>
+                    </ol>
+                    <ul class="mt-3 text-sm">
+                        <li><b>Terapkan ke Slip aman diulang.</b> Hari kerja &amp; lembur di slip diganti angka terbaru, bukan ditambah. Bila laporan, JM, atau hari kerja berubah setelah diterapkan, muncul tanda "N slip Draft belum sesuai laporan" dan kolom Slip bertanda <b>Belum sesuai</b> — cukup klik Terapkan lagi.</li>
+                        <li>Slip <b>Final</b> dilewati (tanda merah "Final, beda"). Buka slipnya ke Draft dulu bila memang perlu diubah.</li>
+                        <li>Karyawan yang belum punya slip disebut di pesan — Generate slip dulu, lalu Terapkan lagi.</li>
+                        <li>Unit yang memang kerja 22 hari: ubah <b>Hari Kerja Default</b> karyawannya di Master Karyawan sekali saja, supaya tiap bulan tinggal koreksi cuti &amp; lembur.</li>
+                        <li>Karyawan non-aktif keluar dari hitungan (sama seperti JM); barisnya tidak dihapus, jadi bila diaktifkan lagi angkanya kembali.</li>
+                        <li>Cuti hanya informasi (tidak masuk slip) — kurangi sendiri hari kerjanya.</li>
+                        <li>Upah lembur = jam ÷ {{ $lap::LEMBUR_JAM_PER_HARI }} ÷ {{ $lap::LEMBUR_HARI_ACUAN }} × dasar × {{ $lap::LEMBUR_FAKTOR * 100 }}%. Lembur tidak ada di Form Bagian (Excel) — supaya lembur slip hanya punya satu sumber.</li>
+                    </ul>
+                </section>
+
+                {{-- PINJAMAN KARYAWAN --}}
+                <section id="pinjaman" class="p-6 border scroll-mt-24 bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
+                    <h2>5. Pinjaman Karyawan — {!! $tautan('keuangan.pinjaman-karyawan', 'buka') !!}</h2>
+                    <p class="mt-2 text-sm">Pengganti buku pinjaman koperasi (workbook <i>Angsuran Tiap Bulan Potong Gaji</i>, sheet 1% / 0,8% / LAPORAN 1) dan blok BRI / Koperasi / Rinjani di sheet <i>angsuran</i> workbook gaji lama.
+                        Pinjaman dicatat <b>sekali</b>; angsuran tiap bulan dihitung sendiri, posisi "ke-n / lama" bergeser otomatis, dan berhenti saat lunas.</p>
+                    <h3 class="mt-4">Ketentuan (sekali, atau bila berubah)</h3>
+                    <ul class="mt-1 text-sm">
+                        <li>Tabel <b>1. Ketentuan sumber pinjaman</b>: tiap sumber (Koperasi, BRI, …) punya <b>% sewa modal / bulan</b>, <b>pembulatan</b> angsuran, dan <b>baris slip</b> tujuan (Angsuran Koperasi / Angsuran Bank / Angsuran lain). Sumber baru ditambah di baris bawah tabel.</li>
+                        <li>Perubahan ketentuan berlaku untuk pinjaman <b>baru</b>. Pinjaman lama tetap pada % saat pinjam (tersimpan di pinjamannya; ubah lewat tombol Edit bila memang disepakati).</li>
+                        <li>Rumus (sama dengan Excel koperasi): sewa modal / bln = pokok × %; angsuran / bln = (pokok ÷ lama + sewa modal) dibulatkan ke atas ke kelipatan pembulatan.</li>
+                    </ul>
+                    <h3 class="mt-4">Saat ada yang pinjam</h3>
+                    <ol class="mt-1 text-sm">
+                        <li>Klik <b>Pinjaman Baru</b>: pilih karyawan dan sumber, isi pokok, lama (bulan), dan <b>bulan kerja angsuran ke-1</b>. % sewa modal terisi dari ketentuan sumber, boleh diubah untuk pinjaman itu (mis. 0 = tanpa sewa modal).</li>
+                        <li>Kotak pratinjau menampilkan sewa modal, pokok / bln, <b>angsuran / bln</b>, total, dan bulan terakhir. Simpan.</li>
+                        <li>Klik <b>Terapkan ke Slip</b> bila slip bulan ini sudah ada — atau biarkan, tiap bulan tetap harus Terapkan (bagian "Tiap bulan").</li>
+                    </ol>
+                    <h3 class="mt-4">Tiap bulan</h3>
+                    <ol class="mt-1 text-sm">
+                        <li>Pilih <b>Bulan Kerja</b> (sama dengan bulan slip). Kolom Posisi menunjukkan angsuran ke berapa dan sisa bulan.</li>
+                        <li>Klik <b>Terapkan ke Slip</b> → satu baris potongan per pinjaman berjalan ditulis ke slip Draft, mis. "Koperasi An-Nashir ke-5/15". Pinjaman yang sudah lunas tidak ditulis; bekas angsurannya di slip dihapus.</li>
+                    </ol>
+                    <ul class="mt-3 text-sm">
+                        <li><b>Terapkan aman diulang</b> — angsuran di slip diganti, bukan ditambah. Tanda "N slip Draft belum sesuai buku pinjaman" muncul bila ada pinjaman baru / lunas / diubah setelah diterapkan.</li>
+                        <li><b>Pelunasan dipercepat</b>: tombol <b>Lunasi</b> → mulai bulan kerja terpilih tidak dipotong lagi; riwayat tetap ada (saringan Status: Lunas). Salah tandai → <b>Batal lunas</b>.</li>
+                        <li><b>Hapus</b> hanya untuk salah input. Slip <b>Final</b> tidak disentuh.</li>
+                        <li>Karyawan non-aktif keluar dari tagihan (pinjamannya tetap tercatat sebagai riwayat).</li>
+                        <li>Angsuran koperasi / bank tidak ada lagi di Form Bagian (Excel). Form Koperasi hanya untuk <b>iuran</b>. Angsuran lama yang masih berupa baris "Angsuran" manual di rincian slip tidak disentuh menu ini.</li>
+                    </ul>
+                </section>
+
                 {{-- FORM BAGIAN --}}
                 <section id="form-bagian" class="p-6 border scroll-mt-24 bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
-                    <h2>4. Form Bagian (Excel) — ekspor &amp; impor</h2>
+                    <h2>6. Form Bagian (Excel) — ekspor &amp; impor</h2>
                     <p class="mt-2 text-sm">Pengganti sheet-sheet Excel lama per bagian. Keuangan mengekspor form, bagian terkait mengisi, keuangan mengimpor kembali.</p>
                     <ol class="mt-3 text-sm">
                         <li>Di {!! $tautan('keuangan.gaji-karyawan', 'Gaji Karyawan') !!} pilih <b>Bulan Kerja</b> (dan Unit bila perlu), pastikan slip sudah di-<b>Generate</b>.</li>
@@ -213,18 +277,16 @@ new class extends Component {
                     </ul>
                     <h3 class="mt-4">Catatan per form</h3>
                     <ul class="mt-1 text-sm">
-                        <li><b>Lembur</b>: isi jam; upah terhitung otomatis = jam ÷ {{ \App\Support\GajiFormBagian::LEMBUR_JAM_PER_HARI }} ÷ {{ \App\Support\GajiFormBagian::LEMBUR_HARI_ACUAN }} × dasar upah × {{ \App\Support\GajiFormBagian::LEMBUR_FAKTOR * 100 }}%
-                            (dasar = gaji pokok + jasa medik + makan + transport). Upah boleh ditimpa; dikosongkan = dihitung dari jam.</li>
+                        <li><b>Hari Kerja</b>: koreksi cepat per slip. Jalur utamanya tetap {!! $tautan('keuangan.laporan-pegawai', 'Laporan Kepegawaian') !!} (bagian 4); hari kerja yang diubah lewat form ini akan tampil "Belum sesuai" di sana sampai diterapkan ulang.</li>
                         <li><b>Kenaikan Gaji</b>: mengubah parameter gaji karyawan, dan slip Draft bulan itu langsung disusun ulang.</li>
-                        <li><b>Koperasi</b> &amp; <b>BPJS</b>: menimpa potongan rutin parameter untuk bulan itu saja.</li>
-                        <li>Kolom <b>Angsuran Lain (belum dirinci)</b> di form Koperasi &amp; Bank = angsuran gabungan lama di slip. Bila sudah dirinci di form, hapus baris gabungan itu di rincian slip supaya tidak terpotong dua kali.</li>
+                        <li><b>Iuran Koperasi</b> &amp; <b>BPJS</b>: menimpa potongan rutin parameter untuk bulan itu saja. Angsuran pinjaman tidak di sini — lihat {!! $tautan('keuangan.pinjaman-karyawan', 'Pinjaman Karyawan') !!} (bagian 5).</li>
                     </ul>
                     <p class="mt-3 text-sm">Sandi proteksi form hanya diketahui keuangan (pengaturan <code>GAJI_FORM_SANDI</code> di server).</p>
                 </section>
 
                 {{-- RINCIAN --}}
                 <section id="rincian" class="p-6 border scroll-mt-24 bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
-                    <h2>5. Rincian slip</h2>
+                    <h2>7. Rincian slip</h2>
                     <p class="mt-2 text-sm">Klik ikon mata (<b>Rincian</b>) atau nama karyawan. Kiri: tabel rincian. Kanan: Hari Kerja, Tambah Baris, Ringkasan.</p>
                     <h3 class="mt-4">Tambah baris (tiap bulan)</h3>
                     <ol class="mt-1 text-sm">
@@ -254,7 +316,7 @@ new class extends Component {
 
                 {{-- HARI KERJA --}}
                 <section id="hari-kerja" class="p-6 border scroll-mt-24 bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
-                    <h2>6. Mengubah hari kerja (cuti / izin / tambahan)</h2>
+                    <h2>8. Mengubah hari kerja (cuti / izin / tambahan)</h2>
                     <ol class="mt-3 text-sm">
                         <li>Buka <b>Rincian</b> slip karyawan.</li>
                         <li>Di kotak <b>Hari Kerja</b> (kanan atas) ketik jumlah harinya, mis. 25 dikurangi 2 hari cuti → <b>23</b>.</li>
@@ -264,12 +326,13 @@ new class extends Component {
                         <li>Di bawah kotak tampil acuan <b>"Absensi bulan ini: N hari hadir"</b> (Hadir/Terlambat dari modul absensi). Bila beda, tersedia tombol <b>Pakai absensi (N hari)</b>.</li>
                         <li>Hari kerja tersimpan <b>per slip</b> — tidak ikut berubah saat Generate / Susun ulang. Hari kerja default di parameter hanya untuk slip baru.</li>
                         <li>Batas 0–31 hari. Hanya bisa diubah selama slip <b>Draft</b>.</li>
+                        <li>Untuk <b>semua karyawan sekaligus</b> pakai {!! $tautan('keuangan.laporan-pegawai', 'Laporan Kepegawaian') !!} (bagian 4) — hari kerja isian kepegawaian diterapkan ke seluruh slip Draft.</li>
                     </ul>
                 </section>
 
                 {{-- PPH --}}
                 <section id="pph" class="p-6 border scroll-mt-24 bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
-                    <h2>7. PPh 21</h2>
+                    <h2>9. PPh 21</h2>
                     <ul class="mt-3 text-sm">
                         <li>Dihitung otomatis: <b>PPh 21 (%) × total pendapatan</b>, dibulatkan ke bawah. Baris PPh muncul bila persennya &gt; 0.</li>
                         <li>Untuk memakai nominal sendiri (mis. hasil hitungan TER), <b>ubah nilai baris PPh 21</b> di tabel — baris jadi <i>ditimpa</i> dan tidak dihitung ulang lagi. Panah balik mengembalikan ke hitungan persen.</li>
@@ -278,7 +341,7 @@ new class extends Component {
 
                 {{-- FINAL --}}
                 <section id="final" class="p-6 border scroll-mt-24 bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
-                    <h2>8. Final &amp; buka kembali</h2>
+                    <h2>10. Final &amp; buka kembali</h2>
                     <ul class="mt-3 text-sm">
                         <li><b>Final</b> mengunci slip: rincian &amp; hari kerja tidak bisa diubah, generate ulang melewatinya. Tombol Final ada di kolom Aksi, footer Rincian, atau <b>Final Semua</b> (semua Draft yang tampil).</li>
                         <li>Salah? Klik <b>Buka</b> (kuning) / <b>Buka kembali ke Draft</b> — slip bisa diubah lagi. Link WhatsApp yang sudah dikirim ikut <b>mati</b> sampai slip difinalkan lagi.</li>
@@ -288,7 +351,7 @@ new class extends Component {
 
                 {{-- CETAK & WA --}}
                 <section id="cetak" class="p-6 border scroll-mt-24 bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
-                    <h2>9. Cetak &amp; kirim WhatsApp</h2>
+                    <h2>11. Cetak &amp; kirim WhatsApp</h2>
                     <h3 class="mt-3">Cetak</h3>
                     <ul class="mt-1 text-sm">
                         <li>Ikon printer biru di baris = slip satu karyawan. <b>ZIP</b> di toolbar = semua slip yang tampil (sesuai filter) diunduh sekaligus, satu PDF per karyawan bernama <i>Slip Gaji - NAMA - Bulan Tahun.pdf</i>.</li>
@@ -319,7 +382,7 @@ new class extends Component {
                             <tr><td class="font-semibold">Tunjangan makan / transport</td><td>hari kerja × tarif per hari</td></tr>
                             <tr><td class="font-semibold">Total pendapatan</td><td>gaji pokok + tunjangan + makan + transport + jasa medik + lembur + bonus + rapel + koreksi + lain</td></tr>
                             <tr><td class="font-semibold">Jasa medik per pos</td><td>poin karyawan × (nilai dasar × % JM × % pegawai ÷ total poin pos)</td></tr>
-                            <tr><td class="font-semibold">Upah lembur</td><td>jam ÷ {{ \App\Support\GajiFormBagian::LEMBUR_JAM_PER_HARI }} ÷ {{ \App\Support\GajiFormBagian::LEMBUR_HARI_ACUAN }} × (gaji pokok + jasa medik + makan + transport) × {{ \App\Support\GajiFormBagian::LEMBUR_FAKTOR * 100 }}%</td></tr>
+                            <tr><td class="font-semibold">Upah lembur</td><td>jam ÷ {{ $lap::LEMBUR_JAM_PER_HARI }} ÷ {{ $lap::LEMBUR_HARI_ACUAN }} × (gaji pokok + jasa medik + makan + transport) × {{ $lap::LEMBUR_FAKTOR * 100 }}%</td></tr>
                             <tr><td class="font-semibold">PPh 21</td><td>PPh 21 (%) × total pendapatan (dibulatkan ke bawah), kecuali ditimpa</td></tr>
                             <tr><td class="font-semibold">Total potongan</td><td>potongan rutin + angsuran + kasbon + lain + PPh 21</td></tr>
                             <tr><td class="font-semibold">Gaji diterima</td><td>total pendapatan − total potongan</td></tr>
@@ -335,7 +398,7 @@ new class extends Component {
                         @foreach ([
                             ['Karyawan tidak muncul saat Generate?', 'Parameter gajinya belum diatur, atau karyawannya non-aktif. Cek Master Karyawan dengan filter "Gaji belum diatur".'],
                             ['Karyawan keluar / berhenti?', 'Non-aktifkan di Master Karyawan. Karyawan non-aktif keluar dari hitungan: Generate gaji tidak membuatkan slip dan menghapus slip Draft-nya bulan itu (slip Final tetap disimpan); poinnya tidak ikut Pembagian JM, jadi jatah JM terbagi ke karyawan aktif. Proses gaji bulan terakhirnya DULU, baru non-aktifkan. Bila diaktifkan lagi, poin & slipnya ikut kembali saat Generate.'],
-                            ['Hari kerja salah setelah Generate?', 'Ubah di kotak Hari Kerja pada Rincian (bagian 6), atau impor form Hari Kerja (bagian 4). Hari kerja per slip tidak diubah lagi oleh Generate / Susun ulang.'],
+                            ['Hari kerja salah setelah Generate?', 'Ubah di kotak Hari Kerja pada Rincian (bagian 8), atau impor form Hari Kerja (bagian 6). Hari kerja per slip tidak diubah lagi oleh Generate / Susun ulang.'],
                             ['Gaji pokok naik bulan ini?', 'Ubah di Master Karyawan › Gaji lalu Generate ulang bulan itu, atau untuk banyak karyawan sekaligus pakai form Kenaikan Gaji (Form Bagian) — slip Draft langsung disusun ulang. Slip bulan-bulan sebelumnya tidak berubah.'],
                             ['JM di slip beda dengan menu Pembagian JM?', 'Ada perubahan nilai dasar / persen / poin setelah diterapkan. Di Pembagian JM akan muncul tanda "belum sesuai" — klik Terapkan ke Slip lagi. Slip Final harus dibuka ke Draft dulu.'],
                             ['Impor form ditolak?', 'Pesannya menyebut sebabnya: form untuk bulan lain (ganti bulan di toolbar), form bagian lain (impor di kartu yang benar), atau susunan kolom berubah (ekspor ulang form, jangan sisip/hapus kolom).'],

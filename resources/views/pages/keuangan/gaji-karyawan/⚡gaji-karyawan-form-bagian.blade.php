@@ -10,8 +10,9 @@ use App\Support\GajiFormBagian;
 use App\Support\GajiKaryawan;
 
 /**
- * Modal "Form Bagian": ekspor form Excel per bagian (hari kerja, lembur, bon, kenaikan gaji,
- * koperasi, pinjaman bank, BPJS). Jasa Medik lewat menu Pembagian Jasa Medik (kartu penunjuk di akhir grid) untuk diisi bagian terkait, lalu impor kembali → slip Draft diperbarui.
+ * Modal "Form Bagian": ekspor form Excel per bagian (hari kerja, bon, kenaikan gaji, iuran koperasi, BPJS)
+ * untuk diisi bagian terkait, lalu impor kembali → slip Draft diperbarui.
+ * Jasa Medik lewat menu Pembagian Jasa Medik, Lembur lewat Laporan Kepegawaian, angsuran lewat Pinjaman Karyawan (kartu penunjuk di akhir grid).
  * Logika ekspor/impor di App\Support\GajiFormBagian. Bulan & unit mengikuti toolbar halaman gaji.
  */
 new class extends Component {
@@ -172,6 +173,32 @@ new class extends Component {
                         <a href="{{ route('keuangan.pembagian-jm', ['bulan' => $periode !== '' ? \App\Support\GajiKaryawan::awalPeriode($periode)->format('m/Y') : null]) }}" wire:navigate
                             class="inline-flex items-center justify-center w-full gap-2 px-5 py-2.5 mt-auto text-sm font-medium border rounded-lg text-brand-green border-brand-green/30 bg-brand-green/10 hover:bg-brand-green hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green dark:text-brand-lime dark:border-brand-lime/30 dark:bg-brand-lime/10 dark:hover:bg-brand-lime dark:hover:text-gray-900">
                             Buka Pembagian Jasa Medik →
+                        </a>
+                    </div>
+
+                    {{-- Lembur bukan form Excel: jam lembur & hari kerja diisi kepegawaian di menu Laporan Kepegawaian (satu sumber lembur slip). --}}
+                    <div class="flex flex-col p-4 border border-dashed shadow-sm bg-canvas border-hairline rounded-2xl dark:bg-gray-800 dark:border-gray-700">
+                        <div class="flex items-start justify-between gap-2">
+                            <h3 class="font-semibold text-ink dark:text-gray-100">Lembur &amp; Hari Kerja</h3>
+                            <x-badge variant="info" class="shrink-0">Menu sendiri</x-badge>
+                        </div>
+                        <p class="mt-1 text-xs text-muted">Tidak lewat Excel. Jam lembur &amp; hari kerja diisi kepegawaian langsung di menu Laporan Kepegawaian, lalu diterapkan ke slip. Form Hari Kerja di atas tetap tersedia untuk koreksi cepat.</p>
+                        <a href="{{ route('keuangan.laporan-pegawai', ['bulan' => $periode !== '' ? \App\Support\GajiKaryawan::awalPeriode($periode)->format('m/Y') : null]) }}" wire:navigate
+                            class="inline-flex items-center justify-center w-full gap-2 px-5 py-2.5 mt-auto text-sm font-medium border rounded-lg text-brand-green border-brand-green/30 bg-brand-green/10 hover:bg-brand-green hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green dark:text-brand-lime dark:border-brand-lime/30 dark:bg-brand-lime/10 dark:hover:bg-brand-lime dark:hover:text-gray-900">
+                            Buka Laporan Kepegawaian →
+                        </a>
+                    </div>
+
+                    {{-- Angsuran bukan form Excel: dihitung dari buku pinjaman di menu Pinjaman Karyawan (satu sumber angsuran slip). --}}
+                    <div class="flex flex-col p-4 border border-dashed shadow-sm bg-canvas border-hairline rounded-2xl dark:bg-gray-800 dark:border-gray-700">
+                        <div class="flex items-start justify-between gap-2">
+                            <h3 class="font-semibold text-ink dark:text-gray-100">Angsuran Koperasi &amp; Bank</h3>
+                            <x-badge variant="info" class="shrink-0">Menu sendiri</x-badge>
+                        </div>
+                        <p class="mt-1 text-xs text-muted">Tidak lewat Excel. Pinjaman dicatat sekali di buku pinjaman (pokok, sewa modal, lama, bulan awal); angsuran tiap bulan terhitung sendiri, berhenti saat lunas, lalu diterapkan ke slip di menu Pinjaman Karyawan.</p>
+                        <a href="{{ route('keuangan.pinjaman-karyawan', ['bulan' => $periode !== '' ? \App\Support\GajiKaryawan::awalPeriode($periode)->format('m/Y') : null]) }}" wire:navigate
+                            class="inline-flex items-center justify-center w-full gap-2 px-5 py-2.5 mt-auto text-sm font-medium border rounded-lg text-brand-green border-brand-green/30 bg-brand-green/10 hover:bg-brand-green hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green dark:text-brand-lime dark:border-brand-lime/30 dark:bg-brand-lime/10 dark:hover:bg-brand-lime dark:hover:text-gray-900">
+                            Buka Pinjaman Karyawan →
                         </a>
                     </div>
                 </div>

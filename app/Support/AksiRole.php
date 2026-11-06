@@ -37,6 +37,14 @@ class AksiRole
     /** Role yang boleh membuka & mengelola gaji karyawan (parameter, slip, cetak). Data gaji = rahasia. */
     public const GAJI_KELOLA = ['Admin', 'Keuangan'];
 
+    /* ─────────────── KEPEGAWAIAN ─────────────── */
+
+    /** Role yang boleh MEMBUKA Laporan Kepegawaian (hari kerja, cuti, lembur per bulan). Keuangan ikut membaca & menerapkan ke slip. */
+    public const LAPORAN_PEGAWAI_LIHAT = ['Admin', 'HRD', 'Keuangan'];
+
+    /** Role yang boleh MENGISI Laporan Kepegawaian (siapkan baris, isi hari kerja / cuti / lembur). Terapkan ke slip tetap GAJI_KELOLA. */
+    public const LAPORAN_PEGAWAI_ISI = ['Admin', 'HRD'];
+
     /* ─────────────── MUTU ─────────────── */
 
     /** Role yang boleh mengunci / membuka kunci kertas kerja indikator mutu satu bulan (validasi Komite Mutu). */

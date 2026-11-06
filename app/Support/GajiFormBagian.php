@@ -16,9 +16,11 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 /**
  * Form Excel per BAGIAN untuk slip gaji — pengganti sheet-sheet terpisah di workbook gaji lama
- * (lembur, angsuran, peg/BON, BPJS, …) yang dulu dirangkum sheet "gaji" lewat SUMIF nama.
- * Jasa Medik TIDAK lewat form ini — dihitung & diterapkan di menu Pembagian Jasa Medik (App\Support\JasaMedik),
- * supaya baris Jasa Medik slip hanya punya satu sumber.
+ * (angsuran, peg/BON, BPJS, …) yang dulu dirangkum sheet "gaji" lewat SUMIF nama.
+ * Jasa Medik TIDAK lewat form ini — dihitung & diterapkan di menu Pembagian Jasa Medik (App\Support\JasaMedik);
+ * Lembur juga TIDAK — hari kerja & jam lembur dari menu Laporan Kepegawaian (App\Support\LaporanPegawai).
+ * Angsuran koperasi / bank juga TIDAK — dari buku pinjaman di menu Pinjaman Karyawan (App\Support\PinjamanKaryawan).
+ * Dengan begitu baris Jasa Medik, Upah Lembur, dan Angsuran slip masing-masing hanya punya satu sumber.
  *
  * Alur: keuangan EKSPOR form satu bagian (berisi daftar slip periode + nilai saat ini) → dikirim ke
  * bagian terkait → bagian mengisi kolom KUNING → keuangan IMPOR → slip Draft diperbarui.
@@ -34,14 +36,6 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  */
 class GajiFormBagian
 {
-    /** Upah lembur ala workbook lama: jam ÷ 7 jam/hari ÷ 22 hari × dasar upah × 150 %. */
-    public const LEMBUR_JAM_PER_HARI = 7;
-    public const LEMBUR_HARI_ACUAN   = 22;
-    public const LEMBUR_FAKTOR       = 1.5;
-
-    /** Komponen yang menjadi dasar upah lembur. */
-    private const KODE_DASAR_LEMBUR = ['POKOK', 'JASA_MEDIK', 'MAKAN', 'TRANSPORT'];
-
     private const BARIS_PETUNJUK = 4;
     private const BARIS_HEADER   = 5;
     private const BARIS_CONTOH   = 6; // contoh pengisian — tidak diimpor
@@ -71,15 +65,6 @@ class GajiFormBagian
                     ['key' => 'hari_kerja', 'label' => 'Hari Kerja', 'tipe' => 'angka', 'isi' => true, 'contoh' => 20, 'petunjuk' => 'Bilangan bulat 0–31. Kosong = tidak diubah'],
                 ],
             ],
-            'lembur' => [
-                'judul' => 'Lembur', 'petugas' => 'Kepegawaian',
-                'keterangan' => 'Isi jam lembur; upah dihitung otomatis (jam ÷ 7 ÷ 22 × dasar × 150%) dan boleh ditimpa.',
-                'kolom' => [
-                    ['key' => 'dasar', 'label' => 'Dasar Upah', 'tipe' => 'rupiah', 'contoh' => 3000000, 'petunjuk' => 'Pokok + JM + makan + transport'],
-                    ['key' => 'jam', 'label' => 'Jam Lembur', 'tipe' => 'angka', 'isi' => true, 'contoh' => 14, 'petunjuk' => 'Total jam sebulan, mis. 14 atau 3,5'],
-                    ['key' => 'upah', 'label' => 'Upah Lembur', 'tipe' => 'rupiah', 'isi' => true, 'contoh' => 'rumus', 'petunjuk' => 'Terhitung otomatis dari jam; boleh ditimpa'],
-                ],
-            ],
             'bon' => [
                 'judul' => 'Bon / Kasbon', 'petugas' => 'Kasir / Keuangan',
                 'keterangan' => 'Total bon yang telah diambil bulan ini — dipotong dari gaji.',
@@ -100,23 +85,10 @@ class GajiFormBagian
                 ],
             ],
             'koperasi' => [
-                'judul' => 'Koperasi', 'petugas' => 'Koperasi',
-                'keterangan' => 'Iuran koperasi bulan ini (menimpa iuran rutin parameter) dan angsuran pinjaman koperasi. "Angsuran Lain" = angsuran gabungan lama di slip; hapus di rincian slip bila sudah dirinci di sini.',
+                'judul' => 'Iuran Koperasi', 'petugas' => 'Koperasi',
+                'keterangan' => 'Iuran koperasi bulan ini (menimpa iuran rutin parameter). Angsuran pinjaman koperasi TIDAK di sini — otomatis dari menu Pinjaman Karyawan.',
                 'kolom' => [
-                    ['key' => 'angs_lain', 'label' => 'Angsuran Lain (belum dirinci)', 'tipe' => 'rupiah', 'contoh' => 0, 'petunjuk' => 'Acuan: angsuran gabungan lama'],
                     ['key' => 'iuran', 'label' => 'Iuran Koperasi', 'tipe' => 'rupiah', 'isi' => true, 'contoh' => 100000, 'petunjuk' => 'Iuran bulan ini (menimpa iuran rutin)'],
-                    ['key' => 'angsuran', 'label' => 'Angsuran Koperasi', 'tipe' => 'rupiah', 'isi' => true, 'contoh' => 448000, 'petunjuk' => 'Angsuran pinjaman koperasi'],
-                ],
-            ],
-            'bank' => [
-                'judul' => 'Pinjaman Bank', 'petugas' => 'Keuangan',
-                'keterangan' => 'Angsuran pinjaman bank yang dipotong dari gaji (maks. 2 bank per karyawan). "Angsuran Lain" = angsuran gabungan lama di slip; hapus di rincian slip bila sudah dirinci di sini.',
-                'kolom' => [
-                    ['key' => 'angs_lain', 'label' => 'Angsuran Lain (belum dirinci)', 'tipe' => 'rupiah', 'contoh' => 0, 'petunjuk' => 'Acuan: angsuran gabungan lama'],
-                    ['key' => 'bank1', 'label' => 'Bank 1', 'tipe' => 'teks', 'isi' => true, 'contoh' => 'BRI', 'petunjuk' => 'Nama bank'],
-                    ['key' => 'angs1', 'label' => 'Angsuran Bank 1', 'tipe' => 'rupiah', 'isi' => true, 'contoh' => 1200000, 'petunjuk' => 'Angka saja'],
-                    ['key' => 'bank2', 'label' => 'Bank 2', 'tipe' => 'teks', 'isi' => true, 'contoh' => 'BSI', 'petunjuk' => 'Kosongkan bila hanya 1 bank'],
-                    ['key' => 'angs2', 'label' => 'Angsuran Bank 2', 'tipe' => 'rupiah', 'isi' => true, 'contoh' => 650000, 'petunjuk' => 'Angka saja'],
                 ],
             ],
             'bpjs' => [
@@ -197,9 +169,6 @@ class GajiFormBagian
                     $sheet->setCellValue($sel, $nilai);
                 }
             }
-            if ($bagian === 'lembur') {
-                self::isiRumusLembur($sheet, $huruf, $nomorBaris, $data);
-            }
             $nomorBaris++;
         }
         $barisAkhir = $nomorBaris - 1;
@@ -279,10 +248,7 @@ class GajiFormBagian
             }
             $h = $huruf[$kolom['key']];
             $sheet->setCellValue("{$h}{$p}", $kolom['petunjuk'] ?? '');
-            if ($kolom['contoh'] === 'rumus') { // upah lembur contoh = rumus yang sama dengan baris data
-                $sheet->setCellValue("{$h}{$c}", sprintf('=ROUND(%s/%d/%d*%s*%s,0)', $huruf['jam'] . $c,
-                    self::LEMBUR_JAM_PER_HARI, self::LEMBUR_HARI_ACUAN, $huruf['dasar'] . $c, self::LEMBUR_FAKTOR));
-            } elseif ($kolom['contoh'] !== null) {
+            if ($kolom['contoh'] !== null) {
                 $sheet->setCellValue("{$h}{$c}", $kolom['contoh']);
             }
             $format = match ($kolom['tipe']) { 'rupiah' => '#,##0', 'angka' => '0.##', default => '@' };
@@ -303,29 +269,10 @@ class GajiFormBagian
         $sheet->getStyle("A{$c}")->getFont()->setBold(true);
     }
 
-    /** Upah lembur pakai rumus Excel (ikut berubah saat jam diisi) — kecuali nilai di slip ditimpa manual. */
-    private static function isiRumusLembur(Worksheet $sheet, array $huruf, int $baris, array $data): void
-    {
-        $jam = (float) ($data['jam'] ?? 0);
-        $upah = (float) ($data['upah'] ?? 0);
-        if ($upah > 0 && abs($upah - self::hitungUpahLembur($jam, (float) $data['dasar'])) > 1) {
-            return; // nilai lama bukan hasil rumus → biarkan angka apa adanya
-        }
-        $j = $huruf['jam'] . $baris;
-        $d = $huruf['dasar'] . $baris;
-        $sheet->setCellValue($huruf['upah'] . $baris, sprintf('=IF(N(%s)=0,0,ROUND(%s/%d/%d*%s*%s,0))',
-            $j, $j, self::LEMBUR_JAM_PER_HARI, self::LEMBUR_HARI_ACUAN, $d, self::LEMBUR_FAKTOR));
-    }
-
     /** Sandi proteksi form (config gaji_form.sandi / env GAJI_FORM_SANDI) — hanya keuangan yang tahu. */
     private static function sandi(): string
     {
         return (string) (config('app.gaji_form_sandi') ?: 'siap-gaji');
-    }
-
-    public static function hitungUpahLembur(float $jam, float $dasar): float
-    {
-        return $jam <= 0 ? 0.0 : round($jam / self::LEMBUR_JAM_PER_HARI / self::LEMBUR_HARI_ACUAN * $dasar * self::LEMBUR_FAKTOR);
     }
 
     /**
@@ -384,26 +331,10 @@ class GajiFormBagian
         switch ($bagian) {
             case 'hari_kerja':
                 return ['hari_kerja' => (int) $slip->hari_hadir];
-            case 'lembur':
-                $barisLembur = $detail->where('kode', 'LEMBUR');
-                return [
-                    'dasar' => (float) $detail->whereIn('kode', self::KODE_DASAR_LEMBUR)->sum(fn($row) => (float) $row->nilai),
-                    'jam'   => (float) $barisLembur->sum(fn($row) => (float) $row->jumlah),
-                    'upah'  => $jumlah('LEMBUR'),
-                ];
             case 'bon':
                 return ['kasbon' => $jumlah('KASBON')];
             case 'koperasi':
-                return ['angs_lain' => $jumlah('ANGSURAN'), 'iuran' => $jumlah('KOPERASI'), 'angsuran' => $jumlah('ANGS_KOP')];
-            case 'bank':
-                $barisBank = $detail->where('kode', 'ANGS_BANK')->values();
-                return [
-                    'angs_lain' => $jumlah('ANGSURAN'),
-                    'bank1' => (string) ($barisBank[0]->keterangan ?? ''),
-                    'angs1' => abs((float) ($barisBank[0]->nilai ?? 0)),
-                    'bank2' => (string) ($barisBank[1]->keterangan ?? ''),
-                    'angs2' => (float) abs($barisBank->slice(1)->sum(fn($row) => (float) $row->nilai)),
-                ];
+                return ['iuran' => $jumlah('KOPERASI')];
             case 'bpjs':
                 return ['bpjs' => $jumlah('BPJS'), 'bpjs_tk' => $jumlah('BPJS_TK')];
         }
@@ -577,16 +508,6 @@ class GajiFormBagian
             $sekarang = array_intersect_key($sekarang, $nilai); // kolom acuan tidak dibandingkan
             $sekarang = array_map(fn($v) => is_string($v) ? $v : round((float) $v, 2), $sekarang);
 
-            if ($bagian === 'lembur' && $nilai['jam'] > 0 && $nilai['upah'] == 0) { // upah dikosongkan → hitung dari jam
-                $dasar = (float) $detail->whereIn('kode', self::KODE_DASAR_LEMBUR)->sum(fn($row) => (float) $row->nilai);
-                $nilai['upah'] = self::hitungUpahLembur($nilai['jam'], $dasar);
-            }
-            if ($bagian === 'bank') { // nama bank hanya berarti bila ada angsurannya
-                foreach ([1, 2] as $n) {
-                    if ($nilai["angs{$n}"] == 0) { $nilai["bank{$n}"] = ''; }
-                    if ($sekarang["angs{$n}"] == 0) { $sekarang["bank{$n}"] = ''; }
-                }
-            }
             if ($nilai == $sekarang) {
                 $hasil['sama']++;
                 continue;
@@ -601,23 +522,11 @@ class GajiFormBagian
     private static function terapkan(string $bagian, int $gajiId, array $nilai): void
     {
         switch ($bagian) {
-            case 'lembur':
-                $jam = (float) $nilai['jam'];
-                $label = rtrim(rtrim(number_format($jam, 2, ',', '.'), '0'), ',');
-                self::gantiManual($gajiId, 'D', 'LEMBUR', [['nilai' => $nilai['upah'], 'jumlah' => $jam, 'keterangan' => $jam > 0 ? "{$label} jam" : null]]);
-                break;
             case 'bon':
                 self::gantiManual($gajiId, 'P', 'KASBON', [['nilai' => $nilai['kasbon']]]);
                 break;
             case 'koperasi':
                 self::timpaRutin($gajiId, 'P', 'KOPERASI', $nilai['iuran']);
-                self::gantiManual($gajiId, 'P', 'ANGS_KOP', [['nilai' => $nilai['angsuran']]]);
-                break;
-            case 'bank':
-                self::gantiManual($gajiId, 'P', 'ANGS_BANK', [
-                    ['nilai' => $nilai['angs1'], 'keterangan' => $nilai['bank1']],
-                    ['nilai' => $nilai['angs2'], 'keterangan' => $nilai['bank2']],
-                ]);
                 break;
             case 'bpjs':
                 self::timpaRutin($gajiId, 'P', 'BPJS', $nilai['bpjs']);
