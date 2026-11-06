@@ -9,7 +9,7 @@ use App\Support\GajiDokterSirus;
 use App\Support\GajiKaryawan;
 
 /**
- * Tab BUKU Gaji Dokter (anak pembungkus gaji-dokter): slip gaji dokter SIRUS per BULAN JASA — versi terbaru tiap dokter,
+ * Tab BUKU Gaji Dokter (anak pembungkus gaji-dokter; Rincian & Lampiran = modal terpisah sejajar tab): slip gaji dokter SIRUS per BULAN JASA — versi terbaru tiap dokter,
  * tombol "Ambil dari SIRUS" (snapshot berversi: sama → tidak ada perubahan; beda → versi baru, versi lama tetap),
  * pembanding dengan bulan lalu. Rincian (banding antar versi / bulan lalu) = komponen gaji-dokter-rincian, dibuka lewat event.
  * Bulan jasa & saringan disimpan di Session (komponen di-unmount saat ganti tab — docs/tabs-pattern.md).
@@ -104,9 +104,20 @@ new class extends Component {
         $this->dispatch('keuangan.gaji-dokter.openRincian', gdId: $gdId);
     }
 
+    /** Modal Lampiran = komponen terpisah (gaji-dokter-lampiran, sejajar tab) — satu dokter atau semua yang sedang tampil. */
     public function openLampiran(int $gdId): void
     {
         $this->dispatch('keuangan.gaji-dokter.openLampiran', gdId: $gdId);
+    }
+
+    public function openLampiranSemua(): void
+    {
+        $gdIdList = $this->rows->pluck('gd_id')->map(fn($id) => (int) $id)->values()->all();
+        if ($gdIdList === []) {
+            $this->dispatch('toast', type: 'warning', message: 'Belum ada slip yang bisa dilampirkan pada bulan jasa ini.');
+            return;
+        }
+        $this->dispatch('keuangan.gaji-dokter.openLampiranSemua', gdIdList: $gdIdList);
     }
 
     #[Computed]
@@ -192,6 +203,14 @@ new class extends Component {
             @else
                 <x-badge variant="danger">API SIRUS belum diatur di .env (SIAP_API_URL / USER / PASSWORD)</x-badge>
             @endif
+            {{-- Lampiran Semua = outline (tampilan pendamping, bukan aksi utama) — mengikuti saringan yang sedang tampil. --}}
+            <x-outline-button type="button" class="gap-2 whitespace-nowrap" wire:click="openLampiranSemua" wire:loading.attr="disabled" wire:target="openLampiranSemua" title="Lampiran rincian pasien semua dokter yang tampil">
+                <span wire:loading.remove wire:target="openLampiranSemua" class="inline-flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" /></svg>
+                    Lampiran Semua
+                </span>
+                <span wire:loading wire:target="openLampiranSemua" class="inline-flex items-center gap-2"><x-loading /> Menyiapkan...</span>
+            </x-outline-button>
             <x-toolbar-refresh-reset :label="null" />
         </div>
     </div>

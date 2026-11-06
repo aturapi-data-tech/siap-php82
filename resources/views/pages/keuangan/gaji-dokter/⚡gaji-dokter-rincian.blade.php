@@ -13,7 +13,7 @@ use App\Support\GajiKaryawan;
  * pembungkus gaji-dokter SEJAJAR tab supaya tidak ikut unmount saat ganti tab. Dibuka lewat event
  * 'keuangan.gaji-dokter.openRincian' (gd_id) dari Buku. Isi: kartu identitas, strip snapshot + pembanding
  * (versi lain / bulan lalu), blok Jasa & Tunjangan | Potongan | Tambahan dengan selisih, footer angka inti. Hanya baca.
- * Tombol Lampiran di footer → tutup modal lalu event 'keuangan.gaji-dokter.openLampiran' (ditangkap pembungkus).
+ * Tombol Lampiran di footer → tutup modal ini lalu event 'keuangan.gaji-dokter.openLampiran' → modal gaji-dokter-lampiran (sejajar).
  */
 new class extends Component {
     /** Header snapshot yang dibuka + pembanding (gd_id versi lain / bulan lalu, atau ''). */
