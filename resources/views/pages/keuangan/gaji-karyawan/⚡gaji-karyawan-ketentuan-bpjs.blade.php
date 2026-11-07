@@ -31,6 +31,12 @@ new class extends Component {
         $this->dispatch('open-modal', name: 'gaji-karyawan-ketentuan-bpjs');
     }
 
+    /** Dipanggil x-dirty-modal-content (Batal / Escape / klik latar) setelah konfirmasi bila form berubah. */
+    public function closeModal(): void
+    {
+        $this->dispatch('close-modal', name: 'gaji-karyawan-ketentuan-bpjs');
+    }
+
     public function save(): void
     {
         $galat = PengaturanGaji::simpan($this->form, auth()->id());
@@ -53,7 +59,7 @@ new class extends Component {
 ?>
 
 <div>
-    <x-modal name="gaji-karyawan-ketentuan-bpjs" size="lg" focusable>
+    <x-modal name="gaji-karyawan-ketentuan-bpjs" size="full" height="full" focusable>
         <x-dirty-modal-content name="gaji-karyawan-ketentuan-bpjs" event="keuangan.gaji-karyawan.saved" label="Ketentuan BPJS" :wireKey="'ketentuan-bpjs-' . $versi">
             <x-modul-dokumen.header judul="Ketentuan BPJS"
                 ikon="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" tutupAlpine="tryClose()">
@@ -61,7 +67,7 @@ new class extends Component {
             </x-modul-dokumen.header>
 
             <div class="flex-1 px-4 py-4 bg-surface-soft dark:bg-gray-950/20">
-                <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
                     <div>
                         <x-input-label for="kb-umk" value="UMK (Rp)" />
                         <x-text-input-number id="kb-umk" wire:model="form.umk" class="w-full mt-1" />
@@ -75,7 +81,7 @@ new class extends Component {
                         <x-input-label for="kb-jp" value="% JP karyawan" />
                         <x-text-input-number id="kb-jp" wire:model="form.persen_jp" :decimals="2" class="w-full mt-1" />
                     </div>
-                    <div class="sm:col-span-2">
+                    <div>
                         <x-input-label for="kb-ket" value="Keterangan" />
                         <x-text-input id="kb-ket" wire:model="form.keterangan" maxlength="200" placeholder="mis. UMK Tulungagung 2026" class="w-full mt-1" />
                     </div>
