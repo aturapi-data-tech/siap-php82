@@ -205,15 +205,17 @@ class GajiDokterStruktur
     /**
      * Tarik struktur semua dokter dari SIRUS (GET /dokter → field struktur). Saat SIRUS masih sumber: semua baris ditimpa
      * (sumber SIRUS). Saat SIAP sudah sumber: hanya dokter yang belum punya baris SIAP yang diisi — setelan SIAP tidak ditimpa.
-     * @return array{ditarik: int, dilewati: int, mode: array}
+     * @return array{ditarik: int, dilewati: int, dokterBaru: int, mode: array}
      */
     public static function tarikDariSirus(?int $userId): array
     {
         $dataDokterSirus = GajiDokterSirus::get('dokter');
+        // master dokter disamakan dulu (dokter baru masuk, status aktif/nonaktif mengikuti SIRUS) supaya tidak ada struktur yang terlewat
+        $hasilSegarkanDokterSirus = GajiDokterSirus::segarkanDokter($userId, $dataDokterSirus);
         $strukturDiSiap = PengaturanGajiDokter::strukturDiSiap();
         $adaSiap = DB::table('siapmst_gdok_strukturs')->where('sumber', 'SIAP')->pluck('dr_id')->flip();
         $dokterDikenal = DB::table('siapmst_dokter_sirus')->pluck('dr_id')->flip();
-        $hasilTarik = ['ditarik' => 0, 'dilewati' => 0, 'mode' => (array) ($dataDokterSirus['mode'] ?? [])];
+        $hasilTarik = ['ditarik' => 0, 'dilewati' => 0, 'dokterBaru' => $hasilSegarkanDokterSirus['baru'], 'mode' => (array) ($dataDokterSirus['mode'] ?? [])];
         foreach ($dataDokterSirus['dokter'] ?? [] as $dokter) {
             $drId = (string) $dokter['dr_id'];
             if (!isset($dokterDikenal[$drId]) || !isset($dokter['struktur'])) {

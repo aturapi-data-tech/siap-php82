@@ -110,10 +110,14 @@ class GajiDokterSirus
         return preg_replace('/[^A-Z]/', '', mb_strtoupper(preg_replace(['/,.*$/', '/\b(DR|DRG|H|HJ|NS|S|KEP|AMD|SKM|SP[A-Z.]*)\.?\s+/i'], '', (string) $nama)));
     }
 
-    /** Segarkan master dokter dari SIRUS + pemetaan otomatis (nama cocok persis & tunggal). @return array{baru: int, oto: int} */
-    public static function segarkanDokter(?int $userId): array
+    /**
+     * Segarkan master dokter dari SIRUS (nama, NIK, kode BPJS, status aktif) + pemetaan otomatis (nama cocok persis & tunggal).
+     * $dataDokterSirus boleh diberikan bila pemanggil sudah memegang hasil GET /dokter, supaya tidak memanggil API dua kali.
+     * @return array{baru: int, oto: int}
+     */
+    public static function segarkanDokter(?int $userId, ?array $dataDokterSirus = null): array
     {
-        $dataDokterSirus = self::get('dokter');
+        $dataDokterSirus ??= self::get('dokter');
         $karyawan = DB::table('siapmst_employers')->where('active_status', '1')->get(['emp_id', 'emp_name'])->groupBy(fn($row) => self::normNama($row->emp_name));
         $dokterTersimpan = DB::table('siapmst_dokter_sirus')->get()->keyBy('dr_id');
         $hasilSegarkanDokterSirus = ['baru' => 0, 'oto' => 0];

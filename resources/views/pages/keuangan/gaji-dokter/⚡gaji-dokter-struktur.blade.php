@@ -12,7 +12,7 @@ use App\Support\PengaturanGajiDokter;
  * Satu baris per dokter SIRUS: skema gaji pokok, basis & persen potongan RS (+ aturan berjenjang), PPh 21, NPWP, tarif kapita,
  * tunjangan & potongan rutin — persis panel Struktur Gaji di Master Dokter SIRUS (GajiDokterStruktur). Panel MODE di atas
  * mengatur dua saklar PengaturanGajiDokter: sumber struktur (SIRUS | SIAP) dan mesin slip (SIRUS | SIAP).
- * Tarik dari SIRUS = salin struktur SIRUS (saat SIAP sudah sumber, baris SIAP tidak ditimpa). Simpan saat sumber = SIAP →
+ * Tarik dari SIRUS = segarkan master dokter (dokter baru, status aktif) lalu salin struktur SIRUS (saat SIAP sudah sumber, baris SIAP tidak ditimpa). Simpan saat sumber = SIAP →
  * dikirim ke SIRUS (PUT) — gagal kirim dicatat per baris dan bisa dikirim ulang.
  */
 new class extends Component {
@@ -81,7 +81,9 @@ new class extends Component {
     {
         try {
             $hasilTarikStruktur = GajiDokterStruktur::tarikDariSirus(auth()->id());
-            $pesanToast = "Struktur {$hasilTarikStruktur['ditarik']} dokter disalin dari SIRUS" . ($hasilTarikStruktur['dilewati'] > 0 ? ", {$hasilTarikStruktur['dilewati']} dilewati (sudah disetel di SIAP / tak dikenal)" : '') . '.';
+            $pesanToast = "Struktur {$hasilTarikStruktur['ditarik']} dokter disalin dari SIRUS, status aktif/nonaktif disamakan"
+                . ($hasilTarikStruktur['dokterBaru'] > 0 ? ", {$hasilTarikStruktur['dokterBaru']} dokter baru masuk master" : '')
+                . ($hasilTarikStruktur['dilewati'] > 0 ? ", {$hasilTarikStruktur['dilewati']} dilewati (sudah disetel di SIAP)" : '') . '.';
             $modeSirus = $hasilTarikStruktur['mode'];
             if (($modeSirus['struktur_gaji_dari_siap'] ?? false) !== PengaturanGajiDokter::strukturDiSiap()) {
                 $pesanToast .= ' Perhatian: saklar SIRUS (SIAP_STRUKTUR_GAJI_DARI_SIAP=' . (($modeSirus['struktur_gaji_dari_siap'] ?? false) ? 'true' : 'false') . ') belum sama dengan mode di sini.';
