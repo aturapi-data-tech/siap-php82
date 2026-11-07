@@ -45,8 +45,8 @@ new class extends Component {
 ?>
 
 <div>
-    <x-page-title title="Gaji Dokter (SIRUS)"
-        subtitle="Slip gaji dokter spesialis dihitung di SIRUS; SIAP menariknya per bulan jasa sebagai snapshot berversi — angka yang sudah diproses tidak berubah, perubahan di SIRUS tampil sebagai perbandingan" />
+    <x-page-title title="Gaji Dokter"
+        subtitle="Slip gaji dokter spesialis per bulan jasa dari transaksi SIRUS — struktur gaji disetel di sini, snapshot berversi (angka yang sudah diproses tidak berubah diam-diam), lalu diterapkan ke slip gaji karyawan" />
 
     <div class="w-full min-h-[calc(100vh-5rem)] flex flex-col bg-surface-soft dark:bg-gray-900">
         <div class="flex flex-col flex-1 px-6 pt-2 pb-6">

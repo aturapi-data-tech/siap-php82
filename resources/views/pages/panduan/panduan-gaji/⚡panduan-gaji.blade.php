@@ -39,7 +39,7 @@ new class extends Component {
         'pph' => '9. PPh 21',
         'final' => '10. Final & buka kembali',
         'cetak' => '11. Cetak & kirim WhatsApp',
-        'gaji-dokter' => '12. Gaji Dokter (SIRUS)',
+        'gaji-dokter' => '12. Gaji Dokter',
         'rumus' => 'Rumus hitungan',
         'faq' => 'Tanya jawab',
     ];
@@ -61,7 +61,7 @@ new class extends Component {
                         @endforeach
                     </ul>
                     <p class="pt-3 mt-3 text-xs border-t border-hairline text-muted">
-                        Buka modul: {!! $tautan('keuangan.gaji-karyawan', 'Gaji Karyawan') !!} · {!! $tautan('keuangan.pembagian-jm', 'Pembagian Jasa Medik') !!} · {!! $tautan('keuangan.laporan-pegawai', 'Laporan Kepegawaian') !!} · {!! $tautan('keuangan.pinjaman-karyawan', 'Pinjaman Karyawan') !!} · {!! $tautan('keuangan.gaji-dokter', 'Gaji Dokter (SIRUS)') !!}
+                        Buka modul: {!! $tautan('keuangan.gaji-karyawan', 'Gaji Karyawan') !!} · {!! $tautan('keuangan.pembagian-jm', 'Pembagian Jasa Medik') !!} · {!! $tautan('keuangan.laporan-pegawai', 'Laporan Kepegawaian') !!} · {!! $tautan('keuangan.pinjaman-karyawan', 'Pinjaman Karyawan') !!} · {!! $tautan('keuangan.gaji-dokter', 'Gaji Dokter') !!}
                     </p>
                 </div>
             </nav>
@@ -79,8 +79,9 @@ new class extends Component {
                             ['Jasa Medik', 'Pembagian JM › Terapkan ke Slip', 'tiap bulan'],
                             ['Laporan Kepegawaian', 'Hari kerja & lembur isian kepegawaian › Terapkan ke Slip', 'tiap bulan'],
                             ['Pinjaman Karyawan', 'Buku pinjaman › angsuran bulan ini › Terapkan ke Slip', 'tiap bulan'],
+                            ['Gaji Dokter', 'Ambil dari SIRUS (atau Proses Slip) › Terapkan ke slip gaji', 'tiap bulan'],
                             ['Form Bagian', 'Excel: bon, kenaikan gaji, iuran koperasi, BPJS', 'tiap bulan'],
-                            ['Final', 'Kunci slip yang sudah benar', 'tiap bulan'],
+                            ['Periksa & Final', 'Rincian slip janggal, PPh 21, lalu kunci', 'tiap bulan'],
                             ['Cetak / WA', 'PDF slip atau kirim ke WhatsApp', 'tiap bulan'],
                         ] as $urutan => [$judul, $isi, $kapan])
                             <div class="p-3 border rounded-xl border-hairline bg-surface-soft dark:bg-gray-800 dark:border-gray-700">
@@ -99,17 +100,41 @@ new class extends Component {
                 {{-- URUTAN BULANAN --}}
                 <section id="bulanan" class="p-6 border scroll-mt-24 bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
                     <h2>Urutan kerja tiap bulan</h2>
-                    <ol class="mt-3 text-sm">
-                        <li><b>Generate</b> slip bulan kerja di {!! $tautan('keuangan.gaji-karyawan', 'Gaji Karyawan') !!} (bagian 2).</li>
-                        <li><b>Jasa Medik</b>: di {!! $tautan('keuangan.pembagian-jm', 'Pembagian Jasa Medik') !!} isi nilai dasar per pos, <b>Generate Poin dari Master</b>, lalu <b>Terapkan ke Slip</b> (bagian 3).</li>
-                        <li><b>Laporan Kepegawaian</b>: kolom sudah terisi dari master; kepegawaian mengubah hari kerja / cuti / jam lembur yang berbeda di {!! $tautan('keuangan.laporan-pegawai', 'Laporan Kepegawaian') !!}; Keuangan klik <b>Terapkan ke Slip</b> (bagian 4).
-                            Lakukan <b>setelah JM diterapkan</b> — dasar upah lembur memuat JM.</li>
-                        <li><b>Pinjaman Karyawan</b>: pinjaman baru dicatat di {!! $tautan('keuangan.pinjaman-karyawan', 'Pinjaman Karyawan') !!} saat terjadi; tiap bulan cukup klik <b>Terapkan ke Slip</b> (bagian 5).</li>
-                        <li><b>Form Bagian</b>: ekspor form Excel tiap bagian, kirim ke bagian terkait, lalu impor hasilnya (bagian 6).</li>
-                        <li>Periksa <b>Rincian</b> slip yang janggal (bagian 7), lalu <b>Final</b> (bagian 10).</li>
-                        <li><b>Cetak</b> / <b>kirim WhatsApp</b> (bagian 11).</li>
+                    <p class="mt-2 text-sm">Satu putaran penggajian untuk <b>bulan kerja N</b> (dibayar awal bulan N+1). Kerjakan berurutan — beberapa langkah memakai hasil langkah sebelumnya.</p>
+
+                    <h3 class="mt-4">A. Sebelum generate (awal bulan N+1, begitu data bulan N tertutup)</h3>
+                    <ol class="mt-1 text-sm">
+                        <li><b>Karyawan baru / berhenti / pindah unit</b> dibereskan di Master Karyawan: status aktif, unit, dan <b>Parameter Gaji</b>-nya (bagian 1). Karyawan tanpa parameter gaji tidak dibuatkan slip.</li>
+                        <li><b>Perubahan parameter</b> (kenaikan gaji pokok, tunjangan, persen PPh 21) diubah di parameter gaji <i>sebelum</i> generate; mengubah sesudahnya berarti Generate ulang.</li>
+                        <li><b>Pinjaman baru</b> yang terjadi bulan N sudah tercatat di {!! $tautan('keuangan.pinjaman-karyawan', 'Pinjaman Karyawan') !!} (bagian 5).</li>
                     </ol>
-                    <p class="mt-3 text-sm">Langkah 2–6 boleh diulang selama slip masih <b>Draft</b>: Generate, Terapkan JM, Terapkan laporan kepegawaian, Terapkan angsuran, dan impor form semuanya <b>mengganti</b> angka (bukan menambah), jadi aman diproses ulang bila ada perubahan.</p>
+
+                    <h3 class="mt-4">B. Menyusun slip</h3>
+                    <ol class="mt-1 text-sm">
+                        <li><b>Generate</b> slip bulan kerja N di {!! $tautan('keuangan.gaji-karyawan', 'Gaji Karyawan') !!} (bagian 2) → semua karyawan aktif berparameter mendapat slip <b>Draft</b> berisi gaji pokok, tunjangan, potongan rutin, dan PPh 21 dari parameter.</li>
+                        <li><b>Jasa Medik</b>: di {!! $tautan('keuangan.pembagian-jm', 'Pembagian Jasa Medik') !!} isi nilai dasar per pos, <b>Generate Poin dari Master</b>, lalu <b>Terapkan ke Slip</b> (bagian 3). Harus <i>sebelum</i> laporan kepegawaian karena dasar upah lembur memuat JM.</li>
+                        <li><b>Laporan Kepegawaian</b>: kepegawaian mengisi hari kerja, cuti, dan jam lembur yang berbeda dari master di {!! $tautan('keuangan.laporan-pegawai', 'Laporan Kepegawaian') !!}; Keuangan klik <b>Terapkan ke Slip</b> (bagian 4). Perubahan hari kerja satu orang bisa juga langsung di Rincian (bagian 8).</li>
+                        <li><b>Pinjaman Karyawan</b>: klik <b>Terapkan ke Slip</b> → angsuran bulan N masuk sebagai potongan (bagian 5).</li>
+                        <li><b>Gaji Dokter</b> di {!! $tautan('keuangan.gaji-dokter', 'Gaji Dokter') !!} (bagian 12): pilih bulan jasa N, klik <b>Ambil dari SIRUS</b> (atau <b>Proses Slip</b> bila mesin slip sudah SIAP), lengkapi <b>Pemetaan</b> dokter baru, lalu <b>Terapkan ke slip gaji</b> → baris jasa, potongan RS, dan PPh 21 dokter masuk ke slip bulan kerja N (dokter tanpa parameter gaji dibuatkan slip Draft kosong). Baris ini terkunci di Rincian.</li>
+                        <li><b>Form Bagian</b>: ekspor form Excel tiap bagian (bon, kenaikan gaji, iuran koperasi, BPJS), kirim ke bagian terkait, impor hasilnya (bagian 6).</li>
+                        <li><b>Baris manual</b> yang tidak punya form: tambah langsung di <b>Rincian</b> slip (bagian 7).</li>
+                    </ol>
+
+                    <h3 class="mt-4">C. Memeriksa &amp; mengunci</h3>
+                    <ol class="mt-1 text-sm">
+                        <li>Bandingkan ringkasan di bawah toolbar (total pendapatan, potongan, diterima) dengan bulan lalu; slip yang melonjak atau minus dibuka <b>Rincian</b>-nya.</li>
+                        <li>Cek <b>PPh 21</b>: hitungan persen otomatis, atau timpa nominal hasil TER bila dipakai (bagian 9). Baris dokter dari SIRUS tidak ikut dihitung PPh SIAP.</li>
+                        <li>Untuk dokter: menjelang pembayaran <b>Ambil dari SIRUS</b> sekali lagi; bila ada "berubah" / badge <i>slip pakai v1</i>, <b>Terapkan ke slip gaji</b> ulang.</li>
+                        <li><b>Final</b> slip yang sudah benar, atau <b>Final Semua</b> (bagian 10). Sesudah Final tidak ada yang berubah lagi; Generate ulang dan semua Terapkan melewatinya.</li>
+                    </ol>
+
+                    <h3 class="mt-4">D. Membayar &amp; membagikan</h3>
+                    <ol class="mt-1 text-sm">
+                        <li><b>Cetak</b> slip PDF untuk arsip / tanda terima, atau <b>kirim WhatsApp</b> ke karyawan — hanya slip Final yang bisa dikirim (bagian 11).</li>
+                        <li>Salah setelah Final: <b>Buka kembali ke Draft</b>, perbaiki, Final lagi, kirim ulang (link WA lama mati otomatis).</li>
+                    </ol>
+
+                    <p class="mt-3 text-sm">Langkah B boleh diulang dengan urutan yang sama selama slip masih <b>Draft</b>: Generate, Terapkan JM, Terapkan laporan kepegawaian, Terapkan angsuran, Terapkan gaji dokter, dan impor form semuanya <b>mengganti</b> angka (bukan menambah), jadi aman diproses ulang bila ada perubahan. Hari kerja, baris yang diisi petugas, dan nilai yang ditimpa tetap dipertahankan Generate ulang.</p>
                 </section>
 
                 {{-- PARAMETER --}}
@@ -410,8 +435,8 @@ new class extends Component {
 
                 {{-- GAJI DOKTER (SIRUS) --}}
                 <section id="gaji-dokter" class="p-6 border scroll-mt-24 bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
-                    <h2>12. Gaji Dokter (SIRUS) — {!! $tautan('keuangan.gaji-dokter', 'buka') !!}</h2>
-                    <p class="mt-2 text-sm">Gaji dokter spesialis (uang periksa, jasa tindakan, visite, operasi, kapita, potongan RS, PPh 21) <b>dihitung di SIRUS</b>, bukan di SIAP. SIAP menariknya lewat API baca-saja dan menyimpannya sebagai <b>snapshot berversi per bulan jasa</b>, supaya angka yang sudah diproses tidak berubah diam-diam dan perubahan di SIRUS selalu terlihat. Empat tab: <b>Buku</b> (slip per bulan jasa + Ambil dari SIRUS; tiap baris punya modal <b>Rincian</b> dan <b>Lampiran</b> rincian pasien, plus <b>Lampiran Semua</b> di toolbar — sama seperti Slip Gaji Dokter di SIRUS), <b>Pemetaan Dokter</b> (dokter SIRUS ↔ karyawan SIAP), <b>Struktur Gaji</b> (struktur gaji per dokter + mode pemindahan ke SIAP), <b>Riwayat Ambil</b>.</p>
+                    <h2>12. Gaji Dokter — {!! $tautan('keuangan.gaji-dokter', 'buka') !!}</h2>
+                    <p class="mt-2 text-sm">Gaji dokter spesialis (uang periksa, jasa tindakan, visite, operasi, kapita, potongan RS, PPh 21) dikelola di SIAP; SIRUS hanya memasok data operasional (transaksi pasien). Selama mesin slip masih SIRUS, SIAP menarik slip hasil SIRUS lewat API baca-saja dan menyimpannya sebagai <b>snapshot berversi per bulan jasa</b>, supaya angka yang sudah diproses tidak berubah diam-diam dan perubahan di SIRUS selalu terlihat; setelah mesin slip dipindah ke SIAP, SIAP menghitung sendiri dari transaksi SIRUS (Proses Slip). Empat tab: <b>Buku</b> (slip per bulan jasa + Ambil dari SIRUS; tiap baris punya modal <b>Rincian</b> dan <b>Lampiran</b> rincian pasien, plus <b>Lampiran Semua</b> di toolbar — sama seperti Slip Gaji Dokter di SIRUS), <b>Pemetaan Dokter</b> (dokter SIRUS ↔ karyawan SIAP), <b>Struktur Gaji</b> (struktur gaji per dokter, disetel di SIAP, + mode mesin slip), <b>Riwayat Ambil</b>.</p>
 
                     <h3 class="mt-4">Cara kerja</h3>
                     <ol class="mt-1 text-sm">
@@ -421,7 +446,7 @@ new class extends Component {
                         <li><b>Versi &amp; pembanding</b>: di Buku, slip yang pernah berubah ditandai <i>versi N</i> (saringan "Pernah berubah"). Tombol <b>Rincian</b> membuka komponen slip dan pilihan <b>Bandingkan dengan</b>: versi sebelumnya (apa yang berubah sejak kita proses) atau bulan jasa sebelumnya (naik / turun dibanding bulan lalu). Baris yang berbeda disorot, selisih per komponen dan per total ditampilkan. Kolom "vs bulan lalu" di Buku = selisih gaji diterima.</li>
                         <li><b>Pemetaan dokter → karyawan</b>: saat Ambil / Segarkan, dokter yang namanya cocok persis dengan master karyawan (gelar diabaikan, hanya satu yang cocok) dipetakan otomatis. Sisanya dipetakan manual di tab Pemetaan lewat LOV karyawan. Dokter tanpa pemetaan tetap ditarik dan ditandai "Belum dipetakan" — tidak memblokir.</li>
                         <li><b>Lampiran</b>: tiap angka slip ditopang baris pasien / transaksi (tanggal, pasien, tindakan, klaim, no. SEP, nominal). Tabel per komponen berikut subtotal, komponen besar dilipat sampai diminta, dan di bawahnya rekonsiliasi total transaksi dengan jasa pada slip. Grup "dasar hitung per kapita" = grup kapita yang di SIRUS dibayar lewat skema lain, ditampilkan untuk pembanding.</li>
-                        <li><b>Model penggajian tiap dokter</b> (gaji pokok &amp; skema A aditif / G garanty fee / N tanpa pokok, basis potongan RS T total / J jasa / N tidak / B berjenjang beserta persennya, persen PPh 21, status NPWP, tarif per kapita, tunjangan &amp; potongan rutin) <b>disetel di SIRUS</b>: Master Dokter → tombol <b>Struktur Gaji</b> (panel terpisah dari Ubah Data Dokter, milik bagian keuangan). Panel itu punya panduan sendiri "Cara menyetel struktur gaji". SIAP hanya membacanya — nilai yang berlaku saat slip diproses tersimpan di snapshot dan tampil di kartu identitas Rincian. Urutan bila setelannya berubah: ubah di Master Dokter SIRUS → <b>Proses Slip</b> ulang bulan itu di SIRUS (Buka Kunci dulu bila sudah Final) → di SIAP <b>Ambil dari SIRUS</b> (jadi versi baru) → <b>Terapkan ke slip gaji</b> ulang.</li>
+                        <li><b>Model penggajian tiap dokter</b> (gaji pokok &amp; skema A aditif / G garanty fee / N tanpa pokok, basis potongan RS T total / J jasa / N tidak / B berjenjang beserta persennya, persen PPh 21, status NPWP, tarif per kapita, tunjangan &amp; potongan rutin) <b>disetel di SIAP</b>: tab <b>Struktur Gaji</b> → tombol <b>Isi</b>/<b>Ubah</b> (form punya panduan sendiri "Cara menyetel struktur gaji"). Nilai yang berlaku saat slip diproses tersimpan di snapshot dan tampil di kartu identitas Rincian. Selama mesin slip masih SIRUS, nilai yang sama juga masih harus ada di Master Dokter SIRUS karena SIRUS yang menghitung; setelah mesin slip SIAP, cukup di sini. Bila setelannya berubah: ubah struktur → <b>Proses Slip</b> ulang bulan itu (di SIAP bila mesin SIAP; di SIRUS lalu <b>Ambil dari SIRUS</b> bila mesin masih SIRUS) → <b>Terapkan ke slip gaji</b> ulang.</li>
                         <li><b>Tidak ada sunting</b>: snapshot tidak bisa diubah di SIAP. Koreksi dilakukan di SIRUS, lalu Ambil ulang → versi baru.</li>
                         <li><b>Terapkan ke slip gaji</b>: menulis snapshot versi terbaru tiap dokter yang <b>sudah dipetakan</b> ke slip Draft Gaji Karyawan bulan kerja yang sama dengan bulan jasa — <b>satu baris per komponen</b> persis seperti slip SIRUS: tiap jasa (uang periksa, visite, operator, …), gaji pokok dokter, dan tambahan sebagai pendapatan; Potongan RS, PPh 21 SIRUS, dan potongan lain (IDI, BPJS, …) sebagai potongan. Diterima di slip SIAP = diterima di SIRUS. PPh 21 otomatis SIAP <b>tidak</b> menghitung baris ini (sudah dipajaki SIRUS). Dokter yang belum punya slip (biasanya tanpa parameter gaji, jadi dilewati Generate) dibuatkan slip Draft kosong berisi baris SIRUS saja. Aman diulang (baris lama ditimpa), slip Final dilewati, Generate ulang tidak menghapusnya. Di Rincian slip karyawan baris ini <b>terkunci</b> (tanda "dari SIRUS"); ubah di SIRUS lalu Ambil &amp; Terapkan ulang. Badge di Buku: <i>di slip gaji</i>, <i>slip pakai v1</i> (snapshot sudah versi baru — Terapkan ulang), <i>belum di slip gaji</i>.</li>
                     </ol>

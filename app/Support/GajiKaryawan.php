@@ -79,7 +79,7 @@ class GajiKaryawan
     ];
 
     /**
-     * Kode yang ditulis "Terapkan ke slip gaji" dari snapshot Gaji Dokter (SIRUS) — GajiDokterSirus::terapkan().
+     * Kode yang ditulis "Terapkan ke slip gaji" dari snapshot Gaji Dokter — GajiDokterSirus::terapkan().
      * Pendapatannya TIDAK masuk dasar PPh 21 SIAP: PPh-nya sudah dihitung SIRUS (NPPN 50% × 5% = 2,5% bruto) dan
      * ikut ditulis sebagai baris PPH21_DOKTER, jadi tanpa pengecualian ini jasa dokter dipajaki dua kali.
      */

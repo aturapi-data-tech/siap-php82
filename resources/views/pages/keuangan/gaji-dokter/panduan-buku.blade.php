@@ -1,4 +1,4 @@
-{{-- Panel Panduan tab Buku Gaji Dokter (SIRUS) — gaya biru-info, default tertutup (pola SIRUS; dipisah supaya file Buku ringkas). --}}
+{{-- Panel Panduan tab Buku Gaji Dokter — gaya biru-info, default tertutup (pola SIRUS; dipisah supaya file Buku ringkas). --}}
 {{-- PANDUAN — gaya biru-info, default tertutup (pola SIRUS). --}}
 <div x-data="{ buka: false }" class="overflow-hidden border border-blue-200 rounded-2xl bg-blue-50 dark:bg-blue-900/20 dark:border-blue-700">
     <button type="button" x-on:click="buka = !buka" :aria-expanded="buka"

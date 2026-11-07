@@ -68,7 +68,7 @@ new class extends Component {
                         @endforeach
                     </ul>
                     <p class="pt-3 mt-3 text-xs border-t border-hairline text-muted">
-                        Buka modul: {!! $tautan('keuangan.gaji-dokter', 'Gaji Dokter (SIRUS)') !!} · {!! $tautan('panduan.gaji', 'Panduan Gaji §12') !!}<br>
+                        Buka modul: {!! $tautan('keuangan.gaji-dokter', 'Gaji Dokter') !!} · {!! $tautan('panduan.gaji', 'Panduan Gaji §12') !!}<br>
                         Versi server: SIRUS → Sistem → <b>Panduan API SIAP</b>
                     </p>
                 </div>
@@ -154,7 +154,7 @@ SIAP_API_URL=https://sirus.rsimadinah.local      # host SIRUS biasa (atau SIAP_A
 SIAP_API_USER=siap-gaji                          # akun users SIRUS ber-role "Api Siap"
 SIAP_API_PASSWORD=&lt;password dari siap-api:akun&gt;</pre>
                     <ol class="mt-3 text-sm" start="3">
-                        <li>Klik <b>Uji sambungan</b> di atas. Berhasil → buka {!! $tautan('keuangan.gaji-dokter', 'Gaji Dokter (SIRUS)') !!} dan <b>Ambil dari SIRUS</b> untuk satu bulan jasa — atau dari terminal server untuk banyak bulan sekaligus (sinkronisasi awal):</li>
+                        <li>Klik <b>Uji sambungan</b> di atas. Berhasil → buka {!! $tautan('keuangan.gaji-dokter', 'Gaji Dokter') !!} dan <b>Ambil dari SIRUS</b> untuk satu bulan jasa — atau dari terminal server untuk banyak bulan sekaligus (sinkronisasi awal):</li>
                     </ol>
                     <pre class="p-4 mt-2 overflow-x-auto text-xs leading-relaxed border rounded-xl bg-surface-soft border-hairline text-ink dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700">php artisan gaji:ambil-sirus --uji                     # hanya uji sambungan
 php artisan gaji:ambil-sirus 2026-07                   # satu bulan jasa
@@ -226,7 +226,7 @@ php artisan gaji:ambil-sirus 2026-01 --sampai=2026-10  # rentang bulan jasa (sam
                 <section id="rutin" class="p-6 border scroll-mt-24 bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
                     <h2>6. Langkah rutin bulanan</h2>
                     <ol class="mt-3 text-sm">
-                        <li>Setelah SIRUS menutup gaji dokter bulan jasa N: {!! $tautan('keuangan.gaji-dokter', 'Gaji Dokter (SIRUS)') !!} → Buku → pilih bulan jasa N → <b>Ambil dari SIRUS</b>.</li>
+                        <li>Setelah SIRUS menutup gaji dokter bulan jasa N: {!! $tautan('keuangan.gaji-dokter', 'Gaji Dokter') !!} → Buku → pilih bulan jasa N → <b>Ambil dari SIRUS</b>.</li>
                         <li>Baca pesan hasil (baru / berubah / sama) dan badge "dokter belum dipetakan" → lengkapi di tab Pemetaan bila ada dokter baru.</li>
                         <li>Periksa kolom "vs bulan lalu"; yang mencolok dibuka Rincian / Lampiran.</li>
                         <li>Menjelang pembayaran, Ambil ulang: bila ada "berubah", Rincian → Bandingkan dengan versi sebelumnya.</li>

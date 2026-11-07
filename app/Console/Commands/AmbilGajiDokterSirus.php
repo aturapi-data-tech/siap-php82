@@ -64,7 +64,7 @@ class AmbilGajiDokterSirus extends Command
             }
         }
         if ($gagal === 0) {
-            $this->comment('Lengkapi pemetaan dokter → karyawan di Gaji Dokter (SIRUS) → tab Pemetaan Dokter.');
+            $this->comment('Lengkapi pemetaan dokter → karyawan di Gaji Dokter → tab Pemetaan Dokter.');
         }
 
         return $gagal === 0 ? self::SUCCESS : self::FAILURE;
