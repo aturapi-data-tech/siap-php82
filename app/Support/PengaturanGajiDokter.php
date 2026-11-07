@@ -7,9 +7,11 @@ use Illuminate\Support\Facades\DB;
 /**
  * Saklar pemindahan penggajian dokter dari SIRUS ke SIAP (satu baris, id = 1) — diubah di Gaji Dokter → Struktur Gaji:
  *   sumber_struktur : SIRUS = struktur gaji dokter masih disetel di SIRUS, SIAP hanya menarik salinannya (tahap 0);
- *                     SIAP  = disetel di SIAP dan dikirim ke SIRUS lewat API (tahap 1; .env SIRUS SIAP_STRUKTUR_GAJI_DARI_SIAP=true).
+ *                     SIAP  = disetel di SIAP dan dikirim ke SIRUS lewat API (tahap 1); panel Struktur Gaji SIRUS jadi baca-saja.
  *   mesin_slip      : SIRUS = slip dihitung SIRUS, SIAP menarik snapshot (Ambil dari SIRUS); hitungan SIAP hanya pembanding (tahap 2);
- *                     SIAP  = slip dihitung SIAP dari transaksi mentah (Proses Slip); SIRUS jadi arsip (tahap 3; SIAP_GAJI_DOKTER_NONAKTIF=true).
+ *                     SIAP  = slip dihitung SIAP dari transaksi mentah (Proses Slip); SIRUS jadi arsip (tahap 3).
+ * SIRUS membaca baris ini langsung (App\Support\GajiDokter\ModePindahSiap di repo SIRUS, satu Oracle beda skema) —
+ * tidak ada saklar .env di SIRUS, pilihan di sini satu-satunya sumber.
  * Dicache per request.
  */
 class PengaturanGajiDokter

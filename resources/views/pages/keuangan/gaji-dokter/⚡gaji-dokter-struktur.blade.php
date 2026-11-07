@@ -11,8 +11,9 @@ use App\Support\PengaturanGajiDokter;
  * Tab STRUKTUR GAJI Gaji Dokter (anak pembungkus gaji-dokter) — tahap 1 pemindahan penggajian dokter ke SIAP.
  * Satu baris per dokter SIRUS: skema gaji pokok, basis & persen potongan RS (+ aturan berjenjang), PPh 21, NPWP, tarif kapita,
  * tunjangan & potongan rutin — persis panel Struktur Gaji di Master Dokter SIRUS (GajiDokterStruktur). Panel MODE di atas
- * mengatur dua saklar PengaturanGajiDokter: sumber struktur (SIRUS | SIAP) dan mesin slip (SIRUS | SIAP).
- * Tarik dari SIRUS = segarkan master dokter (dokter baru, status aktif) lalu salin struktur SIRUS (saat SIAP sudah sumber, baris SIAP tidak ditimpa). Simpan saat sumber = SIAP →
+ * mengatur dua pilihan PengaturanGajiDokter: sumber struktur (SIRUS | SIAP) dan mesin slip (SIRUS | SIAP) — SIRUS membacanya langsung.
+ * Tarik dari SIRUS (API) / Salin dari database SIRUS (baca RSMST_DOCTORS langsung) = segarkan master dokter (dokter baru, status aktif)
+ * lalu salin struktur SIRUS (saat SIAP sudah sumber, baris SIAP tidak ditimpa). Simpan saat sumber = SIAP →
  * dikirim ke SIRUS (PUT) — gagal kirim dicatat per baris dan bisa dikirim ulang.
  */
 new class extends Component {
@@ -81,18 +82,36 @@ new class extends Component {
     {
         try {
             $hasilTarikStruktur = GajiDokterStruktur::tarikDariSirus(auth()->id());
-            $pesanToast = "Struktur {$hasilTarikStruktur['ditarik']} dokter disalin dari SIRUS, status aktif/nonaktif disamakan"
-                . ($hasilTarikStruktur['dokterBaru'] > 0 ? ", {$hasilTarikStruktur['dokterBaru']} dokter baru masuk master" : '')
-                . ($hasilTarikStruktur['dilewati'] > 0 ? ", {$hasilTarikStruktur['dilewati']} dilewati (sudah disetel di SIAP)" : '') . '.';
+            $pesanToast = $this->pesanHasilTarik($hasilTarikStruktur, 'SIRUS (API)');
             $modeSirus = $hasilTarikStruktur['mode'];
-            if (($modeSirus['struktur_gaji_dari_siap'] ?? false) !== PengaturanGajiDokter::strukturDiSiap()) {
-                $pesanToast .= ' Perhatian: saklar SIRUS (SIAP_STRUKTUR_GAJI_DARI_SIAP=' . (($modeSirus['struktur_gaji_dari_siap'] ?? false) ? 'true' : 'false') . ') belum sama dengan mode di sini.';
+            if (($modeSirus['struktur_gaji_dari_siap'] ?? null) === !PengaturanGajiDokter::strukturDiSiap()) {
+                $pesanToast .= ' Perhatian: SIRUS belum membaca mode dari SIAP (hak baca tabel pengaturan belum diberikan?) — panel SIRUS belum mengikuti pilihan di sini.';
             }
             $this->dispatch('toast', type: 'success', message: $pesanToast);
         } catch (\Throwable $exception) {
             $this->dispatch('toast', type: 'error', message: $exception->getMessage());
         }
         unset($this->rows, $this->ringkasan);
+    }
+
+    /** Sama dengan Tarik, tetapi membaca tabel dokter SIRUS langsung di Oracle — tidak butuh API SIRUS. */
+    public function salinDariDatabaseSirus(): void
+    {
+        try {
+            $hasilSalinStruktur = GajiDokterStruktur::salinDariDatabaseSirus(auth()->id());
+            $this->dispatch('toast', type: 'success', message: $this->pesanHasilTarik($hasilSalinStruktur, 'database SIRUS'));
+        } catch (\Throwable $exception) {
+            $this->dispatch('toast', type: 'error', message: 'Gagal membaca tabel dokter SIRUS: ' . $exception->getMessage());
+        }
+        unset($this->rows, $this->ringkasan);
+    }
+
+    /** @param array{ditarik: int, dilewati: int, dokterBaru: int} $hasilTarik */
+    private function pesanHasilTarik(array $hasilTarik, string $sumber): string
+    {
+        return "Struktur {$hasilTarik['ditarik']} dokter disalin dari {$sumber}, status aktif/nonaktif disamakan"
+            . ($hasilTarik['dokterBaru'] > 0 ? ", {$hasilTarik['dokterBaru']} dokter baru masuk master" : '')
+            . ($hasilTarik['dilewati'] > 0 ? ", {$hasilTarik['dilewati']} dilewati (sudah disetel di SIAP)" : '') . '.';
     }
 
     public function kirimUlangGagal(): void
@@ -225,7 +244,7 @@ new class extends Component {
         <div class="flex flex-wrap items-start gap-6">
             <div class="min-w-0">
                 <div class="text-sm font-semibold text-ink dark:text-gray-100">Mode pemindahan gaji dokter ke SIAP</div>
-                <p class="mt-0.5 text-xs text-muted dark:text-gray-400">Dinyalakan bertahap. Saklar sisi SIRUS (<span class="font-mono">SIAP_STRUKTUR_GAJI_DARI_SIAP</span>, <span class="font-mono">SIAP_GAJI_DOKTER_NONAKTIF</span> di .env SIRUS) harus mengikuti pilihan di sini.</p>
+                <p class="mt-0.5 text-xs text-muted dark:text-gray-400">Dinyalakan bertahap. Pilihan di sini satu-satunya sumber: SIRUS membacanya langsung, panel Struktur Gaji dan Slip Gaji Dokter di SIRUS menyesuaikan otomatis.</p>
             </div>
             <div class="flex flex-wrap items-end gap-3 ml-auto">
                 <div class="w-56">
@@ -247,7 +266,7 @@ new class extends Component {
                     </div>
                 </div>
                 <x-confirm-button variant="primary" action="simpanMode()" title="Simpan mode"
-                    message="Ubah mode pemindahan? Struktur di {{ $sumberStruktur }}, slip dihitung {{ $mesinSlip }}. Pastikan .env SIRUS sudah disetel sama, dan untuk mesin SIAP: struktur semua dokter sudah ditarik / disetel di SIAP." confirmText="Ya, simpan" cancelText="Batal">
+                    message="Ubah mode pemindahan? Struktur di {{ $sumberStruktur }}, slip dihitung {{ $mesinSlip }}. SIRUS langsung mengikuti (panel struktur jadi baca-saja / slip SIRUS jadi arsip). Untuk mesin SIAP: struktur semua dokter sudah ditarik / disetel di SIAP." confirmText="Ya, simpan" cancelText="Batal">
                     Simpan mode
                 </x-confirm-button>
             </div>
@@ -275,6 +294,13 @@ new class extends Component {
             <x-badge :variant="$ringkasan['ada'] === $ringkasan['aktif'] ? 'success' : 'warning'">{{ $ringkasan['ada'] }} / {{ $ringkasan['aktif'] }} dokter aktif punya struktur</x-badge>
             @if ($strukturDiSiap)<x-badge variant="info">{{ $ringkasan['siap'] }} disetel di SIAP</x-badge>@endif
             @if ($ringkasan['gagal'] > 0)<x-badge variant="danger">{{ $ringkasan['gagal'] }} gagal kirim</x-badge>@endif
+            @if (GajiDokterStruktur::databaseSirusTersedia())
+                <x-confirm-button variant="secondary" action="salinDariDatabaseSirus()" title="Salin dari database SIRUS"
+                    message="{{ $strukturDiSiap ? 'Salin struktur dari tabel dokter SIRUS hanya untuk dokter yang belum disetel di SIAP? Setelan SIAP tidak ditimpa.' : 'Salin struktur gaji semua dokter langsung dari tabel dokter SIRUS (tanpa API)? Salinan lama di SIAP ditimpa (SIRUS masih sumbernya).' }}" confirmText="Ya, salin" cancelText="Batal">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V7M4 7c0-2 1-3 3-3h10c2 0 3 1 3 3M4 7c0 2 1 3 3 3h10c2 0 3-1 3-3m-8 6v4m-2-2h4" /></svg>
+                    Salin dari database SIRUS
+                </x-confirm-button>
+            @endif
             @if (GajiDokterSirus::aktif())
                 <x-confirm-button variant="secondary" action="tarikDariSirus()" title="Tarik dari SIRUS"
                     message="{{ $strukturDiSiap ? 'Salin struktur dari SIRUS hanya untuk dokter yang belum disetel di SIAP? Setelan SIAP tidak ditimpa.' : 'Salin struktur gaji semua dokter dari SIRUS? Salinan lama di SIAP ditimpa (SIRUS masih sumbernya).' }}" confirmText="Ya, tarik" cancelText="Batal">

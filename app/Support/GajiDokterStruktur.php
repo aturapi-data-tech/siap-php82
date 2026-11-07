@@ -203,14 +203,79 @@ class GajiDokterStruktur
     }
 
     /**
-     * Tarik struktur semua dokter dari SIRUS (GET /dokter → field struktur). Saat SIRUS masih sumber: semua baris ditimpa
-     * (sumber SIRUS). Saat SIAP sudah sumber: hanya dokter yang belum punya baris SIAP yang diisi — setelan SIAP tidak ditimpa.
+     * Tarik struktur semua dokter dari SIRUS lewat API (GET /dokter → field struktur). Saat SIRUS masih sumber: semua baris
+     * ditimpa (sumber SIRUS). Saat SIAP sudah sumber: hanya dokter yang belum punya baris SIAP yang diisi — setelan SIAP tidak ditimpa.
      * @return array{ditarik: int, dilewati: int, dokterBaru: int, mode: array}
      */
     public static function tarikDariSirus(?int $userId): array
     {
-        $dataDokterSirus = GajiDokterSirus::get('dokter');
-        // master dokter disamakan dulu (dokter baru masuk, status aktif/nonaktif mengikuti SIRUS) supaya tidak ada struktur yang terlewat
+        return self::terapkanTarikan(GajiDokterSirus::get('dokter'), $userId);
+    }
+
+    /**
+     * Sama dengan tarikDariSirus, tetapi membaca tabel RSMST_DOCTORS SIRUS langsung lewat koneksi database SIAP (satu Oracle,
+     * skema berbeda) — tanpa API. Dipakai saat SIRUS belum memasang endpoint struktur atau modul gaji dokter SIRUS sudah dimatikan.
+     * Baris yang belum ada di-insert, yang sudah ada di-update (master dokter juga). Butuh user SIAP bisa membaca skema SIRUS.
+     * @return array{ditarik: int, dilewati: int, dokterBaru: int, mode: array}
+     */
+    public static function salinDariDatabaseSirus(?int $userId): array
+    {
+        $rows = DB::table(self::tabelDokterSirus())->orderBy('dr_name')->get();
+        $dokterList = $rows->map(fn($row) => [
+            'dr_id' => (string) $row->dr_id, 'dr_name' => trim((string) $row->dr_name), 'dr_nik' => trim((string) ($row->dr_nik ?? '')),
+            'kd_dr_bpjs' => trim((string) ($row->kd_dr_bpjs ?? '')), 'aktif' => trim((string) $row->active_status) === '1',
+            'struktur' => self::strukturDariBarisSirus($row),
+        ])->values()->all();
+
+        return self::terapkanTarikan(['mode' => [], 'dokter' => $dokterList], $userId);
+    }
+
+    /** Apakah koneksi database SIAP bisa membaca tabel dokter SIRUS (grant sudah diberikan). Hasil diingat per permintaan. */
+    public static function databaseSirusTersedia(): bool
+    {
+        static $tersedia = null;
+        if ($tersedia === null) {
+            try {
+                DB::table(self::tabelDokterSirus())->select('dr_id')->limit(1)->get();
+                $tersedia = true;
+            } catch (\Throwable) {
+                $tersedia = false;
+            }
+        }
+
+        return $tersedia;
+    }
+
+    /** Nama tabel dokter SIRUS berawalan skema (SIAP_SIRUS_SCHEMA, bawaan SIRUS). */
+    private static function tabelDokterSirus(): string
+    {
+        return strtolower((string) config('services.sirus.schema', 'SIRUS')) . '.rsmst_doctors';
+    }
+
+    /** Bentuk struktur dari satu baris RSMST_DOCTORS — sama dengan GajiDokterApiController::strukturDokter di SIRUS. */
+    private static function strukturDariBarisSirus(object $row): array
+    {
+        $struktur = [];
+        foreach (self::KOLOM as $kolom) {
+            $struktur[$kolom] = in_array($kolom, self::KOLOM_NOMINAL, true) ? (float) ($row->{$kolom} ?? 0) : ($row->{$kolom} ?? null);
+        }
+        $struktur['npwp_status'] = ($row->npwp_status ?? 'Y') === 'N' ? 'N' : 'Y';
+        $struktur['npwp'] = trim((string) ($row->npwp ?? '')) ?: null;
+        $struktur['skema_gaji_pokok'] = (string) ($row->skema_gaji_pokok ?? 'A');
+        $struktur['potongan_rs_basis'] = (string) ($row->potongan_rs_basis ?? 'T');
+        $struktur['potongan_rs_aturan'] = ($row->potongan_rs_aturan ?? null) ?: null;
+
+        return $struktur;
+    }
+
+    /**
+     * Inti Tarik: master dokter disamakan dulu (dokter baru masuk, status aktif/nonaktif mengikuti SIRUS) supaya tidak ada
+     * struktur yang terlewat, lalu struktur tiap dokter disalin dengan sumber SIRUS.
+     * @param array{mode?: array, dokter?: array} $dataDokterSirus  bentuk yang sama dengan GET /dokter
+     * @return array{ditarik: int, dilewati: int, dokterBaru: int, mode: array}
+     */
+    private static function terapkanTarikan(array $dataDokterSirus, ?int $userId): array
+    {
         $hasilSegarkanDokterSirus = GajiDokterSirus::segarkanDokter($userId, $dataDokterSirus);
         $strukturDiSiap = PengaturanGajiDokter::strukturDiSiap();
         $adaSiap = DB::table('siapmst_gdok_strukturs')->where('sumber', 'SIAP')->pluck('dr_id')->flip();
