@@ -9,11 +9,12 @@ use Illuminate\Support\Facades\DB;
  *   umk        : dasar JKN karyawan (bila master tidak mengisi dasar sendiri) & batas bawah upah hitung JP
  *   persen_jkn : % BPJS Kesehatan bagian karyawan per jiwa (karyawan + tiap keluarga tambahan)
  *   persen_jp  : % Jaminan Pensiun bagian karyawan dari upah bulan itu
+ *   bpjs_tk_npp: nomor pendaftaran perusahaan di BPJS Ketenagakerjaan (kolom NPP template upah SIPP — LaporanUpahBpjsTk)
  * Diubah di Gaji Karyawan → Ketentuan BPJS (gaji.kelola). Dicache per request.
  */
 class PengaturanGaji
 {
-    public const KOLOM = ['umk', 'persen_jkn', 'persen_jp', 'keterangan'];
+    public const KOLOM = ['umk', 'persen_jkn', 'persen_jp', 'keterangan', 'bpjs_tk_npp'];
 
     private static ?object $cache = null;
 
@@ -26,6 +27,7 @@ class PengaturanGaji
                 'persen_jkn' => (float) ($row->persen_jkn ?? 1),
                 'persen_jp'  => (float) ($row->persen_jp ?? 1),
                 'keterangan' => (string) ($row->keterangan ?? ''),
+                'bpjs_tk_npp' => (string) ($row->bpjs_tk_npp ?? ''),
                 'updated_at' => $row->updated_at ?? null,
             ];
         }
@@ -45,7 +47,8 @@ class PengaturanGaji
             }
         }
         $baris = ['umk' => round((float) $data['umk'], 2), 'persen_jkn' => round((float) $data['persen_jkn'], 2), 'persen_jp' => round((float) $data['persen_jp'], 2),
-            'keterangan' => mb_substr(trim((string) ($data['keterangan'] ?? '')), 0, 200) ?: null, 'updated_by' => $userId, 'updated_at' => now()];
+            'keterangan' => mb_substr(trim((string) ($data['keterangan'] ?? '')), 0, 200) ?: null,
+            'bpjs_tk_npp' => mb_substr(trim((string) ($data['bpjs_tk_npp'] ?? '')), 0, 20) ?: null, 'updated_by' => $userId, 'updated_at' => now()];
         DB::table('siapmst_pengaturan_gajis')->where('id', 1)->exists()
             ? DB::table('siapmst_pengaturan_gajis')->where('id', 1)->update($baris)
             : DB::table('siapmst_pengaturan_gajis')->insert([...$baris, 'id' => 1, 'created_at' => now()]);

@@ -58,6 +58,10 @@ new class extends Component {
             $this->form['bpjs_jkn_dasar'] = (int) round((float) ($parameter->bpjs_jkn_dasar ?? 0));
             $this->form['bpjs_keluarga'] = (int) ($parameter->bpjs_keluarga ?? 0);
             $this->form['bpjs_jp'] = ($parameter->bpjs_jp ?? '0') === '1';
+            $this->form['bpjs_tk_kpj'] = (string) ($parameter->bpjs_tk_kpj ?? '');
+            $this->form['bpjs_tk_kode'] = (string) ($parameter->bpjs_tk_kode ?? '');
+            $this->form['bpjs_tk_id_pegawai'] = (string) ($parameter->bpjs_tk_id_pegawai ?? '');
+            $this->form['bpjs_tk_upah'] = (int) round((float) ($parameter->bpjs_tk_upah ?? 0));
             $this->form['nama_bank']    = (string) ($parameter->nama_bank ?? '');
             $this->form['no_rekening']  = (string) ($parameter->no_rekening ?? '');
         }
@@ -85,6 +89,8 @@ new class extends Component {
             'form.bpjs_jkn' => 'boolean', 'form.bpjs_jp' => 'boolean',
             'form.bpjs_jkn_dasar' => 'required|numeric|min:0|max:999999999',
             'form.bpjs_keluarga' => 'required|integer|min:0|max:9',
+            'form.bpjs_tk_kpj' => 'nullable|string|max:20', 'form.bpjs_tk_kode' => 'nullable|string|max:20', 'form.bpjs_tk_id_pegawai' => 'nullable|string|max:20',
+            'form.bpjs_tk_upah' => 'required|numeric|min:0|max:999999999',
             'form.nama_bank'    => 'nullable|string|max:30',
             'form.no_rekening'  => 'nullable|string|max:30',
         ];
@@ -108,6 +114,7 @@ new class extends Component {
             'form.potongan_asuransi' => 'Asuransi', 'form.potongan_organisasi' => 'Iuran Organisasi', 'form.potongan_arisan' => 'Arisan',
             'form.potongan_koperasi' => 'Koperasi', 'form.potongan_infaq' => 'Infaq',
             'form.bpjs_jkn_dasar' => 'Dasar JKN', 'form.bpjs_keluarga' => 'Keluarga tambahan',
+            'form.bpjs_tk_kpj' => 'Nomor KPJ', 'form.bpjs_tk_kode' => 'Kode TK', 'form.bpjs_tk_id_pegawai' => 'ID pegawai SIPP', 'form.bpjs_tk_upah' => 'Upah lapor BPJS TK',
             ...collect(JasaMedik::POS)->mapWithKeys(fn($pos, $kode) => ["poinJm.{$kode}" => 'Poin JM ' . $pos['nama']])->all(),
             'form.pph21_persen' => 'PPh 21', 'form.hari_kerja_default' => 'Hari Kerja Default', 'form.nama_bank' => 'Bank', 'form.no_rekening' => 'No. Rekening',
         ];
@@ -121,6 +128,8 @@ new class extends Component {
             'bpjs_jkn' => $this->form['bpjs_jkn'] ? '1' : '0', 'bpjs_jp' => $this->form['bpjs_jp'] ? '1' : '0',
             'bpjs_jkn_dasar' => (float) $this->form['bpjs_jkn_dasar'] > 0 ? (float) $this->form['bpjs_jkn_dasar'] : null,
             'bpjs_keluarga' => (int) $this->form['bpjs_keluarga'],
+            'bpjs_tk_kpj' => trim($this->form['bpjs_tk_kpj']) ?: null, 'bpjs_tk_kode' => trim($this->form['bpjs_tk_kode']) ?: null, 'bpjs_tk_id_pegawai' => trim($this->form['bpjs_tk_id_pegawai']) ?: null,
+            'bpjs_tk_upah' => (float) $this->form['bpjs_tk_upah'] > 0 ? (float) $this->form['bpjs_tk_upah'] : null,
             'nama_bank'   => trim($this->form['nama_bank']) !== '' ? trim($this->form['nama_bank']) : null,
             'no_rekening' => trim($this->form['no_rekening']) !== '' ? trim($this->form['no_rekening']) : null];
         foreach (GajiKaryawan::KOLOM_NOMINAL as $kolom) {
@@ -149,7 +158,8 @@ new class extends Component {
     private function resetForm(): void
     {
         $this->form = array_fill_keys(GajiKaryawan::KOLOM_NOMINAL, 0) + ['pph21_persen' => 0, 'hari_kerja_default' => 25, 'nama_bank' => '', 'no_rekening' => '',
-            'bpjs_jkn' => false, 'bpjs_jkn_dasar' => 0, 'bpjs_keluarga' => 0, 'bpjs_jp' => false];
+            'bpjs_jkn' => false, 'bpjs_jkn_dasar' => 0, 'bpjs_keluarga' => 0, 'bpjs_jp' => false,
+            'bpjs_tk_kpj' => '', 'bpjs_tk_kode' => '', 'bpjs_tk_id_pegawai' => '', 'bpjs_tk_upah' => 0];
         $this->poinJm = array_fill_keys(array_keys(JasaMedik::POS), 0);
         $this->sudahAda = false;
         $this->resetValidation();
@@ -241,6 +251,29 @@ new class extends Component {
                                 <x-input-error :messages="$errors->get('form.bpjs_keluarga')" class="mt-1" />
                             </div>
                         </div>
+                        <div class="grid grid-cols-1 gap-4 pt-4 mt-4 border-t sm:grid-cols-4 border-hairline dark:border-gray-700">
+                            <div>
+                                <x-input-label for="pg-kpj" value="Nomor KPJ" />
+                                <x-text-input id="pg-kpj" wire:model="form.bpjs_tk_kpj" maxlength="20" :error="$errors->has('form.bpjs_tk_kpj')" class="w-full mt-1" />
+                                <x-input-error :messages="$errors->get('form.bpjs_tk_kpj')" class="mt-1" />
+                            </div>
+                            <div>
+                                <x-input-label for="pg-kode-tk" value="Kode TK (SIPP)" />
+                                <x-text-input id="pg-kode-tk" wire:model="form.bpjs_tk_kode" maxlength="20" :error="$errors->has('form.bpjs_tk_kode')" class="w-full mt-1" />
+                                <x-input-error :messages="$errors->get('form.bpjs_tk_kode')" class="mt-1" />
+                            </div>
+                            <div>
+                                <x-input-label for="pg-id-sipp" value="ID pegawai (SIPP, opsional)" />
+                                <x-text-input id="pg-id-sipp" wire:model="form.bpjs_tk_id_pegawai" maxlength="20" :error="$errors->has('form.bpjs_tk_id_pegawai')" class="w-full mt-1" />
+                                <x-input-error :messages="$errors->get('form.bpjs_tk_id_pegawai')" class="mt-1" />
+                            </div>
+                            <div>
+                                <x-input-label for="pg-upah-tk" value="Upah dilaporkan ke BPJS TK (Rp)" />
+                                <x-text-input-number id="pg-upah-tk" wire:model="form.bpjs_tk_upah" :error="$errors->has('form.bpjs_tk_upah')" class="w-full mt-1" />
+                                <x-input-error :messages="$errors->get('form.bpjs_tk_upah')" class="mt-1" />
+                            </div>
+                        </div>
+                        <p class="mt-2 text-xs text-muted">Empat kolom ini mengisi laporan upah bulanan BPJS Ketenagakerjaan (SIPP Online) yang diekspor dari Gaji Karyawan → Form Bagian → <b>Upah BPJS TK</b>. Karyawan ikut laporan bila KPJ atau kode TK terisi; upah lapor = nilai tetap yang didaftarkan ke BPJS, bukan hitungan slip.</p>
                         <p class="mt-3 text-xs text-muted">UMK &amp; persen diatur di Gaji Karyawan → <b>Ketentuan BPJS</b>. Baris BPJS di slip dihitung ulang setiap slip berubah (pola PPh 21) dan bisa ditimpa per slip di rincian.</p>
                     </x-border-form>
 

@@ -13,7 +13,7 @@ use App\Support\PengaturanGaji;
  */
 new class extends Component {
     public string $periode = '';
-    public array  $form = ['umk' => 0, 'persen_jkn' => 1, 'persen_jp' => 1, 'keterangan' => ''];
+    public array  $form = ['umk' => 0, 'persen_jkn' => 1, 'persen_jp' => 1, 'keterangan' => '', 'bpjs_tk_npp' => ''];
     public int    $versi = 0;
 
     public function boot(): void
@@ -26,7 +26,7 @@ new class extends Component {
     {
         $this->periode = GajiKaryawan::periodeValid($periode) ? $periode : '';
         $aturan = PengaturanGaji::ambil();
-        $this->form = ['umk' => (int) round($aturan->umk), 'persen_jkn' => (float) $aturan->persen_jkn, 'persen_jp' => (float) $aturan->persen_jp, 'keterangan' => $aturan->keterangan];
+        $this->form = ['umk' => (int) round($aturan->umk), 'persen_jkn' => (float) $aturan->persen_jkn, 'persen_jp' => (float) $aturan->persen_jp, 'keterangan' => $aturan->keterangan, 'bpjs_tk_npp' => $aturan->bpjs_tk_npp];
         $this->versi++;
         $this->dispatch('open-modal', name: 'gaji-karyawan-ketentuan-bpjs');
     }
@@ -75,9 +75,14 @@ new class extends Component {
                         <x-input-label for="kb-jp" value="% JP karyawan" />
                         <x-text-input-number id="kb-jp" wire:model="form.persen_jp" :decimals="2" class="w-full mt-1" />
                     </div>
-                    <div class="sm:col-span-3">
+                    <div class="sm:col-span-2">
                         <x-input-label for="kb-ket" value="Keterangan" />
                         <x-text-input id="kb-ket" wire:model="form.keterangan" maxlength="200" placeholder="mis. UMK Tulungagung 2026" class="w-full mt-1" />
+                    </div>
+                    <div>
+                        <x-input-label for="kb-npp" value="NPP BPJS Ketenagakerjaan" />
+                        <x-text-input id="kb-npp" wire:model="form.bpjs_tk_npp" maxlength="20" placeholder="mis. NN080468" class="w-full mt-1" />
+                        <p class="mt-1 text-xs text-muted">Nomor perusahaan di SIPP — kolom NPP laporan upah bulanan.</p>
                     </div>
                 </div>
                 <p class="mt-3 text-xs text-muted">Setelah disimpan, slip <b>Draft</b> bulan kerja {{ $periode !== '' ? GajiKaryawan::namaPeriode($periode) : 'yang dibuka' }} dihitung ulang; slip Final tidak berubah.</p>

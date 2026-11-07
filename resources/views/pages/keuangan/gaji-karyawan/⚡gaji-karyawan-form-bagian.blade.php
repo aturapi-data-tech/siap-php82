@@ -8,12 +8,14 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 use App\Support\Format;
 use App\Support\GajiFormBagian;
 use App\Support\GajiKaryawan;
+use App\Support\LaporanUpahBpjsTk;
 
 /**
  * Modal "Form Bagian": ekspor form Excel per bagian (hari kerja, bon, kenaikan gaji, iuran koperasi)
  * untuk diisi bagian terkait, lalu impor kembali → slip Draft diperbarui.
  * Jasa Medik lewat menu Pembagian Jasa Medik, Lembur lewat Laporan Kepegawaian, angsuran lewat Pinjaman Karyawan (kartu penunjuk di akhir grid).
  * Logika ekspor/impor di App\Support\GajiFormBagian. Bulan & unit mengikuti toolbar halaman gaji.
+ * Kartu "Upah BPJS TK" = ekspor saja: template upah SIPP Online bulan lapor (App\Support\LaporanUpahBpjsTk), tidak diimpor balik.
  */
 new class extends Component {
     use WithFileUploads;
@@ -65,6 +67,25 @@ new class extends Component {
         return response()->streamDownload(
             fn() => IOFactory::createWriter($book, 'Xlsx')->save('php://output'),
             GajiFormBagian::namaBerkas($bagian, $this->periode, $this->unitId),
+            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        );
+    }
+
+    /** Template upah BPJS Ketenagakerjaan (SIPP Online) untuk bulan lapor = bulan kerja + 1 — ekspor saja. */
+    public function eksporUpahBpjsTk()
+    {
+        if ($this->periode === '') {
+            return null;
+        }
+        $book = LaporanUpahBpjsTk::ekspor($this->periode);
+        if (!$book) {
+            $this->dispatch('toast', type: 'error', message: 'Belum ada peserta BPJS TK: isi nomor KPJ / kode TK di Master Karyawan → Gaji, atau jalankan php artisan gaji:impor-upah-bpjs-tk.');
+            return null;
+        }
+
+        return response()->streamDownload(
+            fn() => IOFactory::createWriter($book, 'Xlsx')->save('php://output'),
+            LaporanUpahBpjsTk::namaBerkas($this->periode),
             ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
         );
     }
@@ -209,6 +230,22 @@ new class extends Component {
                             <x-badge variant="info" class="shrink-0">Otomatis</x-badge>
                         </div>
                         <p class="mt-1 text-xs text-muted">Tidak lewat Excel. BPJS Kesehatan (JKN × dasar × jiwa) dan Ketenagakerjaan (JP × upah bulan itu) dihitung otomatis di slip dari kepesertaan di Master Karyawan → Gaji dan UMK / persen di <b>Ketentuan BPJS</b>. Bisa ditimpa per slip di rincian.</p>
+                    </div>
+
+                    {{-- Laporan upah BPJS TK: template SIPP Online, ekspor saja (diunggah ke SIPP, tidak diimpor balik). --}}
+                    <div class="flex flex-col p-4 border shadow-sm bg-canvas border-hairline rounded-2xl dark:bg-gray-800 dark:border-gray-700">
+                        <div class="flex items-start justify-between gap-2">
+                            <h3 class="font-semibold text-ink dark:text-gray-100">Upah BPJS TK (SIPP)</h3>
+                            <x-badge variant="gray" class="shrink-0">Ekspor saja</x-badge>
+                        </div>
+                        <p class="mt-1 text-xs text-muted">Template upah BPJS Ketenagakerjaan bulan lapor <b>{{ $periode !== '' ? Format::bulan(LaporanUpahBpjsTk::bulanLapor($periode)) : '-' }}</b> (bulan gaji dibayar) untuk diunggah ke SIPP Online: NIK, KPJ, kode TK, nama, tanggal lahir, UPAH dari Master Karyawan → Gaji. RAPEL 0 — isi di berkas bila ada.</p>
+                        <div class="mt-auto pt-3">
+                            <x-secondary-button type="button" wire:click="eksporUpahBpjsTk" wire:loading.attr="disabled" wire:target="eksporUpahBpjsTk" class="w-full justify-center">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                <span wire:loading.remove wire:target="eksporUpahBpjsTk">Ekspor template SIPP</span>
+                                <span wire:loading wire:target="eksporUpahBpjsTk">Menyiapkan…</span>
+                            </x-secondary-button>
+                        </div>
                     </div>
                 </div>
             </div>
