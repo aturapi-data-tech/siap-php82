@@ -394,7 +394,7 @@ new class extends Component {
                 {{-- TAHAP 3: BARIS MANUAL (slip ber-sumber SIAP) — kasbon, bonus, rapel, koreksi; ikut dihitung ulang. --}}
                 @if (($header->sumber ?? 'SIRUS') === 'SIAP')
                     <div class="px-4 pb-4 bg-surface-soft dark:bg-gray-950/20">
-                        <x-border-form title="Baris manual (potongan &amp; tambahan)">
+                        <x-border-form title="Baris manual (potongan & tambahan)">
                             <p class="mb-2 text-sm text-muted dark:text-gray-400">Kasbon, iuran insidental, bonus, rapel, koreksi bulan lalu. Ketik nilai positif — potongan otomatis minus. Tiap perubahan menghitung ulang slip (versi baru).{{ $header->gaji_status === 'F' ? ' Slip sudah Final: buka kunci di Buku untuk mengubah.' : '' }}</p>
                             <table class="w-full text-sm">
                                 <tbody>

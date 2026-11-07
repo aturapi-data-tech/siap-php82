@@ -341,8 +341,8 @@ new class extends Component {
     </div>
 
     {{-- MODAL STRUKTUR (meniru panel Struktur Gaji di Master Dokter SIRUS) --}}
-    <x-modal name="gaji-dokter-struktur" size="4xl" focusable>
-        <div class="flex flex-col">
+    <x-modal name="gaji-dokter-struktur" size="full" height="full" focusable>
+        <div class="flex flex-col min-h-[calc(100vh-8rem)]">
             <x-modul-dokumen.header judul="Struktur Gaji" tutup="closeModal"
                 ikon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
                 {{ $editDrName }} — dipakai saat slip gaji dokter diproses{{ $strukturDiSiap ? '; tersimpan di SIAP dan dikirim ke SIRUS' : '; SIRUS masih sumbernya, ubah di sini hanya bila mode sudah SIAP' }}.
@@ -350,7 +350,7 @@ new class extends Component {
             </x-modul-dokumen.header>
 
             @if ($editDrId !== null)
-                <div class="px-4 py-4 space-y-4 bg-surface-soft dark:bg-gray-950/20">
+                <div class="flex-1 px-4 py-4 space-y-4 bg-surface-soft dark:bg-gray-950/20">
                     {{-- PANDUAN --}}
                     <div x-data="{ buka: false }" class="overflow-hidden border border-blue-200 rounded-2xl bg-blue-50 dark:bg-blue-900/20 dark:border-blue-700">
                         <button type="button" x-on:click="buka = !buka" class="flex items-center justify-between w-full px-4 py-2.5 text-sm font-semibold text-blue-900 hover:bg-blue-100 dark:text-blue-200 dark:hover:bg-blue-900/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-green">
@@ -366,8 +366,8 @@ new class extends Component {
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <x-border-form title="Gaji pokok &amp; pajak">
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">
+                        <x-border-form title="Gaji pokok & pajak">
                             <div class="space-y-3">
                                 <div><x-input-label for="gds-pokok" value="Gaji Pokok (Rp)" /><div class="mt-1"><x-text-input-number id="gds-pokok" wire:model="form.basic_salary" /></div></div>
                                 <div><x-input-label for="gds-skema" value="Skema Gaji Pokok" /><div class="mt-1"><x-select-input id="gds-skema" wire:model="form.skema_gaji_pokok">@foreach (GajiDokterStruktur::SKEMA as $kode => $label)<option value="{{ $kode }}">{{ $kode }} — {{ $label }}</option>@endforeach</x-select-input></div></div>
@@ -411,7 +411,7 @@ new class extends Component {
                             </div>
                         </x-border-form>
 
-                        <x-border-form title="Tarif per kapita &amp; tunjangan (kena pajak)">
+                        <x-border-form title="Tarif per kapita & tunjangan (kena pajak)">
                             <div class="grid grid-cols-2 gap-3">
                                 <div><x-input-label for="gds-kap-ri" value="Tarif per pasien RI" /><div class="mt-1"><x-text-input-number id="gds-kap-ri" wire:model="form.tarif_per_kapita_ri" /></div></div>
                                 <div><x-input-label for="gds-kap-rj" value="Tarif per kunjungan RJ" /><div class="mt-1"><x-text-input-number id="gds-kap-rj" wire:model="form.tarif_per_kapita_rj" /></div></div>

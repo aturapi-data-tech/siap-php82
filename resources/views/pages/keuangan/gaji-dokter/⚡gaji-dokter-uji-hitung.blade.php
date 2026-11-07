@@ -44,7 +44,7 @@ new class extends Component {
 ?>
 
 <div>
-    <x-modal name="gaji-dokter-uji-hitung" size="4xl" height="full">
+    <x-modal name="gaji-dokter-uji-hitung" size="full" height="full">
         @php
             $rupiah = fn($nilai) => $nilai === null ? '–' : number_format((float) $nilai, 0, ',', '.');
             $cocok = collect($hasilUji)->where('cocok', true)->count();
