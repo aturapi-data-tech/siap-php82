@@ -230,6 +230,50 @@ class GajiDokterStruktur
         return self::terapkanTarikan(['mode' => [], 'dokter' => $dokterList], $userId);
     }
 
+    /** Berkas data dokter + struktur gaji hasil ekspor dari SIRUS (ditanam di repo, dipakai server yang tak bisa membaca skema SIRUS). */
+    public const BERKAS_DATA = 'database/data/struktur-gaji-dokter-sirus.json';
+
+    /**
+     * Ekspor dokter + struktur dari tabel SIRUS (butuh akses baca, mis. di komputer dev) ke BERKAS_DATA — bentuk sama dengan GET /dokter.
+     * @return array{jumlah: int, berkas: string}
+     */
+    public static function eksporKeBerkas(): array
+    {
+        $rows = DB::table(self::tabelDokterSirus())->orderBy('dr_id')->get();
+        $dokterList = $rows->map(fn($row) => [
+            'dr_id' => (string) $row->dr_id, 'dr_name' => trim((string) $row->dr_name), 'dr_nik' => trim((string) ($row->dr_nik ?? '')),
+            'kd_dr_bpjs' => trim((string) ($row->kd_dr_bpjs ?? '')), 'aktif' => trim((string) $row->active_status) === '1',
+            'struktur' => self::strukturDariBarisSirus($row),
+        ])->values()->all();
+        $berkas = base_path(self::BERKAS_DATA);
+        if (!is_dir(dirname($berkas))) {
+            mkdir(dirname($berkas), 0775, true);
+        }
+        file_put_contents($berkas, json_encode(['diekspor_pada' => now()->toDateTimeString(), 'jumlah' => count($dokterList), 'dokter' => $dokterList],
+            JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n");
+
+        return ['jumlah' => count($dokterList), 'berkas' => self::BERKAS_DATA];
+    }
+
+    /**
+     * Impor dari BERKAS_DATA tanpa menyentuh skema SIRUS: master dokter & struktur di-insert bila belum ada, di-update bila sudah ada
+     * (struktur bertanda SIAP tidak ditimpa saat mode SIAP). Sama dengan Tarik, hanya sumbernya berkas.
+     * @return array{ditarik: int, dilewati: int, dokterBaru: int, mode: array, diekspor_pada: ?string}
+     */
+    public static function imporDariBerkas(?int $userId): array
+    {
+        $berkas = base_path(self::BERKAS_DATA);
+        if (!is_file($berkas)) {
+            throw new \RuntimeException('Berkas data ' . self::BERKAS_DATA . ' tidak ada — buat dulu dengan php artisan gaji:salin-struktur-sirus --ekspor di komputer yang bisa membaca SIRUS.');
+        }
+        $data = json_decode((string) file_get_contents($berkas), true);
+        if (!is_array($data) || !isset($data['dokter'])) {
+            throw new \RuntimeException('Berkas data ' . self::BERKAS_DATA . ' rusak / bukan hasil --ekspor.');
+        }
+
+        return [...self::terapkanTarikan(['mode' => [], 'dokter' => $data['dokter']], $userId), 'diekspor_pada' => $data['diekspor_pada'] ?? null];
+    }
+
     /** Apakah koneksi database SIAP bisa membaca tabel dokter SIRUS (grant sudah diberikan). Hasil diingat per permintaan. */
     public static function databaseSirusTersedia(): bool
     {
