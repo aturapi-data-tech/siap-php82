@@ -11,9 +11,9 @@ use App\Support\GajiKaryawan;
 use App\Support\LaporanUpahBpjsTk;
 
 /**
- * Modal "Form Bagian": ekspor form Excel per bagian (hari kerja, bon, kenaikan gaji, iuran koperasi)
+ * Modal "Form Bagian": ekspor form Excel per bagian (bon, kenaikan gaji, iuran koperasi)
  * untuk diisi bagian terkait, lalu impor kembali → slip Draft diperbarui.
- * Jasa Medik lewat menu Pembagian Jasa Medik, Lembur lewat Laporan Kepegawaian, angsuran lewat Pinjaman Karyawan (kartu penunjuk di akhir grid).
+ * Jasa Medik lewat menu Pembagian Jasa Medik, hari kerja & lembur lewat Laporan Kepegawaian, angsuran lewat Pinjaman Karyawan (kartu penunjuk di akhir grid).
  * Logika ekspor/impor di App\Support\GajiFormBagian. Bulan & unit mengikuti toolbar halaman gaji.
  * Kartu "Upah BPJS TK" = ekspor saja: template upah SIPP Online bulan lapor (App\Support\LaporanUpahBpjsTk), tidak diimpor balik.
  */
@@ -134,7 +134,7 @@ new class extends Component {
             <div class="flex-1 px-4 py-4 bg-surface-soft dark:bg-gray-950/20">
                 <p class="p-3 mb-4 text-sm border rounded-xl border-hairline bg-canvas text-body dark:bg-gray-800 dark:border-gray-700">
                     Form berisi slip bulan ini (Generate dulu). Nilai di kolom kuning <b>menggantikan</b> komponen itu di slip;
-                    kosong = 0 (kecuali Hari Kerja &amp; Kenaikan Gaji: kosong = tidak diubah). Baris dicocokkan lewat ID Karyawan,
+                    kosong = 0 (kecuali Kenaikan Gaji: kosong = tidak diubah). Baris dicocokkan lewat ID Karyawan,
                     slip <b>Final dilewati</b>, dan form bulan / bagian lain ditolak.
                 </p>
 
@@ -200,10 +200,10 @@ new class extends Component {
                     {{-- Lembur bukan form Excel: jam lembur & hari kerja diisi kepegawaian di menu Laporan Kepegawaian (satu sumber lembur slip). --}}
                     <div class="flex flex-col p-4 border border-dashed shadow-sm bg-canvas border-hairline rounded-2xl dark:bg-gray-800 dark:border-gray-700">
                         <div class="flex items-start justify-between gap-2">
-                            <h3 class="font-semibold text-ink dark:text-gray-100">Lembur &amp; Hari Kerja</h3>
+                            <h3 class="font-semibold text-ink dark:text-gray-100">Hari Kerja &amp; Lembur</h3>
                             <x-badge variant="info" class="shrink-0">Menu sendiri</x-badge>
                         </div>
-                        <p class="mt-1 text-xs text-muted">Tidak lewat Excel. Jam lembur &amp; hari kerja diisi kepegawaian langsung di menu Laporan Kepegawaian, lalu diterapkan ke slip. Form Hari Kerja di atas tetap tersedia untuk koreksi cepat.</p>
+                        <p class="mt-1 text-xs text-muted">Tidak lewat Excel. Hari kerja, cuti &amp; jam lembur diisi kepegawaian langsung di menu Laporan Kepegawaian, lalu diterapkan ke slip. Koreksi satu slip: kotak Hari Kerja di Rincian.</p>
                         <a href="{{ route('keuangan.laporan-pegawai', ['bulan' => $periode !== '' ? \App\Support\GajiKaryawan::awalPeriode($periode)->format('m/Y') : null]) }}" wire:navigate
                             class="inline-flex items-center justify-center w-full gap-2 px-5 py-2.5 mt-auto text-sm font-medium border rounded-lg text-brand-green border-brand-green/30 bg-brand-green/10 hover:bg-brand-green hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green dark:text-brand-lime dark:border-brand-lime/30 dark:bg-brand-lime/10 dark:hover:bg-brand-lime dark:hover:text-gray-900">
                             Buka Laporan Kepegawaian →

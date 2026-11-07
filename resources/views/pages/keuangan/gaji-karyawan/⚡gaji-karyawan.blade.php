@@ -318,7 +318,7 @@ new class extends Component {
                             <span class="hidden min-[1360px]:inline">Final Semua</span><span class="sr-only min-[1360px]:hidden">Final Semua</span>
                         </x-confirm-button>
                         <x-secondary-button type="button" wire:click="openFormBagian" wire:loading.attr="disabled" wire:target="openFormBagian" class="!px-4"
-                            title="Ekspor / impor form Excel per bagian: hari kerja, bon, kenaikan gaji, iuran koperasi, BPJS">
+                            title="Form Bagian: ekspor / impor form Excel bon, kenaikan gaji, iuran koperasi; ekspor template upah BPJS TK (SIPP)">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 14h18M10 3v18M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" /></svg>
                             <span class="hidden min-[1360px]:inline">Form Bagian</span><span class="sr-only min-[1360px]:hidden">Form Bagian</span>
                         </x-secondary-button>

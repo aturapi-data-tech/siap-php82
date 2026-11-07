@@ -80,7 +80,7 @@ new class extends Component {
                             ['Laporan Kepegawaian', 'Hari kerja & lembur isian kepegawaian › Terapkan ke Slip', 'tiap bulan'],
                             ['Pinjaman Karyawan', 'Buku pinjaman › angsuran bulan ini › Terapkan ke Slip', 'tiap bulan'],
                             ['Gaji Dokter', 'Ambil dari SIRUS (atau Proses Slip) › Terapkan ke slip gaji', 'tiap bulan'],
-                            ['Form Bagian', 'Excel: bon, kenaikan gaji, iuran koperasi, BPJS', 'tiap bulan'],
+                            ['Form Bagian', 'Excel: bon, kenaikan gaji, iuran koperasi; template upah BPJS TK', 'tiap bulan'],
                             ['Periksa & Final', 'Rincian slip janggal, PPh 21, lalu kunci', 'tiap bulan'],
                             ['Cetak / WA', 'PDF slip atau kirim ke WhatsApp', 'tiap bulan'],
                         ] as $urutan => [$judul, $isi, $kapan])
@@ -116,7 +116,7 @@ new class extends Component {
                         <li><b>Laporan Kepegawaian</b>: kepegawaian mengisi hari kerja, cuti, dan jam lembur yang berbeda dari master di {!! $tautan('keuangan.laporan-pegawai', 'Laporan Kepegawaian') !!}; Keuangan klik <b>Terapkan ke Slip</b> (bagian 4). Perubahan hari kerja satu orang bisa juga langsung di Rincian (bagian 8).</li>
                         <li><b>Pinjaman Karyawan</b>: klik <b>Terapkan ke Slip</b> → angsuran bulan N masuk sebagai potongan (bagian 5).</li>
                         <li><b>Gaji Dokter</b> di {!! $tautan('keuangan.gaji-dokter', 'Gaji Dokter') !!} (bagian 12): pilih bulan jasa N, klik <b>Ambil dari SIRUS</b> (atau <b>Proses Slip</b> bila mesin slip sudah SIAP), lengkapi <b>Pemetaan</b> dokter baru, lalu <b>Terapkan ke slip gaji</b> → baris jasa, potongan RS, dan PPh 21 dokter masuk ke slip bulan kerja N (dokter tanpa parameter gaji dibuatkan slip Draft kosong). Baris ini terkunci di Rincian.</li>
-                        <li><b>Form Bagian</b>: ekspor form Excel tiap bagian (bon, kenaikan gaji, iuran koperasi, BPJS), kirim ke bagian terkait, impor hasilnya (bagian 6).</li>
+                        <li><b>Form Bagian</b>: ekspor form Excel tiap bagian (bon, kenaikan gaji, iuran koperasi), kirim ke bagian terkait, impor hasilnya (bagian 6).</li>
                         <li><b>Baris manual</b> yang tidak punya form: tambah langsung di <b>Rincian</b> slip (bagian 7).</li>
                     </ol>
 
@@ -327,7 +327,7 @@ new class extends Component {
                     </table>
                     <h3 class="mt-4">Aturan impor</h3>
                     <ul class="mt-1 text-sm">
-                        <li>Angka di form <b>mengganti</b> komponen itu di slip. Kosong = 0 (komponen dihapus), kecuali <b>Hari Kerja</b> &amp; <b>Kenaikan Gaji</b>: kosong = tidak diubah.</li>
+                        <li>Angka di form <b>mengganti</b> komponen itu di slip. Kosong = 0 (komponen dihapus), kecuali <b>Kenaikan Gaji</b>: kosong = tidak diubah.</li>
                         <li>Form terikat <b>bulan &amp; bagian</b>: form bulan lain atau bagian lain ditolak. Ganti bulan di toolbar dulu bila perlu.</li>
                         <li>Baris dicocokkan lewat <b>ID Karyawan + nama</b>. ID yang diubah / ganda dilewati dan dilaporkan.</li>
                         <li>Slip <b>Final</b> dilewati. Karyawan yang angkanya sama dengan slip tidak disentuh.</li>
@@ -336,7 +336,6 @@ new class extends Component {
                     </ul>
                     <h3 class="mt-4">Catatan per form</h3>
                     <ul class="mt-1 text-sm">
-                        <li><b>Hari Kerja</b>: koreksi cepat per slip. Jalur utamanya tetap {!! $tautan('keuangan.laporan-pegawai', 'Laporan Kepegawaian') !!} (bagian 4); hari kerja yang diubah lewat form ini akan tampil "Belum sesuai" di sana sampai diterapkan ulang.</li>
                         <li><b>Kenaikan Gaji</b>: mengubah parameter gaji karyawan, dan slip Draft bulan itu langsung disusun ulang.</li>
                         <li><b>Iuran Koperasi</b>: menimpa potongan rutin parameter untuk bulan itu saja. Angsuran pinjaman tidak di sini — lihat {!! $tautan('keuangan.pinjaman-karyawan', 'Pinjaman Karyawan') !!} (bagian 5). BPJS juga tidak di sini — otomatis dari master (bagian 1).</li>
                         <li><b>Upah BPJS TK (SIPP)</b>: <i>ekspor saja</i> — template upah BPJS Ketenagakerjaan untuk diunggah ke SIPP Online, bulan lapor = bulan kerja + 1 (bulan gaji dibayar). Kolomnya persis template SIPP: NIK &amp; tanggal lahir dari Master Karyawan, nomor KPJ, kode TK, ID pegawai, dan <b>upah lapor</b> (nilai tetap yang didaftarkan ke BPJS, bukan hitungan slip) dari Master Karyawan → Gaji → kotak BPJS; NPP dari <b>Ketentuan BPJS</b>. Karyawan ikut bila KPJ atau kode TK terisi; RAPEL 0 (isi di berkas bila ada). Pengisian awal dari berkas SIPP yang sudah ada: <code>php artisan gaji:impor-upah-bpjs-tk template_upah_NPP.xlsx --simpan</code> (NIK &amp; tanggal lahir master diisi bila masih kosong).</li>
@@ -519,7 +518,7 @@ new class extends Component {
                         @foreach ([
                             ['Karyawan tidak muncul saat Generate?', 'Parameter gajinya belum diatur, atau karyawannya non-aktif. Cek Master Karyawan dengan filter "Gaji belum diatur".'],
                             ['Karyawan keluar / berhenti?', 'Non-aktifkan di Master Karyawan. Karyawan non-aktif keluar dari hitungan: Generate gaji tidak membuatkan slip dan menghapus slip Draft-nya bulan itu (slip Final tetap disimpan); poinnya tidak ikut Pembagian JM, jadi jatah JM terbagi ke karyawan aktif. Proses gaji bulan terakhirnya DULU, baru non-aktifkan. Bila diaktifkan lagi, poin & slipnya ikut kembali saat Generate.'],
-                            ['Hari kerja salah setelah Generate?', 'Ubah di kotak Hari Kerja pada Rincian (bagian 8), atau impor form Hari Kerja (bagian 6). Hari kerja per slip tidak diubah lagi oleh Generate / Susun ulang.'],
+                            ['Hari kerja salah setelah Generate?', 'Ubah di kotak Hari Kerja pada Rincian (bagian 8), atau perbaiki di Laporan Kepegawaian lalu Terapkan ke Slip (bagian 4). Hari kerja per slip tidak diubah lagi oleh Generate / Susun ulang.'],
                             ['Gaji pokok naik bulan ini?', 'Ubah di Master Karyawan › Gaji lalu Generate ulang bulan itu, atau untuk banyak karyawan sekaligus pakai form Kenaikan Gaji (Form Bagian) — slip Draft langsung disusun ulang. Slip bulan-bulan sebelumnya tidak berubah.'],
                             ['JM di slip beda dengan menu Pembagian JM?', 'Ada perubahan nilai dasar / persen / poin setelah diterapkan. Di Pembagian JM akan muncul tanda "belum sesuai" — klik Terapkan ke Slip lagi. Slip Final harus dibuka ke Draft dulu.'],
                             ['Impor form ditolak?', 'Pesannya menyebut sebabnya: form untuk bulan lain (ganti bulan di toolbar), form bagian lain (impor di kartu yang benar), atau susunan kolom berubah (ekspor ulang form, jangan sisip/hapus kolom).'],

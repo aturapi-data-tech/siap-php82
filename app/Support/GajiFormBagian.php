@@ -18,10 +18,10 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * Form Excel per BAGIAN untuk slip gaji — pengganti sheet-sheet terpisah di workbook gaji lama
  * (peg/BON, kenaikan gaji, iuran koperasi, …) yang dulu dirangkum sheet "gaji" lewat SUMIF nama.
  * Jasa Medik TIDAK lewat form ini — dihitung & diterapkan di menu Pembagian Jasa Medik (App\Support\JasaMedik);
- * Lembur juga TIDAK — hari kerja & jam lembur dari menu Laporan Kepegawaian (App\Support\LaporanPegawai).
+ * Hari kerja & lembur juga TIDAK — dari menu Laporan Kepegawaian (App\Support\LaporanPegawai), koreksi satu slip lewat Rincian.
  * Angsuran koperasi / bank juga TIDAK — dari buku pinjaman di menu Pinjaman Karyawan (App\Support\PinjamanKaryawan).
  * BPJS juga TIDAK — dihitung otomatis di slip dari master karyawan (GajiKaryawan::hitungBpjs).
- * Dengan begitu baris Jasa Medik, Upah Lembur, Angsuran, dan BPJS slip masing-masing hanya punya satu sumber.
+ * Dengan begitu hari kerja, Jasa Medik, Upah Lembur, Angsuran, dan BPJS slip masing-masing hanya punya satu sumber.
  *
  * Alur: keuangan EKSPOR form satu bagian (berisi daftar slip periode + nilai saat ini) → dikirim ke
  * bagian terkait → bagian mengisi kolom KUNING → keuangan IMPOR → slip Draft diperbarui.
@@ -29,7 +29,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * Aturan impor:
  *  - Baris dicocokkan lewat kolom "ID Karyawan" (bukan nama — nama bisa beda ejaan).
  *  - Form = keadaan komponen bulan itu: nilai di kolom kuning MENGGANTI nilai komponen di slip.
- *    Kosong = 0 (komponen dihapus), kecuali Hari Kerja & Kenaikan Gaji: kosong = tidak diubah.
+ *    Kosong = 0 (komponen dihapus), kecuali Kenaikan Gaji: kosong = tidak diubah.
  *  - Baris yang nilainya sama dengan slip dilewati (tidak menandai apa pun).
  *  - Slip Final dilewati — buka ke Draft dulu bila memang perlu diubah.
  *  - Komponen rutin dari parameter (Koperasi) ditulis sebagai "ditimpa" → aman saat generate ulang.
@@ -58,14 +58,6 @@ class GajiFormBagian
     public static function daftar(): array
     {
         return [
-            'hari_kerja' => [
-                'judul' => 'Hari Kerja', 'petugas' => 'Kepegawaian',
-                'keterangan' => 'Hari kerja slip (pengali tunjangan makan & transport). Kosong = tidak diubah.',
-                'kolom' => [
-                    ['key' => 'hadir', 'label' => 'Hadir (absensi)', 'tipe' => 'angka', 'contoh' => 22, 'petunjuk' => 'Acuan dari absensi'],
-                    ['key' => 'hari_kerja', 'label' => 'Hari Kerja', 'tipe' => 'angka', 'isi' => true, 'contoh' => 20, 'petunjuk' => 'Bilangan bulat 0–31. Kosong = tidak diubah'],
-                ],
-            ],
             'bon' => [
                 'judul' => 'Bon / Kasbon', 'petugas' => 'Kasir / Keuangan',
                 'keterangan' => 'Total bon yang telah diambil bulan ini — dipotong dari gaji.',
@@ -182,9 +174,9 @@ class GajiFormBagian
                 if ($tipe !== 'teks') {
                     $validasi = $sheet->getCell($huruf[$kolom['key']] . self::BARIS_DATA)->getDataValidation();
                     $validasi->setType(DataValidation::TYPE_DECIMAL)->setOperator(DataValidation::OPERATOR_BETWEEN)
-                        ->setFormula1('0')->setFormula2($tipe === 'angka' && $kolom['key'] === 'hari_kerja' ? '31' : '999999999')
+                        ->setFormula1('0')->setFormula2('999999999')
                         ->setAllowBlank(true)->setShowErrorMessage(true)
-                        ->setErrorTitle('Nilai tidak valid')->setError('Isi angka positif' . ($kolom['key'] === 'hari_kerja' ? ' (0–31)' : '') . ', tanpa titik/Rp.');
+                        ->setErrorTitle('Nilai tidak valid')->setError('Isi angka positif, tanpa titik/Rp.');
                     $validasi->setSqref($rentang);
                 }
             } else {
@@ -293,12 +285,10 @@ class GajiFormBagian
         $slipList = self::slipPeriode($periode, $unitId);
         $detail = DB::table('siaptxn_gaji_dtls')->whereIn('gaji_id', $slipList->pluck('gaji_id')->all() ?: [0])
             ->orderBy('dtl_id')->get()->groupBy('gaji_id');
-        $hadir = $bagian === 'hari_kerja' ? GajiKaryawan::hariHadir($slipList->pluck('emp_id')->all(), $periode) : [];
 
         return $slipList->map(fn($slip) => [
             'emp_id' => $slip->emp_id, 'emp_name' => $slip->emp_name, 'unit_name' => $slip->unit_name,
             'status' => GajiKaryawan::STATUS[$slip->gaji_status] ?? $slip->gaji_status,
-            ...($bagian === 'hari_kerja' ? ['hadir' => $hadir[$slip->emp_id] ?? 0] : []),
             ...self::nilaiSaatIni($bagian, $slip, $detail[$slip->gaji_id] ?? collect()),
         ]);
     }
@@ -322,8 +312,6 @@ class GajiFormBagian
             ->filter($saring ?? fn() => true)->sum(fn($row) => (float) $row->nilai));
 
         switch ($bagian) {
-            case 'hari_kerja':
-                return ['hari_kerja' => (int) $slip->hari_hadir];
             case 'bon':
                 return ['kasbon' => $jumlah('KASBON')];
             case 'koperasi':
@@ -479,19 +467,6 @@ class GajiFormBagian
 
             $gajiId = (int) $slip->gaji_id;
             $nilai = $data['nilai'];
-
-            if ($bagian === 'hari_kerja') {
-                $hari = $nilai['hari_kerja'];
-                if ($hari === null || (int) $hari === (int) $slip->hari_hadir) {
-                    $hasil['sama']++;
-                } elseif ($hari != (int) $hari || $hari > 31) {
-                    $hasil['galat'][] = "Baris {$data['baris']} ({$empId}): hari kerja harus bilangan bulat 0–31.";
-                } else {
-                    GajiKaryawan::ubahHariKerja($gajiId, (int) $hari);
-                    $hasil['diperbarui']++;
-                }
-                continue;
-            }
 
             $nilai = array_map(fn($v) => is_string($v) ? $v : round((float) $v, 2), $nilai); // kosong = 0
             $detail = DB::table('siaptxn_gaji_dtls')->where('gaji_id', $gajiId)->orderBy('dtl_id')->get();
