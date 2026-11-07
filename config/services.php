@@ -34,8 +34,6 @@ return [
         'url' => env('SIAP_API_URL'),
         'user' => env('SIAP_API_USER'),
         'password' => env('SIAP_API_PASSWORD'),
-        // skema Oracle SIRUS di instance yang sama — dibaca langsung oleh "Salin dari database SIRUS" (struktur gaji dokter)
-        'schema' => env('SIAP_SIRUS_SCHEMA', 'SIRUS'),
     ],
 
     'slack' => [

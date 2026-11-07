@@ -7,10 +7,11 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 /**
- * Struktur gaji per dokter (tahap 1 pemindahan penggajian dokter ke SIAP) — salinan kolom gaji RSMST_DOCTORS SIRUS di
- * siapmst_gdok_strukturs, disetel di Gaji Dokter → Struktur Gaji dan (bila PengaturanGajiDokter::strukturDiSiap()) dikirim
- * ke SIRUS lewat PUT /api/siap/dokter/{dr_id}/struktur-gaji. Konstanta komponen & aturan berjenjang = salinan
- * App\Support\GajiDokter\GajiDokter di SIRUS supaya mesin hitung SIAP (GajiDokterHitung) memakai kosakata yang sama.
+ * Struktur gaji per dokter — disetel di SIAP (Gaji Dokter → Struktur Gaji), tabel siapmst_gdok_strukturs: skema gaji pokok,
+ * potongan RS (+ aturan berjenjang), PPh 21, NPWP, tarif kapita, tunjangan & potongan rutin. Data awal pernah dimuat sekali dari
+ * ekspor master dokter SIRUS (sumber = SIRUS); sesudahnya SIAP satu-satunya tempat mengubah (sumber = SIAP). Konstanta komponen &
+ * aturan berjenjang = salinan App\Support\GajiDokter\GajiDokter di SIRUS supaya mesin hitung SIAP (GajiDokterHitung) memakai
+ * kosakata yang sama dengan transaksi SIRUS.
  */
 class GajiDokterStruktur
 {
@@ -110,10 +111,9 @@ class GajiDokterStruktur
             ->when(trim($cari) !== '', fn($q) => $q->whereRaw('UPPER(d.dr_name) LIKE ?', ['%' . mb_strtoupper(trim($cari)) . '%']))
             ->when($saring === 'aktif', fn($q) => $q->where('d.aktif', '1'))
             ->when($saring === 'belum', fn($q) => $q->where('d.aktif', '1')->whereNull('s.dr_id'))
-            ->when($saring === 'gagal', fn($q) => $q->whereNotNull('s.sinkron_pesan'))
             ->orderByDesc('d.aktif')->orderBy('d.dr_name')
             ->get(['d.dr_id', 'd.dr_name', 'd.aktif', 'd.emp_id', 'em.emp_name', 's.basic_salary', 's.npwp_status', 's.skema_gaji_pokok', 's.potongan_rs_basis',
-                's.potongan_rs_persen', 's.pph21_persen', 's.tarif_per_kapita_ri', 's.tarif_per_kapita_rj', 's.sumber', 's.disinkron_at', 's.sinkron_pesan', 's.updated_at',
+                's.potongan_rs_persen', 's.pph21_persen', 's.tarif_per_kapita_ri', 's.tarif_per_kapita_rj', 's.sumber', 's.updated_at',
                 DB::raw('CASE WHEN s.dr_id IS NULL THEN 0 ELSE 1 END AS ada_struktur')]);
     }
 
@@ -135,27 +135,26 @@ class GajiDokterStruktur
         'potongan_koperasi' => 'Potongan Koperasi', 'potongan_angsuran' => 'Potongan Angsuran', 'potongan_bpjs' => 'Potongan BPJS', 'potongan_zariyah' => 'Potongan Zariyah'];
 
     /**
-     * Simpan struktur satu dokter (sumber SIAP). Bila sumber struktur = SIAP dan API aktif, langsung dikirim ke SIRUS;
-     * gagal kirim TIDAK membatalkan simpan — dicatat di sinkron_pesan supaya bisa dikirim ulang.
-     * @return array{ok: bool, pesan: string, sinkron: ?string}
+     * Simpan struktur satu dokter dari form (sumber SIAP). Validasi = aturan form Struktur Gaji Master Dokter SIRUS.
+     * @return array{ok: bool, pesan: string}
      */
     public static function simpan(string $drId, array $data, ?int $userId): array
     {
         if (!DB::table('siapmst_dokter_sirus')->where('dr_id', $drId)->exists()) {
-            return ['ok' => false, 'pesan' => 'Dokter tidak dikenal — Segarkan master dokter dari SIRUS dulu.', 'sinkron' => null];
+            return ['ok' => false, 'pesan' => 'Dokter tidak dikenal — Segarkan master dokter dari SIRUS dulu.'];
         }
         $validator = Validator::make($data, self::aturanValidasi(), [
             '*.required' => ':attribute wajib diisi.', '*.numeric' => ':attribute harus berupa angka.', '*.min' => ':attribute tidak boleh kurang dari :min.',
             '*.max' => ':attribute maksimal :max.', '*.in' => ':attribute tidak valid.',
         ], self::LABEL_KOLOM);
         if ($validator->fails()) {
-            return ['ok' => false, 'pesan' => $validator->errors()->first(), 'sinkron' => null];
+            return ['ok' => false, 'pesan' => $validator->errors()->first()];
         }
         $struktur = self::rapikan($validator->validated());
         if ($struktur['potongan_rs_basis'] === 'B') {
             $pesanAturan = self::validasiAturan($struktur['potongan_rs_aturan']);
             if ($pesanAturan !== null) {
-                return ['ok' => false, 'pesan' => $pesanAturan, 'sinkron' => null];
+                return ['ok' => false, 'pesan' => $pesanAturan];
             }
         }
         $kolom = [...$struktur, 'sumber' => 'SIAP', 'updated_by' => $userId, 'updated_at' => now()];
@@ -163,186 +162,7 @@ class GajiDokterStruktur
             ? DB::table('siapmst_gdok_strukturs')->where('dr_id', $drId)->update($kolom)
             : DB::table('siapmst_gdok_strukturs')->insert([...$kolom, 'dr_id' => $drId, 'created_at' => now()]);
 
-        $sinkron = null;
-        if (PengaturanGajiDokter::strukturDiSiap() && GajiDokterSirus::aktif()) {
-            $sinkron = self::kirimKeSirus($drId);
-        }
-
-        return ['ok' => true, 'pesan' => 'Struktur gaji tersimpan.', 'sinkron' => $sinkron];
-    }
-
-    /** Kirim struktur satu dokter ke SIRUS (PUT). @return string|null pesan galat (null = beres) */
-    public static function kirimKeSirus(string $drId): ?string
-    {
-        $struktur = self::ambil($drId);
-        try {
-            GajiDokterSirus::put("dokter/{$drId}/struktur-gaji", $struktur);
-            DB::table('siapmst_gdok_strukturs')->where('dr_id', $drId)->update(['disinkron_at' => now(), 'sinkron_pesan' => null, 'updated_at' => now()]);
-
-            return null;
-        } catch (\Throwable $exception) {
-            DB::table('siapmst_gdok_strukturs')->where('dr_id', $drId)->update(['sinkron_pesan' => mb_substr($exception->getMessage(), 0, 200), 'updated_at' => now()]);
-
-            return $exception->getMessage();
-        }
-    }
-
-    /** Kirim ulang semua struktur ber-sumber SIAP (yang pernah gagal, atau semuanya). @return array{terkirim: int, gagal: array<int, string>} */
-    public static function kirimSemuaKeSirus(bool $hanyaGagal = true): array
-    {
-        $hasilKirim = ['terkirim' => 0, 'gagal' => []];
-        $drIdList = DB::table('siapmst_gdok_strukturs as s')->join('siapmst_dokter_sirus as d', 'd.dr_id', '=', 's.dr_id')
-            ->where('s.sumber', 'SIAP')->when($hanyaGagal, fn($q) => $q->where(fn($w) => $w->whereNotNull('s.sinkron_pesan')->orWhereNull('s.disinkron_at')))
-            ->orderBy('d.dr_name')->get(['s.dr_id', 'd.dr_name']);
-        foreach ($drIdList as $row) {
-            $galat = self::kirimKeSirus((string) $row->dr_id);
-            $galat === null ? $hasilKirim['terkirim']++ : $hasilKirim['gagal'][] = "{$row->dr_name}: {$galat}";
-        }
-
-        return $hasilKirim;
-    }
-
-    /**
-     * Tarik struktur semua dokter dari SIRUS lewat API (GET /dokter → field struktur). Saat SIRUS masih sumber: semua baris
-     * ditimpa (sumber SIRUS). Saat SIAP sudah sumber: hanya dokter yang belum punya baris SIAP yang diisi — setelan SIAP tidak ditimpa.
-     * @return array{ditarik: int, dilewati: int, dokterBaru: int, mode: array}
-     */
-    public static function tarikDariSirus(?int $userId): array
-    {
-        return self::terapkanTarikan(GajiDokterSirus::get('dokter'), $userId);
-    }
-
-    /**
-     * Sama dengan tarikDariSirus, tetapi membaca tabel RSMST_DOCTORS SIRUS langsung lewat koneksi database SIAP (satu Oracle,
-     * skema berbeda) — tanpa API. Dipakai saat SIRUS belum memasang endpoint struktur atau modul gaji dokter SIRUS sudah dimatikan.
-     * Baris yang belum ada di-insert, yang sudah ada di-update (master dokter juga). Butuh user SIAP bisa membaca skema SIRUS.
-     * @return array{ditarik: int, dilewati: int, dokterBaru: int, mode: array}
-     */
-    public static function salinDariDatabaseSirus(?int $userId): array
-    {
-        $rows = DB::table(self::tabelDokterSirus())->orderBy('dr_name')->get();
-        $dokterList = $rows->map(fn($row) => [
-            'dr_id' => (string) $row->dr_id, 'dr_name' => trim((string) $row->dr_name), 'dr_nik' => trim((string) ($row->dr_nik ?? '')),
-            'kd_dr_bpjs' => trim((string) ($row->kd_dr_bpjs ?? '')), 'aktif' => trim((string) $row->active_status) === '1',
-            'struktur' => self::strukturDariBarisSirus($row),
-        ])->values()->all();
-
-        return self::terapkanTarikan(['mode' => [], 'dokter' => $dokterList], $userId);
-    }
-
-    /** Berkas data dokter + struktur gaji hasil ekspor dari SIRUS (ditanam di repo, dipakai server yang tak bisa membaca skema SIRUS). */
-    public const BERKAS_DATA = 'database/data/struktur-gaji-dokter-sirus.json';
-
-    /**
-     * Ekspor dokter + struktur dari tabel SIRUS (butuh akses baca, mis. di komputer dev) ke BERKAS_DATA — bentuk sama dengan GET /dokter.
-     * @return array{jumlah: int, berkas: string}
-     */
-    public static function eksporKeBerkas(): array
-    {
-        $rows = DB::table(self::tabelDokterSirus())->orderBy('dr_id')->get();
-        $dokterList = $rows->map(fn($row) => [
-            'dr_id' => (string) $row->dr_id, 'dr_name' => trim((string) $row->dr_name), 'dr_nik' => trim((string) ($row->dr_nik ?? '')),
-            'kd_dr_bpjs' => trim((string) ($row->kd_dr_bpjs ?? '')), 'aktif' => trim((string) $row->active_status) === '1',
-            'struktur' => self::strukturDariBarisSirus($row),
-        ])->values()->all();
-        $berkas = base_path(self::BERKAS_DATA);
-        if (!is_dir(dirname($berkas))) {
-            mkdir(dirname($berkas), 0775, true);
-        }
-        file_put_contents($berkas, json_encode(['diekspor_pada' => now()->toDateTimeString(), 'jumlah' => count($dokterList), 'dokter' => $dokterList],
-            JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n");
-
-        return ['jumlah' => count($dokterList), 'berkas' => self::BERKAS_DATA];
-    }
-
-    /**
-     * Impor dari BERKAS_DATA tanpa menyentuh skema SIRUS: master dokter & struktur di-insert bila belum ada, di-update bila sudah ada
-     * (struktur bertanda SIAP tidak ditimpa saat mode SIAP). Sama dengan Tarik, hanya sumbernya berkas.
-     * @return array{ditarik: int, dilewati: int, dokterBaru: int, mode: array, diekspor_pada: ?string}
-     */
-    public static function imporDariBerkas(?int $userId): array
-    {
-        $berkas = base_path(self::BERKAS_DATA);
-        if (!is_file($berkas)) {
-            throw new \RuntimeException('Berkas data ' . self::BERKAS_DATA . ' tidak ada — buat dulu dengan php artisan gaji:salin-struktur-sirus --ekspor di komputer yang bisa membaca SIRUS.');
-        }
-        $data = json_decode((string) file_get_contents($berkas), true);
-        if (!is_array($data) || !isset($data['dokter'])) {
-            throw new \RuntimeException('Berkas data ' . self::BERKAS_DATA . ' rusak / bukan hasil --ekspor.');
-        }
-
-        return [...self::terapkanTarikan(['mode' => [], 'dokter' => $data['dokter']], $userId), 'diekspor_pada' => $data['diekspor_pada'] ?? null];
-    }
-
-    /** Apakah koneksi database SIAP bisa membaca tabel dokter SIRUS (grant sudah diberikan). Hasil diingat per permintaan. */
-    public static function databaseSirusTersedia(): bool
-    {
-        static $tersedia = null;
-        if ($tersedia === null) {
-            try {
-                DB::table(self::tabelDokterSirus())->select('dr_id')->limit(1)->get();
-                $tersedia = true;
-            } catch (\Throwable) {
-                $tersedia = false;
-            }
-        }
-
-        return $tersedia;
-    }
-
-    /** Nama tabel dokter SIRUS berawalan skema (SIAP_SIRUS_SCHEMA, bawaan SIRUS). */
-    private static function tabelDokterSirus(): string
-    {
-        return strtolower((string) config('services.sirus.schema', 'SIRUS')) . '.rsmst_doctors';
-    }
-
-    /** Bentuk struktur dari satu baris RSMST_DOCTORS — sama dengan GajiDokterApiController::strukturDokter di SIRUS. */
-    private static function strukturDariBarisSirus(object $row): array
-    {
-        $struktur = [];
-        foreach (self::KOLOM as $kolom) {
-            $struktur[$kolom] = in_array($kolom, self::KOLOM_NOMINAL, true) ? (float) ($row->{$kolom} ?? 0) : ($row->{$kolom} ?? null);
-        }
-        $struktur['npwp_status'] = ($row->npwp_status ?? 'Y') === 'N' ? 'N' : 'Y';
-        $struktur['npwp'] = trim((string) ($row->npwp ?? '')) ?: null;
-        $struktur['skema_gaji_pokok'] = (string) ($row->skema_gaji_pokok ?? 'A');
-        $struktur['potongan_rs_basis'] = (string) ($row->potongan_rs_basis ?? 'T');
-        $struktur['potongan_rs_aturan'] = ($row->potongan_rs_aturan ?? null) ?: null;
-
-        return $struktur;
-    }
-
-    /**
-     * Inti Tarik: master dokter disamakan dulu (dokter baru masuk, status aktif/nonaktif mengikuti SIRUS) supaya tidak ada
-     * struktur yang terlewat, lalu struktur tiap dokter disalin dengan sumber SIRUS.
-     * @param array{mode?: array, dokter?: array} $dataDokterSirus  bentuk yang sama dengan GET /dokter
-     * @return array{ditarik: int, dilewati: int, dokterBaru: int, mode: array}
-     */
-    private static function terapkanTarikan(array $dataDokterSirus, ?int $userId): array
-    {
-        $hasilSegarkanDokterSirus = GajiDokterSirus::segarkanDokter($userId, $dataDokterSirus);
-        $strukturDiSiap = PengaturanGajiDokter::strukturDiSiap();
-        $adaSiap = DB::table('siapmst_gdok_strukturs')->where('sumber', 'SIAP')->pluck('dr_id')->flip();
-        $dokterDikenal = DB::table('siapmst_dokter_sirus')->pluck('dr_id')->flip();
-        $hasilTarik = ['ditarik' => 0, 'dilewati' => 0, 'dokterBaru' => $hasilSegarkanDokterSirus['baru'], 'mode' => (array) ($dataDokterSirus['mode'] ?? [])];
-        foreach ($dataDokterSirus['dokter'] ?? [] as $dokter) {
-            $drId = (string) $dokter['dr_id'];
-            if (!isset($dokterDikenal[$drId]) || !isset($dokter['struktur'])) {
-                $hasilTarik['dilewati']++;
-                continue;
-            }
-            if ($strukturDiSiap && isset($adaSiap[$drId])) {
-                $hasilTarik['dilewati']++;
-                continue;
-            }
-            $kolom = [...self::rapikan((array) $dokter['struktur']), 'sumber' => 'SIRUS', 'updated_by' => $userId, 'updated_at' => now()];
-            DB::table('siapmst_gdok_strukturs')->where('dr_id', $drId)->exists()
-                ? DB::table('siapmst_gdok_strukturs')->where('dr_id', $drId)->update($kolom)
-                : DB::table('siapmst_gdok_strukturs')->insert([...$kolom, 'dr_id' => $drId, 'created_at' => now()]);
-            $hasilTarik['ditarik']++;
-        }
-
-        return $hasilTarik;
+        return ['ok' => true, 'pesan' => 'Struktur gaji tersimpan.'];
     }
 
     // ─── Aturan potongan berjenjang (= GajiDokter::parseAturan / susunAturan / validasiAturan SIRUS) ───────────────

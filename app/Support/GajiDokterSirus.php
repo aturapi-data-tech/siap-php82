@@ -12,9 +12,9 @@ use RuntimeException;
 /**
  * Gaji Dokter dari SIRUS — klien API + snapshot berversi per bulan jasa.
  *
- * SIRUS menghitung gaji dokter spesialis (uang periksa, jasa tindakan, visite, operasi, kapita, potongan RS, PPh 21)
- * di modulnya sendiri. SIAP tidak menghitung ulang: menarik hasilnya lewat API baca-saja (JWT; akun = user SIRUS ber-role
- * 'Api Siap', kredensialnya di .env: SIAP_API_URL / SIAP_API_USER / SIAP_API_PASSWORD) dan menyimpannya sebagai snapshot.
+ * API SIRUS hanya dibaca (JWT; akun = user SIRUS ber-role 'Api Siap', kredensialnya di .env: SIAP_API_URL / SIAP_API_USER /
+ * SIAP_API_PASSWORD). Dua mesin (PengaturanGajiDokter::mesinSiap): mesin SIRUS = slip dihitung SIRUS, SIAP menarik hasilnya
+ * sebagai snapshot (ambil); mesin SIAP = SIAP menarik transaksi mentah lalu menghitung sendiri dengan struktur gaji SIAP (prosesSiap).
  *
  * VERSI: tiap Ambil, slip tiap dokter diberi checksum (header + detail + lampiran). Sama → hanya diambil_at
  * diperbarui; beda → versi baru, versi lama tetap tersimpan (terbaru = '0'). Jadi angka yang pernah diproses
@@ -61,24 +61,12 @@ class GajiDokterSirus
         });
     }
 
-    /** GET ber-Bearer; token kedaluwarsa (401) dicoba ulang sekali dengan token baru. */
+    /** GET ber-Bearer; token kedaluwarsa (401) dicoba ulang sekali dengan token baru. API SIRUS hanya dibaca, tidak pernah ditulis. */
     public static function get(string $path, array $query = []): array
-    {
-        return self::panggil('get', $path, $query);
-    }
-
-    /** PUT ber-Bearer (tahap 1: kirim struktur gaji dokter ke SIRUS). */
-    public static function put(string $path, array $data = []): array
-    {
-        return self::panggil('put', $path, $data);
-    }
-
-    private static function panggil(string $metode, string $path, array $muatan): array
     {
         $url = rtrim(config('services.sirus.url'), '/') . '/api/siap/' . ltrim($path, '/');
         foreach ([false, true] as $tokenSegar) {
-            $klien = Http::acceptJson()->timeout(120)->withToken(self::token($tokenSegar));
-            $respon = $metode === 'put' ? $klien->put($url, $muatan) : $klien->get($url, $muatan);
+            $respon = Http::acceptJson()->timeout(120)->withToken(self::token($tokenSegar))->get($url, $query);
             if ($respon->status() === 401 && !$tokenSegar) {
                 continue;
             }

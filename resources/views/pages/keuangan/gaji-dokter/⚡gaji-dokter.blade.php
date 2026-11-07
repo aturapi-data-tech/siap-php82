@@ -8,7 +8,7 @@ use Livewire\Attributes\Url;
  *
  *   BUKU     : pages::keuangan.gaji-dokter.gaji-dokter-buku     — slip gaji dokter per bulan jasa (snapshot versi terbaru), Ambil dari SIRUS, rincian & banding versi / bulan lalu.
  *   PEMETAAN : pages::keuangan.gaji-dokter.gaji-dokter-pemetaan — dokter SIRUS ↔ karyawan SIAP (LOV), segarkan master dokter.
- *   STRUKTUR : pages::keuangan.gaji-dokter.gaji-dokter-struktur — struktur gaji per dokter + mode pemindahan ke SIAP (tahap 1–3).
+ *   STRUKTUR : pages::keuangan.gaji-dokter.gaji-dokter-struktur — struktur gaji per dokter (disetel di SIAP) + mode mesin slip SIRUS/SIAP.
  *   RIWAYAT  : pages::keuangan.gaji-dokter.gaji-dokter-riwayat  — jejak tiap penarikan (baru / berubah / sama).
  *
  * Modal Rincian & Lampiran = komponen terpisah yang dipasang di sini SEJAJAR tab (pola Slip Gaji Dokter SIRUS), dibuka lewat event:
