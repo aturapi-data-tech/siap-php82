@@ -130,7 +130,8 @@ class LaporanPegawai
     }
 
     /**
-     * Angka sebulan dari absensi, hanya karyawan yang punya catatan (angka sama dengan Rekap Absensi Bulanan).
+     * Angka sebulan dari absensi, hanya karyawan Wajib Absen yang punya catatan (angka sama dengan Rekap Absensi Bulanan).
+     * Yang tidak wajib selalu memakai isian, walau punya catatan (scan kiosk sesekali tidak boleh mengubah gajinya).
      * Dihitung per tanggal (DISTINCT) supaya baris ganda tidak melebihi jumlah hari sebulan.
      * @return array<string, array{hari_kerja: int, cuti: int, lembur_jam: float, lembur_menunggu: int}>
      */
@@ -141,6 +142,7 @@ class LaporanPegawai
         return DB::table('siaptxn_absensis')
             ->where('abs_date', '>=', Absensi::tanggalSql($awal))
             ->where('abs_date', '<=', Absensi::tanggalSql($awal->copy()->endOfMonth()))
+            ->whereIn('emp_id', fn($sub) => $sub->select('emp_id')->from('siapmst_employers')->where('emp_wajib_absen', '1'))
             ->groupBy('emp_id')
             ->select('emp_id',
                 DB::raw("COUNT(DISTINCT CASE WHEN abs_status IN ('H', 'T') THEN abs_date END) AS hari_kerja"),
@@ -357,7 +359,7 @@ class LaporanPegawai
                 $query->where(fn($sub) => $sub->whereRaw('UPPER(em.emp_id) LIKE ?', ["%{$kata}%"])->orWhereRaw('UPPER(em.emp_name) LIKE ?', ["%{$kata}%"]));
             })
             ->orderBy('un.unit_name')->orderBy('em.emp_name')
-            ->select('em.emp_id', 'em.emp_name', 'un.unit_name', 'gh.gaji_status', 'gh.hari_hadir', 'gk.hari_kerja_default')
+            ->select('em.emp_id', 'em.emp_name', 'em.emp_wajib_absen', 'un.unit_name', 'gh.gaji_status', 'gh.hari_hadir', 'gk.hari_kerja_default')
             ->get();
     }
 }

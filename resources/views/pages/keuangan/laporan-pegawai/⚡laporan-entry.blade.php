@@ -290,7 +290,7 @@ new class extends Component {
                     @if ($asalSumber = LaporanPegawai::asalSumberAbsensi($this->periode()))
                         <b>Mengikuti pilihan {{ Carbon::createFromFormat('!Y-m', $asalSumber)->format(Format::BULAN) }}.</b>
                     @endif
-                    Hari kerja = Hadir + Terlambat, cuti = Cuti, lembur = yang dinilai Dihitung. Karyawan tanpa catatan absensi tetap memakai isian. Isian lama kembali saat sakelar dimatikan.
+                    Hari kerja = Hadir + Terlambat, cuti = Cuti, lembur = yang dinilai Dihitung. Karyawan tanpa catatan absensi atau tidak wajib absen tetap memakai isian. Isian lama kembali saat sakelar dimatikan.
                 @else
                     Menyala: hari kerja, cuti &amp; jam lembur dibaca dari <a href="{{ route('absensi.rekap-bulanan') }}" wire:navigate class="underline text-brand-green dark:text-brand-lime">Rekap Absensi Bulanan</a>.
                 @endif
@@ -338,6 +338,7 @@ new class extends Component {
                             <td>
                                 <span class="font-semibold">{{ $row->emp_name }}</span>@if ($lap && $lap['tersimpan'])<span class="ml-1 text-warning-deep dark:text-warning" title="Sudah diubah kepegawaian bulan ini">✎<span class="sr-only"> diubah</span></span>@endif
                                 @if ($dariAbsensi)<x-badge variant="info" class="ml-1">Absensi</x-badge>@endif
+                                @if ((string) $row->emp_wajib_absen !== '1')<x-badge variant="gray" class="ml-1">Tidak wajib absen</x-badge>@endif
                                 <span class="block font-mono text-xs text-muted">{{ $empId }}{{ $row->unit_name ? ' · ' . $row->unit_name : '' }}</span>
                                 <span class="block text-[11px] text-muted" title="Hari Kerja Default yang di-setup di Master Karyawan → tombol Gaji. Ubah di sana bila unit ini memang beda (mis. 22 hari).">
                                     @if ($row->hari_kerja_default !== null)
@@ -403,7 +404,7 @@ new class extends Component {
                     @endif
                     <li><b>{{ $akibat['angka_berubah'] }} dari {{ $akibat['peserta_tercatat'] }} karyawan</b> ber-catatan absensi angkanya berubah.</li>
                     @if ($akibat['tanpa_catatan'] > 0)
-                        <li>{{ $akibat['tanpa_catatan'] }} karyawan tanpa catatan absensi tetap memakai angka lama.</li>
+                        <li>{{ $akibat['tanpa_catatan'] }} karyawan tanpa catatan absensi atau tidak wajib absen tetap memakai angka lama.</li>
                     @endif
                     @if ($akibat['lembur_menunggu'] > 0)
                         <li>{{ $akibat['lembur_menunggu'] }} karyawan punya lembur yang <b>belum dinilai</b> — belum terhitung sampai dinilai di Rekap Absensi.</li>

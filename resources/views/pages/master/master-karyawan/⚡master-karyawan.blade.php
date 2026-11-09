@@ -101,7 +101,7 @@ new class extends Component {
         $query = DB::table('siapmst_employers')
             ->leftJoin('siapmst_shifts as sd', 'sd.shift_id', '=', 'siapmst_employers.emp_shift_default')
             ->leftJoin('siapmst_unit_kerjas as un', 'un.unit_id', '=', 'siapmst_employers.emp_unit_id')
-            ->select('emp_id', 'emp_name', 'emp_sex', 'emp_phone', 'emp_join_date', 'emp_is_nakes', 'siapmst_employers.active_status',
+            ->select('emp_id', 'emp_name', 'emp_sex', 'emp_phone', 'emp_join_date', 'emp_is_nakes', 'emp_wajib_absen', 'siapmst_employers.active_status',
                 'sd.shift_kode as shift_default_kode', 'sd.shift_name as shift_default_name', 'sd.shift_warna as shift_default_warna', 'un.unit_name')
             ->when($this->filterUnit === '-', fn($subQuery) => $subQuery->whereNull('siapmst_employers.emp_unit_id'))
             ->when(!in_array($this->filterUnit, ['', '-'], true), fn($subQuery) => $subQuery->where('siapmst_employers.emp_unit_id', $this->filterUnit))
@@ -288,6 +288,9 @@ new class extends Component {
                                             <x-loading wire:loading.delay wire:target="openStrSip('{{ $row->emp_id }}')" class="ml-1 align-middle" /></button>
                                         @else
                                             <span class="text-xs text-muted-soft">Bukan nakes</span>
+                                        @endif
+                                        @if ((string) $row->emp_wajib_absen !== '1')
+                                            <x-badge variant="gray">Tidak wajib absen</x-badge>
                                         @endif
                                         </div>
                                     </td>

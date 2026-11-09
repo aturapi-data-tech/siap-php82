@@ -163,6 +163,7 @@ new class extends Component {
                         <li><b>Unit Kerja</b> menentukan shift yang bisa dipakai karyawan & kepala ruang mana yang mengatur jadwalnya.</li>
                         <li><b>Shift Default (P/S)</b> = kolom P/S di jadwal; dipakai tombol <i>Isi Sen–Sab</i>. Pilihannya hanya shift unit karyawan itu.</li>
                         <li>Karyawan keluar: <b>non-aktifkan</b> (toggle), jangan dihapus — riwayat absensinya tetap tersimpan.</li>
+                        <li><b>Wajib Absen</b> diatur per karyawan. Matikan untuk yang tidak dihitung dari jam datang (mis. manajemen): mereka keluar dari jadwal &amp; rekap absensi, tetapi tetap digaji.</li>
                         <li>Centang <b>Tenaga Kesehatan</b> bila wajib STR/SIP — tombol STR/SIP muncul di daftar.</li>
                         <li><b>Lokasi Absen HP</b> = RS / klinik tempat karyawan bekerja (lihat poin d).</li>
                     </ul>
@@ -396,7 +397,7 @@ new class extends Component {
                             <span class="px-1 rounded bg-amber-100 text-amber-800">≥ 85%</span>
                             <span class="px-1 text-red-800 bg-red-100 rounded">&lt; 85%</span>.
                             Izin/cuti yang sudah dijadwalkan (I/C) tidak dihitung hari kerja; izin/sakit/alpa mendadak menurunkan persentase.</li>
-                        <li>Dokter &amp; manajemen (unit Dokter Spesialis, Dokter Umum, Pengurus PT) tidak tampil di Jadwal Dinas, Rekap Harian (termasuk Generate Libur / Alpa), dan Rekap Bulanan.</li>
+                        <li>Karyawan dengan <b>Wajib Absen = Tidak</b> (Master Karyawan, mis. dokter &amp; manajemen) tidak tampil di Jadwal Dinas, Rekap Harian (termasuk Generate Libur / Alpa), dan Rekap Bulanan. Bila mereka tetap absen di kiosk / HP, catatannya tersimpan tetapi tidak dihitung.</li>
                         <li><b>Hari Kerja</b> = jumlah hari Hadir + Terlambat. Bersama <b>Cuti</b> dan <b>Jam Lembur</b>, angka ini yang dipakai Laporan Kepegawaian saat sakelar Ambil dari Rekap Absensi menyala.</li>
                         <li><b>Jam Lembur</b> = hanya lembur yang disetujui; yang belum dinilai tampil kuning "menunggu". Jumlah dobel shift tampil di bawahnya (mis. "2× dobel shift").</li>
                     </ul>

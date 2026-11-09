@@ -168,7 +168,7 @@ new class extends Component {
 
         return DB::table('siapmst_employers as em')
             ->where('em.active_status', '1')
-            ->tap(fn($subQuery) => \App\Support\UnitKerja::tanpaDokterManajemen($subQuery, 'em.emp_unit_id'))
+            ->where('em.emp_wajib_absen', '1')
             ->whereNotExists(fn($subQuery) => $subQuery->select(DB::raw(1))
                 ->from('siaptxn_absensis as ab')
                 ->whereColumn('ab.emp_id', 'em.emp_id')

@@ -16,8 +16,8 @@ class UnitKerja
     public const ROLE_SEMUA_UNIT = ['admin', 'hrd'];
 
     /**
-     * Unit yang sementara tidak ikut Jadwal Dinas, Rekap Harian, Generate Libur/Alpa, Rekap Bulanan & Laporan Kepegawaian: Dokter Spesialis, Dokter Umum, Pengurus PT
-     * (dokter & manajemen — tidak dihitung dari jam datang). Kosongkan daftar ini untuk mengikutkan kembali.
+     * Unit yang sementara tidak ikut Laporan Kepegawaian: Dokter Spesialis, Dokter Umum, Pengurus PT. Kosongkan daftar ini untuk mengikutkan kembali.
+     * Nilai awal Wajib Absen karyawan baru di unit ini = Tidak. Siapa yang ikut modul absensi ditentukan emp_wajib_absen per karyawan, bukan daftar ini.
      */
     public const UNIT_DOKTER_MANAJEMEN = ['DS', 'DK', 'PT'];
 
@@ -25,6 +25,15 @@ class UnitKerja
     public static function aktif(): Collection
     {
         return DB::table('siapmst_unit_kerjas')->where('active_status', '1')->orderBy('unit_name')->get(['unit_id', 'unit_name']);
+    }
+
+    /** @return Collection<int, object> unit aktif yang punya karyawan aktif Wajib Absen, urut nama — pilihan unit di modul absensi */
+    public static function aktifWajibAbsen(): Collection
+    {
+        $unitIds = DB::table('siapmst_employers')->where('active_status', '1')->where('emp_wajib_absen', '1')
+            ->whereNotNull('emp_unit_id')->distinct()->pluck('emp_unit_id')->all();
+
+        return self::aktif()->whereIn('unit_id', $unitIds)->values();
     }
 
     /** @return Collection<int, object> unit aktif tanpa dokter & manajemen, urut nama */

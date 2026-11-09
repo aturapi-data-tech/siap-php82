@@ -50,6 +50,10 @@ new class extends Component {
             && !$this->shiftDefaultList->contains('shift_id', $this->form['emp_shift_default'])) {
             $this->form['emp_shift_default'] = '';
         }
+        // Karyawan baru: nilai awal Wajib Absen mengikuti unit; karyawan lama tidak diubah diam-diam saat pindah unit.
+        if ($kunci === 'emp_unit_id' && $this->formMode === 'create') {
+            $this->form['emp_wajib_absen'] = in_array($this->form['emp_unit_id'], \App\Support\UnitKerja::UNIT_DOKTER_MANAJEMEN, true) ? '0' : '1';
+        }
     }
 
     #[Computed]
@@ -94,6 +98,7 @@ new class extends Component {
             'emp_phone'       => (string) ($row->emp_phone ?? ''),
             'emp_join_date'   => $this->formatTanggal($row->emp_join_date),
             'emp_is_nakes'    => (string) $row->emp_is_nakes === '1' ? '1' : '0',
+            'emp_wajib_absen' => (string) $row->emp_wajib_absen === '1' ? '1' : '0',
             'emp_shift_default' => (string) ($row->emp_shift_default ?? ''),
             'emp_lokasi_id'   => (string) ($row->emp_lokasi_id ?? ''),
             'emp_unit_id'     => (string) ($row->emp_unit_id ?? ''),
@@ -150,6 +155,7 @@ new class extends Component {
             'form.emp_phone'       => 'nullable|string|max:20',
             'form.emp_join_date'   => 'nullable|date_format:d/m/Y',
             'form.emp_is_nakes'    => 'required|in:0,1',
+            'form.emp_wajib_absen' => 'required|in:0,1',
             'form.emp_unit_id'     => 'nullable|exists:siapmst_unit_kerjas,unit_id',
             'form.emp_shift_default' => ['nullable', 'exists:siapmst_shifts,shift_id', function ($attribute, $value, $fail) {
                 if ($value && !$this->shiftDefaultList->contains('shift_id', $value)) {
@@ -187,6 +193,7 @@ new class extends Component {
             'form.emp_phone'       => 'No. HP',
             'form.emp_join_date'   => 'Tanggal Masuk',
             'form.emp_is_nakes'    => 'Tenaga Kesehatan',
+            'form.emp_wajib_absen' => 'Wajib Absen',
             'form.emp_shift_default' => 'Shift Default (P/S)',
             'form.emp_lokasi_id'   => 'Lokasi Absen HP',
             'form.emp_unit_id'     => 'Unit Kerja',
@@ -210,6 +217,7 @@ new class extends Component {
             'emp_phone'       => $form['emp_phone'] ?: null,
             'emp_join_date'   => $this->tanggalOracle($form['emp_join_date']),
             'emp_is_nakes'    => $form['emp_is_nakes'],
+            'emp_wajib_absen' => $form['emp_wajib_absen'],
             'emp_shift_default' => $form['emp_shift_default'] !== '' ? $form['emp_shift_default'] : null,
             'emp_lokasi_id'   => $form['emp_lokasi_id'] !== '' ? $form['emp_lokasi_id'] : null,
             'emp_unit_id'     => $form['emp_unit_id'] !== '' ? $form['emp_unit_id'] : null,
@@ -253,6 +261,7 @@ new class extends Component {
             'emp_phone'       => '',
             'emp_join_date'   => '',
             'emp_is_nakes'    => '0',
+            'emp_wajib_absen' => '1',
             'emp_shift_default' => '',
             'emp_lokasi_id'   => '',
             'emp_unit_id'     => '',
@@ -436,6 +445,9 @@ new class extends Component {
                             <div class="flex flex-wrap gap-6 pt-2">
                                 <x-toggle wire:model.live="form.emp_is_nakes" trueValue="1" falseValue="0">
                                     Tenaga Kesehatan (wajib STR/SIP)
+                                </x-toggle>
+                                <x-toggle wire:model.live="form.emp_wajib_absen" trueValue="1" falseValue="0">
+                                    Wajib Absen (matikan bila tidak dihitung dari jam datang, mis. manajemen — tetap digaji)
                                 </x-toggle>
                                 <x-toggle wire:model.live="form.active_status" trueValue="1" falseValue="0">
                                     Status Aktif

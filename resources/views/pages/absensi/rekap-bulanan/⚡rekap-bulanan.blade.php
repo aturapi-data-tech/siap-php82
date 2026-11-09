@@ -120,7 +120,7 @@ new class extends Component {
                     ->where('ab.abs_date', '<=', $sampai);
             })
             ->where('em.active_status', '1')
-            ->tap(fn($subQuery) => \App\Support\UnitKerja::tanpaDokterManajemen($subQuery, 'em.emp_unit_id'))
+            ->where('em.emp_wajib_absen', '1')
             ->when($this->filterUnit !== '', fn($subQuery) => $subQuery->where('em.emp_unit_id', $this->filterUnit))
             ->groupBy('em.emp_id', 'em.emp_name')
             ->select('em.emp_id', 'em.emp_name',
@@ -178,7 +178,7 @@ new class extends Component {
                         <div class="w-44">
                             <x-select-input wire:model.live="filterUnit">
                                 <option value="">Semua unit</option>
-                                @foreach (\App\Support\UnitKerja::aktifTanpaDokterManajemen() as $unit)
+                                @foreach (\App\Support\UnitKerja::aktifWajibAbsen() as $unit)
                                     <option value="{{ $unit->unit_id }}">{{ $unit->unit_name }}</option>
                                 @endforeach
                             </x-select-input>
@@ -202,7 +202,7 @@ new class extends Component {
                     </div>
                 </div>
                 <p class="mt-2 text-xs text-muted dark:text-gray-400">
-                    Tanpa dokter &amp; manajemen (Dokter Spesialis, Dokter Umum, Pengurus PT).
+                    Hanya karyawan Wajib Absen (diatur di Master Karyawan).
                     Periode berjalan: <b>{{ $this->hariBerjalan }}</b> hari.
                     % Kehadiran dihitung dari Jadwal Dinas s/d <b>{{ $this->batasKehadiran ? \App\Support\Format::tanggal($this->batasKehadiran) : '—' }}</b>
                     (hari ini belum dihitung) — Izin/Cuti yang sudah dijadwalkan (I/C) tidak termasuk hari kerja.
