@@ -113,7 +113,7 @@ new class extends Component {
                     <ol class="mt-1 text-sm">
                         <li><b>Generate</b> slip bulan kerja N di {!! $tautan('keuangan.gaji-karyawan', 'Gaji Karyawan') !!} (bagian 2) → semua karyawan aktif berparameter mendapat slip <b>Draft</b> berisi gaji pokok, tunjangan, potongan rutin, dan PPh 21 dari parameter.</li>
                         <li><b>Jasa Medik</b>: di {!! $tautan('keuangan.pembagian-jm', 'Pembagian Jasa Medik') !!} isi nilai dasar per pos, <b>Generate Poin dari Master</b>, lalu <b>Terapkan ke Slip</b> (bagian 3). Harus <i>sebelum</i> laporan kepegawaian karena dasar upah lembur memuat JM.</li>
-                        <li><b>Laporan Kepegawaian</b>: kepegawaian mengisi hari kerja, cuti, dan jam lembur yang berbeda dari master di {!! $tautan('keuangan.laporan-pegawai', 'Laporan Kepegawaian') !!}; Keuangan klik <b>Terapkan ke Slip</b> (bagian 4). Perubahan hari kerja satu orang bisa juga langsung di Rincian (bagian 8).</li>
+                        <li><b>Laporan Kepegawaian</b>: kepegawaian mengisi hari kerja, cuti, dan jam lembur yang berbeda dari master di {!! $tautan('keuangan.laporan-pegawai', 'Laporan Kepegawaian') !!}, atau menyalakan sakelar <b>Ambil dari Rekap Absensi</b>; Keuangan klik <b>Terapkan ke Slip</b> (bagian 4). Perubahan hari kerja satu orang bisa juga langsung di Rincian (bagian 8).</li>
                         <li><b>Pinjaman Karyawan</b>: klik <b>Terapkan ke Slip</b> → angsuran bulan N masuk sebagai potongan (bagian 5).</li>
                         <li><b>Gaji Dokter</b> di {!! $tautan('keuangan.gaji-dokter', 'Gaji Dokter') !!} (bagian 12): pilih bulan jasa N, klik <b>Ambil dari SIRUS</b> (atau <b>Proses Slip</b> bila mesin slip sudah SIAP), lengkapi <b>Pemetaan</b> dokter baru, lalu <b>Terapkan ke slip gaji</b> → baris jasa, potongan RS, dan PPh 21 dokter masuk ke slip bulan kerja N (dokter tanpa parameter gaji dibuatkan slip Draft kosong). Baris ini terkunci di Rincian.</li>
                         <li><b>Form Bagian</b>: ekspor form Excel tiap bagian (bon, kenaikan gaji, iuran koperasi), kirim ke bagian terkait, impor hasilnya (bagian 6).</li>
@@ -222,7 +222,7 @@ new class extends Component {
                 <section id="lap" class="p-6 border scroll-mt-24 bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
                     <h2>4. Laporan Kepegawaian — {!! $tautan('keuangan.laporan-pegawai', 'buka') !!}</h2>
                     <p class="mt-2 text-sm">Pengganti sheet <i>Lap Pegawai</i> Excel lama (laporan Kasubbag Kepegawaian). Hari kerja, cuti, dan jam lembur tiap karyawan diisi kepegawaian dari catatan mereka (daftar lembur, catatan kehadiran), lalu ditulis ke slip oleh Keuangan.
-                        Berdiri sendiri seperti Pembagian JM — <b>tidak terhubung</b> ke modul absensi program.
+                        Bawaannya tidak membaca modul absensi; bila diperlukan, angka bisa diambil dari Rekap Absensi dengan sakelar per bulan (lihat di bawah).
                         Role <b>HRD</b> mengisi; <b>Keuangan</b> hanya membaca dan menerapkan; <b>Admin</b> keduanya.</p>
                     <h3 class="mt-4">Tiap bulan</h3>
                     <ol class="mt-1 text-sm">
@@ -233,6 +233,8 @@ new class extends Component {
                         <li>Tab Buku: Keuangan memeriksa laporan (kolom Slip menunjukkan kecocokan) lalu klik <b>Terapkan ke Slip</b> → hari kerja slip disamakan (tunjangan makan &amp; transport dihitung ulang) dan baris <b>Upah Lembur</b> ditulis, mis. "6 jam".</li>
                     </ol>
                     <ul class="mt-3 text-sm">
+                        <li><b>Dokter &amp; manajemen tidak ikut</b> (unit Dokter Spesialis, Dokter Umum, Pengurus PT): tidak tampil di laporan, dan slip mereka tidak disentuh Terapkan ke Slip.</li>
+                        <li><b>Sakelar Ambil dari Rekap Absensi</b> (tab Entry, per bulan): hari kerja = jumlah hari Hadir + Terlambat, cuti = hari Cuti, jam lembur = lembur yang dinilai <i>Dihitung</i>. Kotak angka karyawan bertanda <b>Absensi</b> terkunci; karyawan tanpa catatan absensi tetap memakai isian. Bila bulan itu sudah ada isian atau sudah diterapkan ke slip, muncul konfirmasi dulu. Isian tidak dihapus — kembali saat sakelar dimatikan. Bulan baru otomatis mengikuti pilihan bulan sebelumnya sampai sakelarnya diubah; bulan yang sudah diterapkan memegang pilihannya sendiri. Slip baru berubah setelah <b>Terapkan ke Slip</b>.</li>
                         <li><b>Terapkan ke Slip aman diulang.</b> Hari kerja &amp; lembur di slip diganti angka terbaru, bukan ditambah. Bila laporan, JM, atau hari kerja berubah setelah diterapkan, muncul tanda "N slip Draft belum sesuai laporan" dan kolom Slip bertanda <b>Belum sesuai</b> — cukup klik Terapkan lagi.</li>
                         <li>Slip <b>Final</b> dilewati (tanda merah "Final, beda"). Buka slipnya ke Draft dulu bila memang perlu diubah.</li>
                         <li>Karyawan yang belum punya slip disebut di pesan — Generate slip dulu, lalu Terapkan lagi.</li>

@@ -40,7 +40,7 @@ new class extends Component {
     {
         $this->bulan = now()->format(Format::BULAN);
         // Admin / HRD langsung masuk ke satu unit (mengisi jadwal wajib per unit).
-        if ($this->cakupan['semuaUnit'] && $this->filterUnit === '') {
+        if ($this->cakupan['semuaUnit'] && ($this->filterUnit === '' || in_array($this->filterUnit, UnitKerja::UNIT_DOKTER_MANAJEMEN, true))) {
             $this->filterUnit = (string) ($this->unitList->first()->unit_id ?? '');
         }
         $this->kuas = (string) ($this->shifts->keys()->first() ?? 'I');
@@ -107,7 +107,7 @@ new class extends Component {
     #[Computed]
     public function unitList()
     {
-        return UnitKerja::aktif();
+        return UnitKerja::aktifTanpaDokterManajemen();
     }
 
     #[Computed]
@@ -143,6 +143,7 @@ new class extends Component {
             ->leftJoin('siapmst_shifts as sd', 'sd.shift_id', '=', 'em.emp_shift_default')
             ->leftJoin('siapmst_unit_kerjas as un', 'un.unit_id', '=', 'em.emp_unit_id')
             ->where('em.active_status', '1')
+            ->tap(fn($subQuery) => UnitKerja::tanpaDokterManajemen($subQuery, 'em.emp_unit_id'))
             ->when($this->unitAktif(), fn($subQuery, $unitId) => $subQuery->where('em.emp_unit_id', $unitId))
             ->orderByRaw('un.unit_name NULLS LAST')
             ->orderBy('em.emp_id');

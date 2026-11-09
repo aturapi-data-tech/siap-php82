@@ -120,11 +120,14 @@ new class extends Component {
                     ->where('ab.abs_date', '<=', $sampai);
             })
             ->where('em.active_status', '1')
+            ->tap(fn($subQuery) => \App\Support\UnitKerja::tanpaDokterManajemen($subQuery, 'em.emp_unit_id'))
             ->when($this->filterUnit !== '', fn($subQuery) => $subQuery->where('em.emp_unit_id', $this->filterUnit))
             ->groupBy('em.emp_id', 'em.emp_name')
             ->select('em.emp_id', 'em.emp_name',
                 $hitung('H'), $hitung('T'), $hitung('I'), $hitung('S'), $hitung('C'), $hitung('A'), $hitung('L'),
                 DB::raw('COUNT(ab.abs_id) AS jml_catatan'),
+                // Sama dengan LaporanPegawai::dariAbsensi() — angka yang dipakai sakelar "Ambil dari Rekap Absensi".
+                DB::raw("COUNT(DISTINCT CASE WHEN ab.abs_status IN ('H', 'T') THEN ab.abs_date END) AS hari_kerja"),
                 DB::raw('NVL(SUM(ab.terlambat_menit), 0) AS total_terlambat'),
                 DB::raw("NVL(SUM(CASE WHEN ab.lembur_status = 'Y' THEN ab.lembur_menit END), 0) AS total_lembur"),
                 DB::raw("SUM(CASE WHEN ab.lembur_status = 'Y' THEN 1 ELSE 0 END) AS hari_lembur"),
@@ -175,7 +178,7 @@ new class extends Component {
                         <div class="w-44">
                             <x-select-input wire:model.live="filterUnit">
                                 <option value="">Semua unit</option>
-                                @foreach (\App\Support\UnitKerja::aktif() as $unit)
+                                @foreach (\App\Support\UnitKerja::aktifTanpaDokterManajemen() as $unit)
                                     <option value="{{ $unit->unit_id }}">{{ $unit->unit_name }}</option>
                                 @endforeach
                             </x-select-input>
@@ -199,6 +202,7 @@ new class extends Component {
                     </div>
                 </div>
                 <p class="mt-2 text-xs text-muted dark:text-gray-400">
+                    Tanpa dokter &amp; manajemen (Dokter Spesialis, Dokter Umum, Pengurus PT).
                     Periode berjalan: <b>{{ $this->hariBerjalan }}</b> hari.
                     % Kehadiran dihitung dari Jadwal Dinas s/d <b>{{ $this->batasKehadiran ? \App\Support\Format::tanggal($this->batasKehadiran) : '—' }}</b>
                     (hari ini belum dihitung) — Izin/Cuti yang sudah dijadwalkan (I/C) tidak termasuk hari kerja.
@@ -215,11 +219,12 @@ new class extends Component {
                                 <th>Karyawan</th>
                                 <th class="ds-c" title="Hari berjadwal kerja (P/S) s/d batas perhitungan">Terjadwal</th>
                                 <th class="ds-c" title="Hadir (H/T) pada hari terjadwal ÷ hari terjadwal">% Kehadiran</th>
+                                <th class="ds-c" title="Jumlah hari Hadir + Terlambat — angka yang dipakai Laporan Kepegawaian">Hari Kerja</th>
                                 @foreach (\App\Support\Absensi::STATUS as $kode => $nama)
                                     <th class="ds-c" title="{{ $nama }}">{{ $nama }}</th>
                                 @endforeach
                                 <th class="ds-c" title="Total terlambat + pulang cepat, lupa absen masuk &amp; tanpa absen pulang">Terlambat / Pulang</th>
-                                <th class="ds-c">Lembur Dihitung</th>
+                                <th class="ds-c" title="Lembur yang dinilai Dihitung — angka yang dipakai Laporan Kepegawaian">Jam Lembur</th>
                                 <th class="ds-c">Tanpa Catatan</th>
                             </tr>
                         </thead>
@@ -252,6 +257,7 @@ new class extends Component {
                                             <span class="text-muted-soft" title="Belum ada hari terjadwal yang lewat">—</span>
                                         @endif
                                     </td>
+                                    <td class="font-mono font-semibold ds-c">{{ (int) $row->hari_kerja }}</td>
                                     @foreach (array_keys(\App\Support\Absensi::STATUS) as $kode)
                                         @php $jumlah = (int) $row->{'jml_' . strtolower($kode)}; @endphp
                                         <td class="ds-c">
@@ -276,7 +282,7 @@ new class extends Component {
                                     </td>
                                     <td class="font-mono ds-c">
                                         @if ((int) $row->total_lembur > 0)
-                                            <span class="text-info-deep dark:text-sky-300">{{ \App\Support\Absensi::labelMenit((int) $row->total_lembur) }}</span>
+                                            <span class="text-info-deep dark:text-sky-300" title="{{ \App\Support\Absensi::labelMenit((int) $row->total_lembur) }}">{{ \App\Support\LaporanPegawai::labelJam(round((int) $row->total_lembur / 60, 2)) }} jam</span>
                                             <div class="text-xs text-muted-soft">
                                                 {{ (int) $row->hari_lembur }} hari{{ (int) $row->jml_dobel_shift > 0 ? ' · ' . (int) $row->jml_dobel_shift . '× dobel shift' : '' }}
                                             </div>
@@ -294,7 +300,7 @@ new class extends Component {
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="13" class="px-6 py-10 text-center text-muted dark:text-gray-400">Tidak ada data.</td>
+                                    <td colspan="14" class="px-6 py-10 text-center text-muted dark:text-gray-400">Tidak ada data.</td>
                                 </tr>
                             @endforelse
                         </tbody>

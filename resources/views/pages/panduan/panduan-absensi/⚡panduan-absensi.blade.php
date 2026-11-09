@@ -396,7 +396,9 @@ new class extends Component {
                             <span class="px-1 rounded bg-amber-100 text-amber-800">≥ 85%</span>
                             <span class="px-1 text-red-800 bg-red-100 rounded">&lt; 85%</span>.
                             Izin/cuti yang sudah dijadwalkan (I/C) tidak dihitung hari kerja; izin/sakit/alpa mendadak menurunkan persentase.</li>
-                        <li><b>Lembur Dihitung</b> = hanya lembur yang disetujui; yang belum dinilai tampil kuning "menunggu". Jumlah dobel shift tampil di bawahnya (mis. "2× dobel shift").</li>
+                        <li>Dokter &amp; manajemen (unit Dokter Spesialis, Dokter Umum, Pengurus PT) tidak tampil di Jadwal Dinas, Rekap Harian (termasuk Generate Libur / Alpa), dan Rekap Bulanan.</li>
+                        <li><b>Hari Kerja</b> = jumlah hari Hadir + Terlambat. Bersama <b>Cuti</b> dan <b>Jam Lembur</b>, angka ini yang dipakai Laporan Kepegawaian saat sakelar Ambil dari Rekap Absensi menyala.</li>
+                        <li><b>Jam Lembur</b> = hanya lembur yang disetujui; yang belum dinilai tampil kuning "menunggu". Jumlah dobel shift tampil di bawahnya (mis. "2× dobel shift").</li>
                     </ul>
                     <h3 class="mt-4">Menilai lembur</h3>
                     <ol class="mt-1 text-sm">

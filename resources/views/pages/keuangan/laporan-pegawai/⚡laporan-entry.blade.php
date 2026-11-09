@@ -12,7 +12,8 @@ use App\Support\UnitKerja;
 
 /**
  * Tab ENTRY Laporan Kepegawaian (anak pembungkus laporan-pegawai) — pengganti sheet "Lap Pegawai" workbook gaji lama.
- * Berdiri sendiri seperti Pembagian JM — tidak membaca modul absensi.
+ * Sakelar "Ambil dari Rekap Absensi" (per bulan): angka karyawan yang punya catatan absensi dibaca dari absensi dan kotaknya terkunci;
+ * bila bulan itu sudah ada isian / sudah diterapkan ke slip, muncul konfirmasi dulu. Isian tidak terhapus — kembali saat sakelar dimatikan.
  *
  * Kolom sudah terisi bawaan (hari kerja = Hari Kerja Default master / slip bulan itu, cuti & lembur 0) → kepegawaian hanya
  * mengubah yang berbeda; setiap angka disimpan saat kotak ditinggalkan (blur), baris tabel baru dibuat saat pertama diubah.
@@ -37,6 +38,9 @@ new class extends Component {
     /** [emp_id => [hari_kerja, cuti, lembur_jam, keterangan]] — diikat ke input tabel. */
     public array $laporanInput = [];
 
+    /** Akibat menyalakan sakelar absensi, ditampilkan di modal konfirmasi (LaporanPegawai::pratinjauAbsensi). */
+    public array $pratinjauAbsensi = [];
+
     public function boot(): void
     {
         abort_unless(auth()->user()?->can('laporanPegawai.lihat'), 403);
@@ -60,7 +64,7 @@ new class extends Component {
         return $this->bulanValid() ? Carbon::createFromFormat('!' . Format::BULAN, $this->bulan)->startOfMonth() : now()->startOfMonth();
     }
 
-    private function periode(): string
+    public function periode(): string
     {
         return $this->awalBulan()->format('Y-m');
     }
@@ -97,7 +101,48 @@ new class extends Component {
             fn($row) => ['hari_kerja' => $row['hari_kerja'], 'cuti' => $row['cuti'], 'lembur_jam' => $row['lembur_jam'], 'keterangan' => $row['keterangan']],
             LaporanPegawai::laporan($this->periode()),
         );
-        unset($this->laporan, $this->karyawan, $this->rows);
+        unset($this->laporan, $this->karyawan, $this->rows, $this->memakaiAbsensi);
+    }
+
+    // ─── Sakelar sumber absensi ───────────────────────────────────────────────
+    public function ubahSumberAbsensi(): void
+    {
+        if (!auth()->user()?->can('laporanPegawai.isi') || !$this->bulanValid()) {
+            $this->dispatch('toast', type: 'error', message: 'Hanya petugas kepegawaian yang boleh mengubah sumber laporan.');
+            return;
+        }
+        if ($this->memakaiAbsensi) {
+            LaporanPegawai::aturSumberAbsensi($this->periode(), false, auth()->id());
+            $this->muatInput();
+            $this->dispatch('toast', type: 'success', message: "Laporan {$this->bulan} kembali memakai isian kepegawaian.");
+            return;
+        }
+
+        $pratinjau = LaporanPegawai::pratinjauAbsensi($this->periode());
+        // Penjaga: tanpa catatan absensi tidak ada yang bisa diambil.
+        if ($pratinjau['peserta_tercatat'] === 0) {
+            $this->dispatch('toast', type: 'warning', message: "Belum ada catatan absensi karyawan peserta untuk {$this->bulan} — tidak ada yang bisa diambil.");
+            return;
+        }
+        if ($pratinjau['isian_tertimpa'] > 0 || $pratinjau['sudah_diterapkan']) {
+            $this->pratinjauAbsensi = $pratinjau;
+            $this->dispatch('open-modal', name: 'laporan-sumber-absensi');
+            return;
+        }
+        $this->nyalakanSumberAbsensi();
+    }
+
+    public function nyalakanSumberAbsensi(): void
+    {
+        if (!auth()->user()?->can('laporanPegawai.isi') || !$this->bulanValid()) {
+            $this->dispatch('toast', type: 'error', message: 'Hanya petugas kepegawaian yang boleh mengubah sumber laporan.');
+            return;
+        }
+        LaporanPegawai::aturSumberAbsensi($this->periode(), true, auth()->id());
+        $this->pratinjauAbsensi = [];
+        $this->muatInput();
+        $this->dispatch('close-modal', name: 'laporan-sumber-absensi');
+        $this->dispatch('toast', type: 'success', message: "Laporan {$this->bulan} mengambil angka dari Rekap Absensi.");
     }
 
     // ─── Simpan saat blur ─────────────────────────────────────────────────────
@@ -110,6 +155,11 @@ new class extends Component {
         }
         [$empId, $kolom] = array_pad(explode('.', (string) $kunci, 2), 2, '');
         $lama = LaporanPegawai::laporan($this->periode())[$empId] ?? null;
+        if (($lama['dari_absensi'] ?? false) && $kolom !== 'keterangan') {
+            $this->dispatch('toast', type: 'error', message: 'Angka ini diambil dari Rekap Absensi. Matikan sakelar untuk mengisi manual.');
+            $this->muatInput();
+            return;
+        }
         $baru = $kolom === 'keterangan' ? trim((string) $nilai) : ($nilai === '' || $nilai === null ? 0 : $nilai);
         $sama = $lama !== null && match ($kolom) {
             'keterangan' => $baru === $lama['keterangan'],
@@ -143,9 +193,15 @@ new class extends Component {
 
     // ─── Data ─────────────────────────────────────────────────────────────────
     #[Computed]
+    public function memakaiAbsensi(): bool
+    {
+        return LaporanPegawai::memakaiAbsensi($this->periode());
+    }
+
+    #[Computed]
     public function unitList()
     {
-        return UnitKerja::aktif();
+        return UnitKerja::aktifTanpaDokterManajemen();
     }
 
     /** Opsi LOV karyawan (x-combobox) — semua peserta bulan ini: id = emp_id, nama = nama, kelas = ID · unit. */
@@ -187,6 +243,7 @@ new class extends Component {
         $laporan = $this->laporan;
         $bolehIsi = auth()->user()?->can('laporanPegawai.isi');
         $jumlahDiubah = count(array_filter($laporan, fn($row) => $row['tersimpan']));
+        $jumlahAbsensi = count(array_filter($laporan, fn($row) => $row['dari_absensi']));
         $jam = fn($n) => LaporanPegawai::labelJam((float) $n);
     @endphp
 
@@ -225,8 +282,25 @@ new class extends Component {
                 <x-secondary-button type="button" wire:click="keBuku" wire:loading.attr="disabled" wire:target="keBuku">Lihat Buku Laporan →</x-secondary-button>
             </div>
         </div>
+        <div class="flex flex-wrap items-center gap-3 mt-3">
+            <x-toggle :current="$this->memakaiAbsensi ? '1' : '0'" trueValue="1" falseValue="0" wireClick="ubahSumberAbsensi" :disabled="!$bolehIsi"
+                wire:loading.attr="disabled" wire:target="ubahSumberAbsensi,nyalakanSumberAbsensi">Ambil dari Rekap Absensi</x-toggle>
+            <span class="text-xs text-muted">
+                @if ($this->memakaiAbsensi)
+                    @if ($asalSumber = LaporanPegawai::asalSumberAbsensi($this->periode()))
+                        <b>Mengikuti pilihan {{ Carbon::createFromFormat('!Y-m', $asalSumber)->format(Format::BULAN) }}.</b>
+                    @endif
+                    Hari kerja = Hadir + Terlambat, cuti = Cuti, lembur = yang dinilai Dihitung. Karyawan tanpa catatan absensi tetap memakai isian. Isian lama kembali saat sakelar dimatikan.
+                @else
+                    Menyala: hari kerja, cuti &amp; jam lembur dibaca dari <a href="{{ route('absensi.rekap-bulanan') }}" wire:navigate class="underline text-brand-green dark:text-brand-lime">Rekap Absensi Bulanan</a>.
+                @endif
+            </span>
+        </div>
         <div class="flex flex-wrap items-center gap-2 mt-2" role="status" aria-live="polite">
             <x-badge variant="gray">{{ $rows->total() }} karyawan · {{ $jumlahDiubah }} diubah</x-badge>
+            @if ($jumlahAbsensi > 0)
+                <x-badge variant="info">{{ $jumlahAbsensi }} dari absensi</x-badge>
+            @endif
             <span class="text-xs text-muted">Angka tersimpan saat kotak ditinggalkan. Nama bertanda ✎ = sudah diubah bulan ini. Penerapan ke slip dilakukan Keuangan di tab Buku.</span>
         </div>
     </div>
@@ -254,10 +328,16 @@ new class extends Component {
                 </thead>
                 <tbody>
                     @forelse ($rows as $row)
-                        @php $empId = $row->emp_id; $lap = $laporan[$empId] ?? null; @endphp
-                        <tr wire:key="lap-{{ $empId }}-{{ $bulan }}">
+                        @php
+                            $empId = $row->emp_id;
+                            $lap = $laporan[$empId] ?? null;
+                            $dariAbsensi = $lap['dari_absensi'] ?? false;
+                            $angkaTerkunci = !$bolehIsi || $dariAbsensi;
+                        @endphp
+                        <tr wire:key="lap-{{ $empId }}-{{ $bulan }}-{{ $dariAbsensi ? 'absensi' : 'isian' }}">
                             <td>
                                 <span class="font-semibold">{{ $row->emp_name }}</span>@if ($lap && $lap['tersimpan'])<span class="ml-1 text-warning-deep dark:text-warning" title="Sudah diubah kepegawaian bulan ini">✎<span class="sr-only"> diubah</span></span>@endif
+                                @if ($dariAbsensi)<x-badge variant="info" class="ml-1">Absensi</x-badge>@endif
                                 <span class="block font-mono text-xs text-muted">{{ $empId }}{{ $row->unit_name ? ' · ' . $row->unit_name : '' }}</span>
                                 <span class="block text-[11px] text-muted" title="Hari Kerja Default yang di-setup di Master Karyawan → tombol Gaji. Ubah di sana bila unit ini memang beda (mis. 22 hari).">
                                     @if ($row->hari_kerja_default !== null)
@@ -268,13 +348,13 @@ new class extends Component {
                                 </span>
                             </td>
                             <td class="w-24 ds-c">
-                                <x-text-input-number wire:model="laporanInput.{{ $empId }}.hari_kerja" class="w-20" :disabled="!$bolehIsi" aria-label="Hari kerja {{ $row->emp_name }}" />
+                                <x-text-input-number wire:model="laporanInput.{{ $empId }}.hari_kerja" class="w-20" :disabled="$angkaTerkunci" aria-label="Hari kerja {{ $row->emp_name }}" />
                             </td>
                             <td class="w-20 ds-c">
-                                <x-text-input-number wire:model="laporanInput.{{ $empId }}.cuti" class="w-16" :disabled="!$bolehIsi" aria-label="Cuti {{ $row->emp_name }}" />
+                                <x-text-input-number wire:model="laporanInput.{{ $empId }}.cuti" class="w-16" :disabled="$angkaTerkunci" aria-label="Cuti {{ $row->emp_name }}" />
                             </td>
                             <td class="w-28 ds-c">
-                                <x-text-input-number wire:model="laporanInput.{{ $empId }}.lembur_jam" :decimals="2" class="w-24" :disabled="!$bolehIsi" aria-label="Jam lembur {{ $row->emp_name }}" />
+                                <x-text-input-number wire:model="laporanInput.{{ $empId }}.lembur_jam" :decimals="2" class="w-24" :disabled="$angkaTerkunci" aria-label="Jam lembur {{ $row->emp_name }}" />
                             </td>
                             <td class="min-w-[12rem]">
                                 <x-text-input wire:model.blur="laporanInput.{{ $empId }}.keterangan" maxlength="200" :disabled="!$bolehIsi" placeholder="mis. cuti panjang, lembur laundry" class="w-full text-sm" aria-label="Keterangan {{ $row->emp_name }}" />
@@ -309,4 +389,38 @@ new class extends Component {
             {{ $rows->links() }}
         </div>
     </div>
+
+    {{-- KONFIRMASI SAKELAR ABSENSI --}}
+    <x-modal name="laporan-sumber-absensi" size="lg" focusable>
+        @php $akibat = $pratinjauAbsensi; @endphp
+        <div class="space-y-3">
+            <h2 class="text-base font-semibold text-ink dark:text-gray-100">Ambil dari Rekap Absensi untuk {{ $bulan }}?</h2>
+            <p class="text-sm text-body dark:text-gray-300">Bulan ini sudah ada datanya. Angka yang tampil di laporan bisa berubah:</p>
+            @if ($akibat !== [])
+                <ul class="pl-5 space-y-1 text-sm list-disc text-body dark:text-gray-300">
+                    @if ($akibat['isian_tertimpa'] > 0)
+                        <li><b>{{ $akibat['isian_tertimpa'] }} karyawan</b> sudah diisi kepegawaian — angkanya diganti angka absensi.</li>
+                    @endif
+                    <li><b>{{ $akibat['angka_berubah'] }} dari {{ $akibat['peserta_tercatat'] }} karyawan</b> ber-catatan absensi angkanya berubah.</li>
+                    @if ($akibat['tanpa_catatan'] > 0)
+                        <li>{{ $akibat['tanpa_catatan'] }} karyawan tanpa catatan absensi tetap memakai angka lama.</li>
+                    @endif
+                    @if ($akibat['lembur_menunggu'] > 0)
+                        <li>{{ $akibat['lembur_menunggu'] }} karyawan punya lembur yang <b>belum dinilai</b> — belum terhitung sampai dinilai di Rekap Absensi.</li>
+                    @endif
+                    @if ($akibat['sudah_diterapkan'])
+                        <li>Laporan bulan ini <b>sudah diterapkan ke slip</b> — slip tidak berubah sendiri; Keuangan perlu Terapkan ke Slip lagi.</li>
+                    @endif
+                </ul>
+            @endif
+            <p class="text-sm text-muted dark:text-gray-400">Isian kepegawaian tidak dihapus dan kembali saat sakelar dimatikan.</p>
+            <div class="flex justify-end gap-2 pt-2">
+                <x-secondary-button type="button" x-on:click="show = false">Batal</x-secondary-button>
+                <x-primary-button type="button" wire:click="nyalakanSumberAbsensi" wire:loading.attr="disabled" wire:target="nyalakanSumberAbsensi">
+                    <span wire:loading.remove wire:target="nyalakanSumberAbsensi">Ya, ambil dari absensi</span>
+                    <span wire:loading wire:target="nyalakanSumberAbsensi">Memproses...</span>
+                </x-primary-button>
+            </div>
+        </div>
+    </x-modal>
 </div>

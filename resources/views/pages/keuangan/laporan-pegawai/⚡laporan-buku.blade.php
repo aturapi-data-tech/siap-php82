@@ -118,7 +118,7 @@ new class extends Component {
     #[Computed]
     public function unitList()
     {
-        return UnitKerja::aktif();
+        return UnitKerja::aktifTanpaDokterManajemen();
     }
 
     /** Opsi LOV karyawan (x-combobox) — semua peserta bulan ini: id = emp_id, nama = nama, kelas = ID · unit. */
@@ -174,6 +174,7 @@ new class extends Component {
         $bolehTerapkan = auth()->user()?->can('gaji.kelola');
         $bolehIsi = auth()->user()?->can('laporanPegawai.isi');
         $jumlahDiubah = count(array_filter($laporan, fn($row) => $row['tersimpan']));
+        $jumlahAbsensi = count(array_filter($laporan, fn($row) => $row['dari_absensi']));
         $jam = fn($n) => LaporanPegawai::labelJam((float) $n);
         $cocok = collect($cocokSemua);
         $jumlahBeda = $cocok->where('status', 'beda')->count();
@@ -241,6 +242,9 @@ new class extends Component {
                 <x-badge variant="danger">{{ $jumlahFinal }} slip Final beda — buka ke Draft dulu bila perlu diubah</x-badge>
             @endif
             <x-badge variant="gray">{{ $rows->total() }} karyawan · {{ $jumlahDiubah }} diubah kepegawaian</x-badge>
+            @if ($jumlahAbsensi > 0)
+                <x-badge variant="info">{{ $jumlahAbsensi }} dari Rekap Absensi</x-badge>
+            @endif
             <span class="text-xs text-muted">
                 @if ($this->diterapkan?->diterapkan_at)
                     Terakhir diterapkan ke slip {{ Format::waktu($this->diterapkan->diterapkan_at) }}{{ $this->diterapkan->name ? ' oleh ' . $this->diterapkan->name : '' }}. Aman diulang: hari kerja & lembur slip diganti angka terbaru, bukan ditambah.
@@ -255,7 +259,7 @@ new class extends Component {
     <div class="mt-4 flex flex-col bg-canvas border border-hairline shadow-sm rounded-2xl dark:border-gray-700 dark:bg-gray-900">
         <div class="px-4 pt-3">
             <h2 class="font-semibold text-ink dark:text-gray-100">Buku laporan {{ $bulan }}</h2>
-            <p class="text-xs text-muted">Baca saja — isian diubah kepegawaian di tab Entry. Nama bertanda ✎ = sudah diubah dari bawaan master; sisanya memakai Hari Kerja Default master, cuti &amp; lembur 0. Kolom Slip = kecocokan hari kerja &amp; jam lembur dengan slip bulan ini.</p>
+            <p class="text-xs text-muted">Baca saja — isian diubah kepegawaian di tab Entry. Nama bertanda ✎ = sudah diubah dari bawaan master; bertanda Absensi = angka dari Rekap Absensi; sisanya memakai Hari Kerja Default master, cuti &amp; lembur 0. Kolom Slip = kecocokan hari kerja &amp; jam lembur dengan slip bulan ini.</p>
         </div>
         <div class="overflow-x-auto">
             <table class="ds-table">
@@ -280,6 +284,7 @@ new class extends Component {
                         <tr wire:key="lapb-{{ $empId }}-{{ $bulan }}">
                             <td>
                                 <span class="font-semibold">{{ $row->emp_name }}</span>@if ($lap && $lap['tersimpan'])<span class="ml-1 text-warning-deep dark:text-warning" title="Sudah diubah kepegawaian bulan ini">✎<span class="sr-only"> diubah</span></span>@endif
+                                @if ($lap['dari_absensi'] ?? false)<x-badge variant="info" class="ml-1">Absensi</x-badge>@endif
                                 <span class="block font-mono text-xs text-muted">{{ $empId }}{{ $row->unit_name ? ' · ' . $row->unit_name : '' }}</span>
                             </td>
                             <td class="font-mono ds-c">{{ $lap['hari_kerja'] ?? '–' }}<span class="block text-[11px] font-normal text-muted">{{ $row->gaji_status ? 'slip ' . (int) $row->hari_hadir : 'belum ada slip' }}</span></td>

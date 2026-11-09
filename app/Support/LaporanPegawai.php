@@ -2,13 +2,17 @@
 
 namespace App\Support;
 
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Laporan Kepegawaian bulanan — pengganti sheet "Lap Pegawai" workbook gaji lama
  * (laporan Kasubbag Kepegawaian: hari kerja, cuti, lembur per karyawan → dipakai bagian gaji).
- * Berdiri sendiri seperti Pembagian JM — TIDAK membaca modul absensi; angka diisi kepegawaian dari catatan mereka.
+ * Angka diisi kepegawaian dari catatan mereka, ATAU — bila sakelar "Ambil dari Rekap Absensi" bulan itu menyala — dibaca dari absensi:
+ *   hari kerja = hari Hadir + Terlambat, cuti = hari Cuti, jam lembur = lembur yang dinilai "Dihitung" (lihat dariAbsensi()).
+ *   Karyawan tanpa catatan absensi sebulan itu tetap memakai isian / bawaan. Sakelar tidak menimpa isian tersimpan:
+ *   saat dimatikan, angka kepegawaian kembali utuh. Bulan yang belum memilih mengikuti pilihan terakhir bulan sebelumnya.
  *
  * Per bulan kerja, per karyawan:
  *   hari kerja  = pengali tunjangan makan & transport di slip
@@ -51,9 +55,30 @@ class LaporanPegawai
      * Laporan bulan ini untuk SEMUA karyawan peserta aktif (lihat karyawan()) — non-aktif keluar dari hitungan;
      * barisnya tidak dihapus, jadi bila diaktifkan lagi angkanya kembali terhitung (pola yang sama dengan poin JM).
      * tersimpan = false → belum ada baris di tabel; nilainya bawaan: hari kerja slip bulan itu / default parameter, cuti & lembur 0.
-     * @return array<string, array{hari_kerja: int, cuti: int, lembur_jam: float, keterangan: string, tersimpan: bool}>
+     * dari_absensi = true → hari kerja, cuti & jam lembur dibaca dari absensi (sakelar menyala & karyawan punya catatan);
+     * keterangan tetap isian kepegawaian, dan tersimpan false karena angka yang tampil bukan isian mereka.
+     * @return array<string, array{hari_kerja: int, cuti: int, lembur_jam: float, keterangan: string, tersimpan: bool, dari_absensi: bool}>
      */
     public static function laporan(string $periode): array
+    {
+        $isian = self::isian($periode);
+        if (!self::memakaiAbsensi($periode)) {
+            return $isian;
+        }
+
+        $absensi = self::dariAbsensi($periode);
+        foreach ($isian as $empId => $data) {
+            if (isset($absensi[$empId])) {
+                $isian[$empId] = ['hari_kerja' => $absensi[$empId]['hari_kerja'], 'cuti' => $absensi[$empId]['cuti'],
+                    'lembur_jam' => $absensi[$empId]['lembur_jam'], 'keterangan' => $data['keterangan'], 'tersimpan' => false, 'dari_absensi' => true];
+            }
+        }
+
+        return $isian;
+    }
+
+    /** Angka isian kepegawaian / bawaan master, tanpa memandang sakelar absensi. */
+    private static function isian(string $periode): array
     {
         $tersimpan = DB::table('siaptxn_lap_pegawais')->where('periode', $periode)->get()->keyBy('emp_id');
 
@@ -63,12 +88,100 @@ class LaporanPegawai
             $ada = $tersimpan[$empId] ?? null;
             $hasil[$empId] = $ada
                 ? ['hari_kerja' => (int) $ada->hari_kerja, 'cuti' => (int) $ada->cuti, 'lembur_jam' => (float) $ada->lembur_jam,
-                    'keterangan' => (string) ($ada->keterangan ?? ''), 'tersimpan' => true]
+                    'keterangan' => (string) ($ada->keterangan ?? ''), 'tersimpan' => true, 'dari_absensi' => false]
                 : ['hari_kerja' => (int) ($row->hari_hadir ?? $row->hari_kerja_default ?? 0), 'cuti' => 0, 'lembur_jam' => 0.0,
-                    'keterangan' => '', 'tersimpan' => false];
+                    'keterangan' => '', 'tersimpan' => false, 'dari_absensi' => false];
         }
 
         return $hasil;
+    }
+
+    // ─── Sumber dari Rekap Absensi ────────────────────────────────────────────
+
+    /**
+     * Pilihan sumber yang berlaku: pilihan bulan itu sendiri, atau pilihan terakhir sebelumnya bila bulan itu belum memilih.
+     * sumber_absensi_at terisi = pernah dipilih (sumber_absensi NULL + at terisi = sengaja dimatikan).
+     */
+    private static function pilihanSumber(string $periode): ?object
+    {
+        return DB::table('siaptxn_lap_pegawai_hdrs')->where('periode', '<=', $periode)->whereNotNull('sumber_absensi_at')
+            ->orderByDesc('periode')->first(['periode', 'sumber_absensi']);
+    }
+
+    public static function memakaiAbsensi(string $periode): bool
+    {
+        return self::pilihanSumber($periode)?->sumber_absensi === '1';
+    }
+
+    /** Bulan asal bila sakelar menyala karena mengikuti bulan sebelumnya ('Y-m'); null bila dipilih di bulan ini atau mati. */
+    public static function asalSumberAbsensi(string $periode): ?string
+    {
+        $pilihan = self::pilihanSumber($periode);
+
+        return $pilihan && $pilihan->sumber_absensi === '1' && $pilihan->periode !== $periode ? $pilihan->periode : null;
+    }
+
+    public static function aturSumberAbsensi(string $periode, bool $nyala, ?int $userId): void
+    {
+        $data = ['sumber_absensi' => $nyala ? '1' : null, 'sumber_absensi_at' => now(), 'sumber_absensi_oleh' => $userId, 'updated_at' => now()];
+        DB::table('siaptxn_lap_pegawai_hdrs')->where('periode', $periode)->exists()
+            ? DB::table('siaptxn_lap_pegawai_hdrs')->where('periode', $periode)->update($data)
+            : DB::table('siaptxn_lap_pegawai_hdrs')->insert([...$data, 'periode' => $periode, 'created_at' => now()]);
+    }
+
+    /**
+     * Angka sebulan dari absensi, hanya karyawan yang punya catatan (angka sama dengan Rekap Absensi Bulanan).
+     * Dihitung per tanggal (DISTINCT) supaya baris ganda tidak melebihi jumlah hari sebulan.
+     * @return array<string, array{hari_kerja: int, cuti: int, lembur_jam: float, lembur_menunggu: int}>
+     */
+    public static function dariAbsensi(string $periode): array
+    {
+        $awal = Carbon::createFromFormat('!Y-m', $periode)->startOfMonth();
+
+        return DB::table('siaptxn_absensis')
+            ->where('abs_date', '>=', Absensi::tanggalSql($awal))
+            ->where('abs_date', '<=', Absensi::tanggalSql($awal->copy()->endOfMonth()))
+            ->groupBy('emp_id')
+            ->select('emp_id',
+                DB::raw("COUNT(DISTINCT CASE WHEN abs_status IN ('H', 'T') THEN abs_date END) AS hari_kerja"),
+                DB::raw("COUNT(DISTINCT CASE WHEN abs_status = 'C' THEN abs_date END) AS cuti"),
+                DB::raw("NVL(SUM(CASE WHEN lembur_status = 'Y' THEN lembur_menit END), 0) AS lembur_menit"),
+                DB::raw("SUM(CASE WHEN lembur_status = 'P' THEN 1 ELSE 0 END) AS lembur_menunggu"))
+            ->get()
+            ->mapWithKeys(fn($row) => [(string) $row->emp_id => [
+                'hari_kerja' => (int) $row->hari_kerja,
+                'cuti' => (int) $row->cuti,
+                'lembur_jam' => round((int) $row->lembur_menit / 60, 2),
+                'lembur_menunggu' => (int) $row->lembur_menunggu,
+            ]])
+            ->all();
+    }
+
+    /**
+     * Akibat menyalakan sakelar absensi — untuk konfirmasi sebelum angka bulan itu berubah.
+     * @return array{peserta_tercatat: int, tanpa_catatan: int, isian_tertimpa: int, angka_berubah: int, lembur_menunggu: int, sudah_diterapkan: bool}
+     */
+    public static function pratinjauAbsensi(string $periode): array
+    {
+        $isian = self::isian($periode);
+        $absensi = array_intersect_key(self::dariAbsensi($periode), $isian);
+
+        $isianTertimpa = 0;
+        $angkaBerubah = 0;
+        foreach ($absensi as $empId => $data) {
+            $isianTertimpa += $isian[$empId]['tersimpan'] ? 1 : 0;
+            $angkaBerubah += $data['hari_kerja'] !== $isian[$empId]['hari_kerja'] || $data['cuti'] !== $isian[$empId]['cuti']
+                || abs($data['lembur_jam'] - $isian[$empId]['lembur_jam']) >= 0.005 ? 1 : 0;
+        }
+
+        return [
+            'peserta_tercatat' => count($absensi),
+            'tanpa_catatan' => count($isian) - count($absensi),
+            'isian_tertimpa' => $isianTertimpa,
+            'angka_berubah' => $angkaBerubah,
+            'lembur_menunggu' => count(array_filter($absensi, fn($data) => $data['lembur_menunggu'] > 0)),
+            'sudah_diterapkan' => DB::table('siaptxn_lap_pegawai_hdrs')->where('periode', $periode)->whereNotNull('diterapkan_at')->exists(),
+        ];
     }
 
     /**
@@ -92,7 +205,8 @@ class LaporanPegawai
         if (DB::table('siaptxn_lap_pegawais')->where($kunci)->exists()) {
             DB::table('siaptxn_lap_pegawais')->where($kunci)->update($data);
         } else {
-            $bawaan = self::laporan($periode)[$empId] ?? null;
+            // Isian, bukan laporan(): angka absensi tidak boleh ikut tersimpan saat keterangan diisi selagi sakelar menyala.
+            $bawaan = self::isian($periode)[$empId] ?? null;
             if ($bawaan === null) {
                 return false; // bukan peserta bulan ini
             }
@@ -113,6 +227,10 @@ class LaporanPegawai
      */
     public static function terapkan(string $periode, ?int $userId): array
     {
+        // Bulan yang sudah diterapkan memegang pilihannya sendiri: mengubah sakelar bulan sebelumnya tidak boleh menggeser angkanya.
+        if (self::pilihanSumber($periode)?->periode !== $periode) {
+            self::aturSumberAbsensi($periode, self::memakaiAbsensi($periode), $userId);
+        }
         $laporan = self::laporan($periode);
         $hasil = ['diperbarui' => 0, 'final' => [], 'tanpaSlip' => []];
         $empIds = array_map('strval', array_keys($laporan)) ?: [''];
@@ -215,7 +333,8 @@ class LaporanPegawai
     }
 
     /**
-     * Karyawan peserta laporan: aktif & (punya parameter gaji, slip bulan ini, atau baris laporan bulan ini).
+     * Karyawan peserta laporan: aktif, bukan dokter / manajemen (UnitKerja::UNIT_DOKTER_MANAJEMEN — slip mereka tidak disentuh Terapkan),
+     * & (punya parameter gaji, slip bulan ini, atau baris laporan bulan ini).
      * @return Collection<int, object> kolom: emp_id, emp_name, unit_name, gaji_status, hari_hadir (slip), hari_kerja_default (master, null bila belum ada parameter)
      */
     public static function karyawan(string $periode, ?string $unitId, string $cari = ''): Collection
@@ -227,6 +346,7 @@ class LaporanPegawai
             ->leftJoin('siaptxn_gaji_hdrs as gh', fn($join) => $join->on('gh.emp_id', '=', 'em.emp_id')->where('gh.periode', '=', $periode))
             ->leftJoin('siapmst_gaji_karyawans as gk', 'gk.emp_id', '=', 'em.emp_id')
             ->where('em.active_status', '1')
+            ->tap(fn($query) => UnitKerja::tanpaDokterManajemen($query, 'em.emp_unit_id'))
             ->where(fn($query) => $query
                 ->whereNotNull('gk.emp_id')
                 ->orWhereNotNull('gh.gaji_id')

@@ -87,6 +87,7 @@ new class extends Component {
             })
             ->leftJoin('siapmst_shifts as sh', 'sh.shift_id', '=', 'ab.shift_id')
             ->where('em.active_status', '1')
+            ->tap(fn($subQuery) => \App\Support\UnitKerja::tanpaDokterManajemen($subQuery, 'em.emp_unit_id'))
             ->when($this->filterUnit !== '', fn($subQuery) => $subQuery->where('em.emp_unit_id', $this->filterUnit));
 
         if (trim($this->searchKeyword) !== '') {
@@ -191,7 +192,7 @@ new class extends Component {
                         <div class="w-44">
                             <x-select-input wire:model.live="filterUnit">
                                 <option value="">Semua unit</option>
-                                @foreach (\App\Support\UnitKerja::aktif() as $unit)
+                                @foreach (\App\Support\UnitKerja::aktifTanpaDokterManajemen() as $unit)
                                     <option value="{{ $unit->unit_id }}">{{ $unit->unit_name }}</option>
                                 @endforeach
                             </x-select-input>

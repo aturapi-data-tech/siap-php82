@@ -15,10 +15,31 @@ class UnitKerja
     /** Role yang boleh mengatur jadwal SEMUA unit. */
     public const ROLE_SEMUA_UNIT = ['admin', 'hrd'];
 
+    /**
+     * Unit yang sementara tidak ikut Jadwal Dinas, Rekap Harian, Generate Libur/Alpa, Rekap Bulanan & Laporan Kepegawaian: Dokter Spesialis, Dokter Umum, Pengurus PT
+     * (dokter & manajemen — tidak dihitung dari jam datang). Kosongkan daftar ini untuk mengikutkan kembali.
+     */
+    public const UNIT_DOKTER_MANAJEMEN = ['DS', 'DK', 'PT'];
+
     /** @return Collection<int, object> unit aktif, urut nama */
     public static function aktif(): Collection
     {
         return DB::table('siapmst_unit_kerjas')->where('active_status', '1')->orderBy('unit_name')->get(['unit_id', 'unit_name']);
+    }
+
+    /** @return Collection<int, object> unit aktif tanpa dokter & manajemen, urut nama */
+    public static function aktifTanpaDokterManajemen(): Collection
+    {
+        return self::aktif()->whereNotIn('unit_id', self::UNIT_DOKTER_MANAJEMEN)->values();
+    }
+
+    /**
+     * Saring query karyawan: buang dokter & manajemen. Karyawan tanpa unit tetap ikut
+     * (NOT IN saja akan ikut membuang emp_unit_id NULL).
+     */
+    public static function tanpaDokterManajemen($query, string $kolomUnit)
+    {
+        return $query->where(fn($sub) => $sub->whereNull($kolomUnit)->orWhereNotIn($kolomUnit, self::UNIT_DOKTER_MANAJEMEN));
     }
 
     /**
