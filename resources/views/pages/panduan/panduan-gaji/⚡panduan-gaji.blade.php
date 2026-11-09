@@ -223,7 +223,7 @@ new class extends Component {
                     <h2>4. Laporan Kepegawaian — {!! $tautan('keuangan.laporan-pegawai', 'buka') !!}</h2>
                     <p class="mt-2 text-sm">Pengganti sheet <i>Lap Pegawai</i> Excel lama (laporan Kasubbag Kepegawaian). Hari kerja, cuti, dan jam lembur tiap karyawan diisi kepegawaian dari catatan mereka (daftar lembur, catatan kehadiran), lalu ditulis ke slip oleh Keuangan.
                         Bawaannya tidak membaca modul absensi; bila diperlukan, angka bisa diambil dari Rekap Absensi dengan sakelar per bulan (lihat di bawah).
-                        Role <b>HRD</b> mengisi; <b>Keuangan</b> hanya membaca dan menerapkan; <b>Admin</b> keduanya.</p>
+                        Role <b>HRD</b> mengisi; <b>Manager Keuangan</b> hanya membaca dan menerapkan; <b>Admin</b> keduanya.</p>
                     <h3 class="mt-4">Tiap bulan</h3>
                     <ol class="mt-1 text-sm">
                         <li>Halaman punya dua tab: <b>Entry Laporan</b> (tabel isian kepegawaian) dan <b>Buku Laporan</b> (baca saja + Terapkan ke Slip). Pilih <b>Bulan Kerja</b> (sama dengan bulan slip), pastikan slip sudah di-<b>Generate</b> dan <b>JM sudah diterapkan</b> (dasar upah lembur memuat JM).</li>

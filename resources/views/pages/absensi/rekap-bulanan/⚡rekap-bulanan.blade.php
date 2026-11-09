@@ -69,6 +69,13 @@ new class extends Component {
         }
     }
 
+    /** Supervisor Unit dikunci ke unitnya; Admin, HRD & Manager Keuangan semua unit. */
+    #[Computed]
+    public function cakupan(): array
+    {
+        return \App\Support\UnitKerja::cakupanRekap(auth()->user());
+    }
+
     /** Jumlah hari periode yang sudah berjalan (bulan berjalan dihitung s/d hari ini). */
     #[Computed]
     public function hariBerjalan(): int
@@ -121,7 +128,8 @@ new class extends Component {
             })
             ->where('em.active_status', '1')
             ->where('em.emp_wajib_absen', '1')
-            ->when($this->filterUnit !== '', fn($subQuery) => $subQuery->where('em.emp_unit_id', $this->filterUnit))
+            ->when(!$this->cakupan['semuaUnit'], fn($subQuery) => $this->cakupan['unitId'] !== null ? $subQuery->where('em.emp_unit_id', $this->cakupan['unitId']) : $subQuery->whereRaw('1 = 0'))
+            ->when($this->cakupan['semuaUnit'] && $this->filterUnit !== '', fn($subQuery) => $subQuery->where('em.emp_unit_id', $this->filterUnit))
             ->groupBy('em.emp_id', 'em.emp_name')
             ->select('em.emp_id', 'em.emp_name',
                 $hitung('H'), $hitung('T'), $hitung('I'), $hitung('S'), $hitung('C'), $hitung('A'), $hitung('L'),
@@ -175,14 +183,16 @@ new class extends Component {
                             <x-text-input wire:model.live.debounce.600ms="bulan" x-mask="99/9999" placeholder="mm/yyyy" class="w-28 text-center font-mono" />
                             <x-secondary-button type="button" wire:click="geserBulan(1)" class="!px-2.5" title="Bulan berikutnya">›</x-secondary-button>
                         </div>
-                        <div class="w-44">
-                            <x-select-input wire:model.live="filterUnit">
-                                <option value="">Semua unit</option>
-                                @foreach (\App\Support\UnitKerja::aktifWajibAbsen() as $unit)
-                                    <option value="{{ $unit->unit_id }}">{{ $unit->unit_name }}</option>
-                                @endforeach
-                            </x-select-input>
-                        </div>
+                        @if ($this->cakupan['semuaUnit'])
+                            <div class="w-44">
+                                <x-select-input wire:model.live="filterUnit" aria-label="Filter unit">
+                                    <option value="">Semua unit</option>
+                                    @foreach (\App\Support\UnitKerja::aktifWajibAbsen() as $unit)
+                                        <option value="{{ $unit->unit_id }}">{{ $unit->unit_name }}</option>
+                                    @endforeach
+                                </x-select-input>
+                            </div>
+                        @endif
                         <div class="w-full lg:w-64">
                             <x-input-label for="searchKeyword" value="Cari Karyawan" class="sr-only" />
                             <x-text-input id="searchKeyword" type="text" wire:model.live.debounce.300ms="searchKeyword"
@@ -300,7 +310,9 @@ new class extends Component {
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="14" class="px-6 py-10 text-center text-muted dark:text-gray-400">Tidak ada data.</td>
+                                    <td colspan="14" class="px-6 py-10 text-center text-muted dark:text-gray-400">
+                                        {{ !$this->cakupan['semuaUnit'] && $this->cakupan['unitId'] === null ? 'Akun Anda belum terhubung ke karyawan ber-unit. Minta Admin menghubungkannya di User Control.' : 'Tidak ada data.' }}
+                                    </td>
                                 </tr>
                             @endforelse
                         </tbody>

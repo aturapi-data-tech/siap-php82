@@ -34,6 +34,7 @@ new class extends Component {
     #[On('absensi.rekap-bulanan.openDetail')]
     public function openDetail(string $empId, string $bulan): void
     {
+        abort_unless($this->dalamCakupan($empId), 403);
         $dataKaryawan = DB::table('siapmst_employers')->where('emp_id', $empId)->first(['emp_id', 'emp_name']);
         if (!$dataKaryawan) {
             $this->dispatch('toast', type: 'error', message: 'Data karyawan tidak ditemukan.');
@@ -112,9 +113,18 @@ new class extends Component {
         return $ringkasan;
     }
 
+    /** Supervisor Unit hanya karyawan unitnya; Admin, HRD & Manager Keuangan semua. */
+    private function dalamCakupan(string $empId): bool
+    {
+        $cakupan = \App\Support\UnitKerja::cakupanRekap(auth()->user());
+
+        return $cakupan['semuaUnit'] || ($cakupan['unitId'] !== null && \App\Support\UnitKerja::unitKaryawan($empId) === $cakupan['unitId']);
+    }
+
     // ─── Penilaian lembur ─────────────────────────────────────────────────────
     public function nilaiLembur(int $absId, string $status): void
     {
+        abort_unless(auth()->user()?->can('lembur.nilai') && $this->dalamCakupan($this->empId), 403);
         $milikKaryawan = DB::table('siaptxn_absensis')->where('abs_id', $absId)->where('emp_id', $this->empId)->exists();
         if (!$milikKaryawan || !Absensi::nilaiLembur($absId, $status, auth()->id())) {
             $this->dispatch('toast', type: 'error', message: 'Lembur tidak bisa dinilai.');
@@ -127,6 +137,7 @@ new class extends Component {
     /** Hitung semua lembur yang masih menunggu pada bulan ini. */
     public function hitungSemuaMenunggu(): void
     {
+        abort_unless(auth()->user()?->can('lembur.nilai') && $this->dalamCakupan($this->empId), 403);
         $ids = collect($this->hari)->pluck('abs')->filter()->where('lembur_status', 'P')->pluck('abs_id');
 
         foreach ($ids as $absId) {
@@ -179,9 +190,11 @@ new class extends Component {
                         <span class="text-sm text-info-deep dark:text-sky-300">Lembur dihitung <b class="font-mono">{{ \App\Support\Absensi::labelMenit($ringkasan['lembur_y']) ?: '0' }}</b></span>
                         @if ($ringkasan['jml_p'] > 0)
                             <span class="inline-flex items-center gap-1 text-sm text-fg-warning"><svg class="inline w-3.5 h-3.5 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> {{ $ringkasan['jml_p'] }} lembur menunggu ({{ \App\Support\Absensi::labelMenit($ringkasan['lembur_p']) }})</span>
+                            @can('lembur.nilai')
                             <x-primary-button type="button" wire:click="hitungSemuaMenunggu" wire:loading.attr="disabled" wire:target="hitungSemuaMenunggu" class="!px-3 !py-1.5 text-xs">
                                 <svg class="inline w-3.5 h-3.5 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg> Hitung semua yang menunggu
                             </x-primary-button>
+                            @endcan
                         @endif
                     </div>
                 @endif
@@ -268,7 +281,7 @@ new class extends Component {
                                                     <span class="font-mono text-sm font-semibold {{ $statusLembur === 'N' ? 'line-through text-muted-soft' : 'text-info-deep dark:text-sky-300' }}">
                                                         {{ \App\Support\Absensi::labelMenit((int) $absensi->lembur_menit) }}
                                                     </span>
-                                                    @if ($statusLembur === 'P')
+                                                    @if ($statusLembur === 'P' && auth()->user()?->can('lembur.nilai'))
                                                         {{-- Belum dinilai → pilih; setelah dipilih label "Menunggu" hilang --}}
                                                         <button type="button" wire:click="nilaiLembur({{ $absensi->abs_id }}, 'Y')"
                                                             class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white rounded-base bg-brand hover:bg-brand-strong focus:outline-none focus:ring-4 focus:ring-brand-medium disabled:opacity-60" wire:loading.attr="disabled" wire:target="nilaiLembur({{ $absensi->abs_id }}, 'Y')"><svg class="inline w-3.5 h-3.5 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg> Hitung<x-loading wire:loading.delay wire:target="nilaiLembur({{ $absensi->abs_id }}, 'Y')" class="ml-1 align-middle" /></button>
@@ -276,8 +289,10 @@ new class extends Component {
                                                             class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold border rounded-base border-default-medium text-heading bg-neutral-primary hover:bg-neutral-secondary-medium focus:outline-none focus:ring-4 focus:ring-brand-medium disabled:opacity-60" wire:loading.attr="disabled" wire:target="nilaiLembur({{ $absensi->abs_id }}, 'N')"><svg class="inline w-3.5 h-3.5 -mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg> Tidak<x-loading wire:loading.delay wire:target="nilaiLembur({{ $absensi->abs_id }}, 'N')" class="ml-1 align-middle" /></button>
                                                     @else
                                                         <x-badge :variant="\App\Support\Absensi::LEMBUR_BADGE[$statusLembur]">{{ \App\Support\Absensi::LEMBUR_STATUS[$statusLembur] }}</x-badge>
+                                                        @can('lembur.nilai')
                                                         <button type="button" wire:click="nilaiLembur({{ $absensi->abs_id }}, 'P')"
                                                             class="text-xs text-muted-soft hover:underline" title="Batalkan penilaian" wire:loading.attr="disabled" wire:target="nilaiLembur({{ $absensi->abs_id }}, 'P')">ubah<x-loading wire:loading.delay wire:target="nilaiLembur({{ $absensi->abs_id }}, 'P')" class="ml-1 align-middle" /></button>
+                                                        @endcan
                                                     @endif
                                                 </div>
                                                 @if ($statusLembur !== 'P' && $absensi->lembur_penilai)

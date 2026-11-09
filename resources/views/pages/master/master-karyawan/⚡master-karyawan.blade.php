@@ -28,22 +28,26 @@ new class extends Component {
 
     public function openCreate(): void
     {
+        abort_unless(auth()->user()?->can('karyawan.kelola'), 403);
         $this->dispatch('master.karyawan.openCreate');
     }
 
     public function openEdit(string $empId): void
     {
+        abort_unless(auth()->user()?->can('karyawan.kelola'), 403);
         $this->dispatch('master.karyawan.openEdit', empId: $empId);
     }
 
     public function requestDelete(string $empId): void
     {
+        abort_unless(auth()->user()?->can('karyawan.kelola'), 403);
         $this->dispatch('master.karyawan.requestDelete', empId: $empId);
     }
 
     // Toggle aktif/non-aktif langsung dari tabel (pola master Level 2).
     public function toggleActive(string $empId): void
     {
+        abort_unless(auth()->user()?->can('karyawan.kelola'), 403);
         $current  = (string) DB::table('siapmst_employers')->where('emp_id', $empId)->value('active_status');
         $newValue = $current === '1' ? '0' : '1';
 
@@ -76,6 +80,10 @@ new class extends Component {
 
     public function openStrSip(string $empId): void
     {
+        if (!auth()->user()?->can('karyawan.kelola')) {
+            $this->dispatch('toast', type: 'warning', message: 'STR/SIP hanya bisa diubah HRD.');
+            return;
+        }
         $this->dispatch('master.karyawan.openStrSip', empId: $empId);
     }
 
@@ -228,9 +236,11 @@ new class extends Component {
                                 <option value="100">100</option>
                             </x-select-input>
                         </div>
+                        @can('karyawan.kelola')
                         <x-primary-button type="button" wire:click="openCreate">
                             + Tambah Karyawan Baru
                         </x-primary-button>
+                        @endcan
                         <x-toolbar-refresh-reset :label="null" />
                     </div>
                 </div>
@@ -276,7 +286,7 @@ new class extends Component {
                                     <td>
                                         {{-- wire:key sertakan nilai aktif supaya Alpine re-init saat status berubah --}}
                                         <x-toggle wire:key="toggle-active-{{ $row->emp_id }}-{{ $isActive ? 1 : 0 }}"
-                                            :current="$isActive ? '1' : '0'" trueValue="1" falseValue="0"
+                                            :current="$isActive ? '1' : '0'" trueValue="1" falseValue="0" :disabled="!auth()->user()?->can('karyawan.kelola')"
                                             wireClick="toggleActive('{{ $row->emp_id }}')">
                                             {{ $isActive ? 'Aktif' : 'Non-aktif' }}
                                         </x-toggle>
@@ -298,7 +308,7 @@ new class extends Component {
                                         {{-- Urutan tetap: STR/SIP · Gaji · Edit · Hapus. Ukuran sama dengan x-action-edit;
                                              baris non-nakes memakai slot kosong selebar STR/SIP supaya kolom tombol tetap lurus. --}}
                                         <div class="flex items-center justify-end gap-2 flex-nowrap whitespace-nowrap">
-                                            @if ((string) $row->emp_is_nakes === '1')
+                                            @if ((string) $row->emp_is_nakes === '1' && auth()->user()?->can('karyawan.kelola'))
                                                 <x-secondary-button type="button" wire:click="openStrSip('{{ $row->emp_id }}')" class="px-2.5 py-1.5 text-sm" title="Kelola STR / SIP">
                                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                                                         <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -326,10 +336,12 @@ new class extends Component {
                                                     @endunless
                                                 </x-secondary-button>
                                             @endif
+                                            @can('karyawan.kelola')
                                             <x-action-edit wire:click="openEdit('{{ $row->emp_id }}')" />
                                             <x-action-delete :action="'requestDelete(\'' . $row->emp_id . '\')'"
                                                 title="Hapus Karyawan"
                                                 message="Yakin hapus karyawan {{ $row->emp_name }} ({{ $row->emp_id }})?" />
+                                            @endcan
                                         </div>
                                     </td>
                                 </tr>

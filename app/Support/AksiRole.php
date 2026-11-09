@@ -35,15 +35,29 @@ class AksiRole
     /* ─────────────── KEUANGAN ─────────────── */
 
     /** Role yang boleh membuka & mengelola gaji karyawan (parameter, slip, cetak). Data gaji = rahasia. */
-    public const GAJI_KELOLA = ['Admin', 'Keuangan'];
+    public const GAJI_KELOLA = ['Admin', 'Manager Keuangan'];
 
     /* ─────────────── KEPEGAWAIAN ─────────────── */
 
     /** Role yang boleh MEMBUKA Laporan Kepegawaian (hari kerja, cuti, lembur per bulan). Keuangan ikut membaca & menerapkan ke slip. */
-    public const LAPORAN_PEGAWAI_LIHAT = ['Admin', 'HRD', 'Keuangan'];
+    public const LAPORAN_PEGAWAI_LIHAT = ['Admin', 'HRD', 'Manager Keuangan'];
 
     /** Role yang boleh MENGISI Laporan Kepegawaian (siapkan baris, isi hari kerja / cuti / lembur). Terapkan ke slip tetap GAJI_KELOLA. */
     public const LAPORAN_PEGAWAI_ISI = ['Admin', 'HRD'];
+
+    /** Role yang boleh mengubah data Master Karyawan (termasuk Wajib Absen & STR/SIP). Manager Keuangan hanya melihat + parameter gaji. */
+    public const KARYAWAN_KELOLA = ['Admin', 'HRD'];
+
+    /* ─────────────── ABSENSI ─────────────── */
+
+    /** Role yang melihat absensi SEMUA unit. Selain ini (Supervisor Unit) dikunci ke unit karyawan yang terhubung ke akunnya. */
+    public const ABSENSI_LIHAT = ['Admin', 'HRD', 'Manager Keuangan'];
+
+    /** Role yang boleh mengubah Rekap Harian: izin, sakit, cuti, koreksi jam, Generate Libur/Alpa. */
+    public const ABSENSI_KELOLA = ['Admin', 'HRD'];
+
+    /** Role yang boleh menilai lembur dihitung / tidak. Supervisor Unit hanya untuk unitnya. */
+    public const LEMBUR_NILAI = ['Admin', 'HRD', 'Supervisor Unit'];
 
     /* ─────────────── MUTU ─────────────── */
 

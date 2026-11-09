@@ -66,6 +66,7 @@ new class extends Component {
     #[On('master.karyawan.openCreate')]
     public function openCreate(): void
     {
+        abort_unless(auth()->user()?->can('karyawan.kelola'), 403);
         $this->resetForm();
         $this->formMode      = 'create';
         $this->originalEmpId = '';
@@ -78,6 +79,7 @@ new class extends Component {
     #[On('master.karyawan.openEdit')]
     public function openEdit(string $empId): void
     {
+        abort_unless(auth()->user()?->can('karyawan.kelola'), 403);
         $row = DB::table('siapmst_employers')->where('emp_id', $empId)->first();
         if (!$row) {
             $this->dispatch('toast', type: 'error', message: 'Data karyawan tidak ditemukan.');
@@ -115,6 +117,7 @@ new class extends Component {
     #[On('master.karyawan.requestDelete')]
     public function deleteKaryawan(string $empId): void
     {
+        abort_unless(auth()->user()?->can('karyawan.kelola'), 403);
         if (DB::table('users')->where('emp_id', $empId)->exists()) {
             $this->dispatch('toast', type: 'error', message: 'Karyawan tidak bisa dihapus karena masih dipakai oleh user login. Non-aktifkan saja.');
             return;
@@ -204,6 +207,7 @@ new class extends Component {
     // ─── Save ─────────────────────────────────────────────────────────────────
     public function save(): void
     {
+        abort_unless(auth()->user()?->can('karyawan.kelola'), 403);
         $this->validate();
 
         $form = $this->form;

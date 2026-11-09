@@ -42,6 +42,7 @@ new class extends Component {
     #[On('master.karyawan.openStrSip')]
     public function openStrSip(string $empId): void
     {
+        abort_unless(auth()->user()?->can('karyawan.kelola'), 403);
         $emp = DB::table('siapmst_employers')->select('emp_id', 'emp_name')->where('emp_id', $empId)->first();
         if (!$emp) {
             $this->dispatch('toast', type: 'error', message: 'Data karyawan tidak ditemukan.');
@@ -201,6 +202,7 @@ new class extends Component {
     // ─── Save ─────────────────────────────────────────────────────────────────
     public function save(): void
     {
+        abort_unless(auth()->user()?->can('karyawan.kelola'), 403);
         $this->validate();
 
         $form = $this->form;
@@ -237,6 +239,7 @@ new class extends Component {
     // ─── Delete ───────────────────────────────────────────────────────────────
     public function deleteLicense(int $licId): void
     {
+        abort_unless(auth()->user()?->can('karyawan.kelola'), 403);
         $deleted = DB::table('siapmst_emp_licenses')->where('lic_id', $licId)->where('emp_id', $this->empId)->delete();
         if ($deleted === 0) {
             $this->dispatch('toast', type: 'error', message: 'Data STR/SIP tidak ditemukan.');

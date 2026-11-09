@@ -56,12 +56,17 @@ new class extends Component {
 
     public function openInput(string $empId): void
     {
+        if (!auth()->user()?->can('absensi.kelola')) {
+            $this->dispatch('toast', type: 'warning', message: 'Rekap Harian hanya bisa dilihat. Perubahan dilakukan HRD.');
+            return;
+        }
         $this->dispatch('absensi.rekap-harian.openInput', empId: $empId, tanggal: $this->tanggalCarbon()->format('d/m/Y'));
     }
 
     /** Generate Libur/Alpa massal untuk karyawan belum absen — mutasinya di -generate-actions. */
     public function openGenerate(): void
     {
+        abort_unless(auth()->user()?->can('absensi.kelola'), 403);
         $this->dispatch('absensi.rekap-harian.openGenerate', tanggal: $this->tanggalCarbon()->format('d/m/Y'));
     }
 
@@ -221,10 +226,12 @@ new class extends Component {
                             </x-select-input>
                         </div>
                         @php $bisaGenerate = $this->tanggalCarbon()->lt(now()->startOfDay()); @endphp
+                        @can('absensi.kelola')
                         <x-danger-button type="button" wire:click="openGenerate" :disabled="!$bisaGenerate"
                             title="{{ $bisaGenerate ? 'Catat Libur / Alpa sekaligus untuk karyawan yang belum absen' : 'Hanya untuk tanggal yang sudah lewat (sebelum hari ini)' }}">
                             Generate Libur / Alpa
                         </x-danger-button>
+                        @endcan
                         <x-toolbar-refresh-reset :label="null" />
                     </div>
                 </div>

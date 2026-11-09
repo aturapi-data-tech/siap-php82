@@ -168,6 +168,14 @@ new class extends Component {
                         <li><b>Lokasi Absen HP</b> = RS / klinik tempat karyawan bekerja (lihat poin d).</li>
                     </ul>
 
+                    <h3 class="mt-5">Pembagian role — {!! $tautan('sistem.user-control', 'buka User Control') !!}</h3>
+                    <ul class="mt-1 text-sm">
+                        <li><b>Admin</b>: semua program.</li>
+                        <li><b>Manager Keuangan</b>: mengelola penggajian; melihat Master Karyawan, Rekap Harian, Rekap Bulanan &amp; Laporan Kepegawaian tanpa bisa mengubah absensi.</li>
+                        <li><b>HRD</b>: absensi, lembur, cuti, Jadwal Dinas semua unit, isi Laporan Kepegawaian, Master Karyawan. Tidak bisa membuka gaji.</li>
+                        <li><b>Supervisor Unit</b>: mengatur Jadwal Dinas &amp; menilai lembur dihitung / tidak, hanya untuk unitnya. Wajib dihubungkan ke data karyawan di User Control, karena unitnya diambil dari situ.</li>
+                    </ul>
+
                     <h3 class="mt-5">d. Akun komputer kiosk</h3>
                     <ol class="mt-1 text-sm">
                         <li>Buat role <code>kiosk</code> di {!! $tautan('sistem.role-control', 'Role Control') !!}.</li>

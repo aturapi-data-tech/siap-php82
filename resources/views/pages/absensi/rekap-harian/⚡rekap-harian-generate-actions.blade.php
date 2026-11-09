@@ -41,6 +41,7 @@ new class extends Component {
     #[On('absensi.rekap-harian.openGenerate')]
     public function openGenerate(string $tanggal): void
     {
+        abort_unless(auth()->user()?->can('absensi.kelola'), 403);
         $tanggalKerja = $this->tanggalCarbon($tanggal);
         if (!$tanggalKerja) {
             return;
@@ -102,6 +103,7 @@ new class extends Component {
 
     public function simpan(): void
     {
+        abort_unless(auth()->user()?->can('absensi.kelola'), 403);
         $this->validate(
             ['pilihan' => 'required|array|min:1', 'pilihan.*' => 'in:L,A,I,C',
              'keteranganAlpa' => 'nullable|string|max:200', 'keteranganLibur' => 'nullable|string|max:200'],

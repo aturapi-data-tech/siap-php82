@@ -39,6 +39,10 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('gaji.kelola', fn ($user) => $user->hasAnyRole(AksiRole::GAJI_KELOLA));
         Gate::define('laporanPegawai.lihat', fn ($user) => $user->hasAnyRole(AksiRole::LAPORAN_PEGAWAI_LIHAT));
         Gate::define('laporanPegawai.isi', fn ($user) => $user->hasAnyRole(AksiRole::LAPORAN_PEGAWAI_ISI));
+        Gate::define('karyawan.kelola', fn ($user) => $user->hasAnyRole(AksiRole::KARYAWAN_KELOLA));
+        Gate::define('absensi.lihat', fn ($user) => $user->hasAnyRole(AksiRole::ABSENSI_LIHAT));
+        Gate::define('absensi.kelola', fn ($user) => $user->hasAnyRole(AksiRole::ABSENSI_KELOLA));
+        Gate::define('lembur.nilai', fn ($user) => $user->hasAnyRole(AksiRole::LEMBUR_NILAI));
         Gate::define('mutu.kunci', fn ($user) => $user->hasAnyRole(AksiRole::MUTU_KUNCI));
         Gate::define('sistem.strukturDb', fn ($user) => $user->hasAnyRole(AksiRole::STRUKTUR_DB));
 

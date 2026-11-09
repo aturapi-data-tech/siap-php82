@@ -57,6 +57,7 @@ new class extends Component {
     #[On('absensi.rekap-harian.openInput')]
     public function openInput(string $empId, string $tanggal): void
     {
+        abort_unless(auth()->user()?->can('absensi.kelola'), 403);
         $dataKaryawan = DB::table('siapmst_employers')->where('emp_id', $empId)->first(['emp_id', 'emp_name']);
         if (!$dataKaryawan) {
             $this->dispatch('toast', type: 'error', message: 'Data karyawan tidak ditemukan.');
@@ -129,6 +130,7 @@ new class extends Component {
     // ─── Save ─────────────────────────────────────────────────────────────────
     public function save(): void
     {
+        abort_unless(auth()->user()?->can('absensi.kelola'), 403);
         $this->validate();
 
         $tanggalKerja = Carbon::createFromFormat('!d/m/Y', $this->tanggal);
@@ -282,6 +284,7 @@ new class extends Component {
     // ─── Delete ───────────────────────────────────────────────────────────────
     public function hapus(): void
     {
+        abort_unless(auth()->user()?->can('absensi.kelola'), 403);
         if (!$this->absId) {
             return;
         }

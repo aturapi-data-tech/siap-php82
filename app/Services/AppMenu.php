@@ -60,6 +60,17 @@ class AppMenu
         ));
     }
 
+    /** Halaman di menu hanya untuk role yang tercantum; route di luar menu tidak dibatasi di sini (lihat CekAksesMenu). */
+    public static function bolehBuka(string $route, ?object $user): bool
+    {
+        if (!collect(self::all())->contains('route', $route)) {
+            return true;
+        }
+        $roles = $user ? $user->getRoleNames()->all() : [];
+
+        return collect(self::forRoles($roles))->contains('route', $route);
+    }
+
     /**
      * Sorted + grouped by 'group'. Cocok untuk render sidebar/dashboard.
      *
@@ -85,7 +96,7 @@ class AppMenu
 
         return [
             // ── Master ─────────────────────────────────────────────────
-            $entry(['group' => 'Master', 'groupOrder' => 1, 'order' => 1, 'route' => 'master.karyawan', 'title' => 'Master Karyawan', 'desc' => 'Data karyawan, penanda nakes & status aktif', 'roles' => $masterRoles, 'badge' => 'KRY']),
+            $entry(['group' => 'Master', 'groupOrder' => 1, 'order' => 1, 'route' => 'master.karyawan', 'title' => 'Master Karyawan', 'desc' => 'Data karyawan, penanda nakes & status aktif', 'roles' => [...$masterRoles, 'hrd', 'manager keuangan'], 'badge' => 'KRY']),
             $entry(['group' => 'Master', 'groupOrder' => 1, 'order' => 1.5, 'route' => 'master.unit-kerja', 'title' => 'Master Unit Kerja', 'desc' => 'Unit / ruang karyawan — jadwal & shift per unit', 'roles' => [...$masterRoles, 'hrd'], 'badge' => 'UNT']),
             $entry(['group' => 'Master', 'groupOrder' => 1, 'order' => 2, 'route' => 'master.shift', 'title' => 'Master Shift', 'desc' => 'Jam kerja shift untuk absensi', 'roles' => [...$masterRoles, 'hrd'], 'badge' => 'SFT']),
 
@@ -103,27 +114,27 @@ class AppMenu
             $entry(['group' => 'Mutu', 'groupOrder' => 3.5, 'order' => 2, 'route' => 'mutu.rekap-capaian', 'title' => 'Rekap Capaian Mutu', 'desc' => 'Capaian bulanan / triwulan vs target + run chart + cetak PDF', 'roles' => ['admin', 'komite mutu', 'kepala ruang'], 'badge' => 'RCM']),
 
             // ── Absensi ────────────────────────────────────────────────
-            $entry(['group' => 'Absensi', 'groupOrder' => 2, 'order' => 0, 'route' => 'absensi.jadwal-dinas', 'title' => 'Jadwal Dinas', 'desc' => 'Jadwal masuk kerja bulanan (P / S / M / I / C) + cetak', 'roles' => ['admin', 'hrd', 'kepala ruang'], 'badge' => 'JDW']),
+            $entry(['group' => 'Absensi', 'groupOrder' => 2, 'order' => 0, 'route' => 'absensi.jadwal-dinas', 'title' => 'Jadwal Dinas', 'desc' => 'Jadwal masuk kerja bulanan (P / S / M / I / C) + cetak', 'roles' => ['admin', 'hrd', 'kepala ruang', 'supervisor unit'], 'badge' => 'JDW']),
             $entry(['group' => 'Absensi', 'groupOrder' => 2, 'order' => 1, 'route' => 'absensi.kiosk', 'title' => 'Kiosk Absensi', 'desc' => 'Layar absen masuk/pulang — ketik/scan ID karyawan', 'roles' => ['admin', 'hrd', 'kiosk'], 'badge' => 'ABS']),
             $entry(['group' => 'Absensi', 'groupOrder' => 2, 'order' => 1.5, 'route' => 'absensi.hp', 'title' => 'Absen HP', 'desc' => 'Absen masuk/pulang sendiri dari HP — GPS + selfie', 'roles' => [self::SEMUA_ROLE], 'badge' => 'HP']),
-            $entry(['group' => 'Absensi', 'groupOrder' => 2, 'order' => 2, 'route' => 'absensi.rekap-harian', 'title' => 'Rekap Harian', 'desc' => 'Kehadiran per tanggal + isi Izin/Sakit/Cuti/Alpa', 'roles' => ['admin', 'hrd'], 'badge' => 'HRI']),
-            $entry(['group' => 'Absensi', 'groupOrder' => 2, 'order' => 3, 'route' => 'absensi.rekap-bulanan', 'title' => 'Rekap Bulanan', 'desc' => 'Jumlah H/T/I/S/C/A per karyawan per bulan', 'roles' => ['admin', 'hrd'], 'badge' => 'BLN']),
+            $entry(['group' => 'Absensi', 'groupOrder' => 2, 'order' => 2, 'route' => 'absensi.rekap-harian', 'title' => 'Rekap Harian', 'desc' => 'Kehadiran per tanggal + isi Izin/Sakit/Cuti/Alpa', 'roles' => ['admin', 'hrd', 'manager keuangan'], 'badge' => 'HRI']),
+            $entry(['group' => 'Absensi', 'groupOrder' => 2, 'order' => 3, 'route' => 'absensi.rekap-bulanan', 'title' => 'Rekap Bulanan', 'desc' => 'Jumlah H/T/I/S/C/A per karyawan per bulan + nilai lembur', 'roles' => ['admin', 'hrd', 'manager keuangan', 'supervisor unit'], 'badge' => 'BLN']),
 
             $entry(['group' => 'Absensi', 'groupOrder' => 2, 'order' => 4, 'route' => 'absensi.pengaturan', 'title' => 'Pengaturan Absensi', 'desc' => 'Satu dasbor: aturan absen, shift, titik lokasi HP & lokasi karyawan', 'roles' => ['admin', 'hrd'], 'badge' => 'SET']),
 
             // ── Penggajian (role Keuangan; data gaji = rahasia; selaras AksiRole::GAJI_KELOLA) ──
-            $entry(['group' => 'Penggajian', 'groupOrder' => 4, 'order' => 1, 'route' => 'keuangan.gaji-karyawan', 'title' => 'Gaji Karyawan', 'desc' => 'Slip gaji bulanan: generate dari parameter, hari kerja & rincian, final, cetak', 'roles' => ['admin', 'keuangan'], 'badge' => 'GJI']),
-            $entry(['group' => 'Penggajian', 'groupOrder' => 4, 'order' => 2, 'route' => 'keuangan.pembagian-jm', 'title' => 'Pembagian Jasa Medik', 'desc' => 'Nilai dasar per pos + poin karyawan → JM per orang, terapkan ke slip gaji', 'roles' => ['admin', 'keuangan'], 'badge' => 'JM']),
-            $entry(['group' => 'Penggajian', 'groupOrder' => 4, 'order' => 3, 'route' => 'keuangan.laporan-pegawai', 'title' => 'Laporan Kepegawaian', 'desc' => 'Hari kerja, cuti & jam lembur per karyawan per bulan (isian kepegawaian) → terapkan ke slip gaji', 'roles' => ['admin', 'hrd', 'keuangan'], 'badge' => 'LAP']),
-            $entry(['group' => 'Penggajian', 'groupOrder' => 4, 'order' => 4, 'route' => 'keuangan.pinjaman-karyawan', 'title' => 'Pinjaman Karyawan', 'desc' => 'Buku pinjaman koperasi / bank: ketentuan sewa modal, angsuran per bulan otomatis → potong di slip gaji', 'roles' => ['admin', 'keuangan'], 'badge' => 'PJM']),
-            $entry(['group' => 'Penggajian', 'groupOrder' => 4, 'order' => 5, 'route' => 'keuangan.gaji-dokter', 'title' => 'Gaji Dokter', 'desc' => 'Slip gaji dokter per bulan jasa dari transaksi SIRUS: struktur gaji, snapshot berversi, pemetaan dokter ke karyawan, lampiran pasien → terapkan ke slip gaji', 'roles' => ['admin', 'keuangan'], 'badge' => 'GDK']),
+            $entry(['group' => 'Penggajian', 'groupOrder' => 4, 'order' => 1, 'route' => 'keuangan.gaji-karyawan', 'title' => 'Gaji Karyawan', 'desc' => 'Slip gaji bulanan: generate dari parameter, hari kerja & rincian, final, cetak', 'roles' => ['admin', 'manager keuangan'], 'badge' => 'GJI']),
+            $entry(['group' => 'Penggajian', 'groupOrder' => 4, 'order' => 2, 'route' => 'keuangan.pembagian-jm', 'title' => 'Pembagian Jasa Medik', 'desc' => 'Nilai dasar per pos + poin karyawan → JM per orang, terapkan ke slip gaji', 'roles' => ['admin', 'manager keuangan'], 'badge' => 'JM']),
+            $entry(['group' => 'Penggajian', 'groupOrder' => 4, 'order' => 3, 'route' => 'keuangan.laporan-pegawai', 'title' => 'Laporan Kepegawaian', 'desc' => 'Hari kerja, cuti & jam lembur per karyawan per bulan (isian kepegawaian) → terapkan ke slip gaji', 'roles' => ['admin', 'hrd', 'manager keuangan'], 'badge' => 'LAP']),
+            $entry(['group' => 'Penggajian', 'groupOrder' => 4, 'order' => 4, 'route' => 'keuangan.pinjaman-karyawan', 'title' => 'Pinjaman Karyawan', 'desc' => 'Buku pinjaman koperasi / bank: ketentuan sewa modal, angsuran per bulan otomatis → potong di slip gaji', 'roles' => ['admin', 'manager keuangan'], 'badge' => 'PJM']),
+            $entry(['group' => 'Penggajian', 'groupOrder' => 4, 'order' => 5, 'route' => 'keuangan.gaji-dokter', 'title' => 'Gaji Dokter', 'desc' => 'Slip gaji dokter per bulan jasa dari transaksi SIRUS: struktur gaji, snapshot berversi, pemetaan dokter ke karyawan, lampiran pasien → terapkan ke slip gaji', 'roles' => ['admin', 'manager keuangan'], 'badge' => 'GDK']),
 
             // ── Panduan (semua user) ───────────────────────────────────
             $entry(['group' => 'Panduan', 'groupOrder' => 90, 'order' => 1, 'route' => 'panduan.absensi', 'title' => 'Panduan Absensi', 'desc' => 'Cara pakai jadwal dinas, kiosk, rekap & lembur', 'roles' => [self::SEMUA_ROLE], 'badge' => '?']),
             $entry(['group' => 'Panduan', 'groupOrder' => 90, 'order' => 2, 'route' => 'panduan.aset', 'title' => 'Panduan Aset', 'desc' => 'Cara pakai inventaris, kalibrasi, pemeliharaan, perbaikan', 'roles' => [self::SEMUA_ROLE], 'badge' => '?']),
             $entry(['group' => 'Panduan', 'groupOrder' => 90, 'order' => 4, 'route' => 'panduan.struktur-db', 'title' => 'Struktur Database', 'desc' => 'Gambar relasi antar tabel (ERD), daftar kolom & SQL struktur siap eksekusi', 'roles' => ['admin'], 'badge' => 'ERD']),
-            $entry(['group' => 'Panduan', 'groupOrder' => 90, 'order' => 3, 'route' => 'panduan.gaji', 'title' => 'Panduan Gaji', 'desc' => 'Cara pakai parameter gaji, slip, jasa medik, laporan kepegawaian, pinjaman karyawan, form bagian Excel, PPh, cetak & kirim WA', 'roles' => ['admin', 'keuangan'], 'badge' => '?']),
-            $entry(['group' => 'Panduan', 'groupOrder' => 90, 'order' => 5, 'route' => 'panduan.sirus-api', 'title' => 'Bridging SIRUS', 'desc' => 'SIAP sebagai client API baca SIRUS (slip & transaksi gaji dokter) — setup .env & akun, token, uji sambungan, penanganan masalah', 'roles' => ['admin', 'keuangan'], 'badge' => 'API']),
+            $entry(['group' => 'Panduan', 'groupOrder' => 90, 'order' => 3, 'route' => 'panduan.gaji', 'title' => 'Panduan Gaji', 'desc' => 'Cara pakai parameter gaji, slip, jasa medik, laporan kepegawaian, pinjaman karyawan, form bagian Excel, PPh, cetak & kirim WA', 'roles' => ['admin', 'manager keuangan'], 'badge' => '?']),
+            $entry(['group' => 'Panduan', 'groupOrder' => 90, 'order' => 5, 'route' => 'panduan.sirus-api', 'title' => 'Bridging SIRUS', 'desc' => 'SIAP sebagai client API baca SIRUS (slip & transaksi gaji dokter) — setup .env & akun, token, uji sambungan, penanganan masalah', 'roles' => ['admin', 'manager keuangan'], 'badge' => 'API']),
 
             // ── Sistem ─────────────────────────────────────────────────
             $entry(['group' => 'Sistem', 'groupOrder' => 15, 'order' => 0, 'route' => 'sistem.identitas', 'title' => 'Identitas Instansi', 'desc' => 'Logo, nama & profil instansi (kop cetakan, halaman depan)', 'roles' => ['admin'], 'badge' => 'ID']),

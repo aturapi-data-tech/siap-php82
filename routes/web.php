@@ -20,9 +20,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('/dashboard', 'dashboard')->name('dashboard');
 });
 
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth', 'menu'])->group(function () {
     // Daftarkan modul SIAP di sini (absensi, kepegawaian, aset), lalu tambahkan
-    // entri menunya di App\Services\AppMenu::definitions().
+    // entri menunya di App\Services\AppMenu::definitions() — daftar role di sana sekaligus membatasi akses halaman.
 
     // ── MASTER ──
     Route::livewire('/master/karyawan', 'pages::master.master-karyawan.master-karyawan')

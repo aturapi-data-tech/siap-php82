@@ -73,6 +73,12 @@ class UnitKerja
         return ['semuaUnit' => false, 'unitId' => $unitId];
     }
 
+    /** Cakupan melihat rekap absensi: semua unit bagi yang punya absensi.lihat, selain itu unit karyawan yang terhubung ke akunnya. */
+    public static function cakupanRekap(?object $user): array
+    {
+        return $user?->can('absensi.lihat') ? ['semuaUnit' => true, 'unitId' => null] : self::cakupanUser($user);
+    }
+
     /** Unit karyawan (null = belum diatur). */
     public static function unitKaryawan(string $empId): ?string
     {
