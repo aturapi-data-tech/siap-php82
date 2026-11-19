@@ -6,7 +6,6 @@ use Livewire\Attributes\On;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use App\Support\GajiDokterSirus;
-use App\Support\GajiDokterHitung;
 use App\Support\GajiDokterStruktur;
 use App\Support\GajiKaryawan;
 
@@ -14,16 +13,16 @@ use App\Support\GajiKaryawan;
  * Modal RINCIAN slip gaji dokter (SIRUS) — komponen terpisah dari daftar (pola gaji-dokter-rincian di SIRUS), dipasang
  * pembungkus gaji-dokter SEJAJAR tab supaya tidak ikut unmount saat ganti tab. Dibuka lewat event
  * 'keuangan.gaji-dokter.openRincianSlipDokter' (gd_id) dari Buku. Isi: kartu identitas, strip snapshot + pembanding
- * (versi lain / bulan lalu / hitungan mesin SIAP), blok Jasa & Tunjangan | Potongan | Tambahan dengan selisih, footer angka inti.
- * Snapshot SIRUS hanya baca; snapshot ber-sumber SIAP (tahap 3) punya baris manual + Hitung ulang.
+ * (versi lain / bulan lalu), blok Jasa & Tunjangan | Potongan | Tambahan dengan selisih, footer angka inti.
+ * Snapshot arsip SIRUS hanya baca; snapshot ber-sumber SIAP punya baris manual + Hitung ulang.
  * Tombol Lampiran di footer → tutup modal ini lalu event 'keuangan.gaji-dokter.openLampiranPasienDokter' → modal gaji-dokter-lampiran (sejajar).
  */
 new class extends Component {
-    /** Header snapshot yang dibuka + pembanding (gd_id versi lain / bulan lalu / 'SIAP' = hitungan mesin SIAP, atau ''). */
+    /** Header snapshot yang dibuka + pembanding (gd_id versi lain / bulan lalu, atau ''). */
     public ?int $rincianGdId = null;
     public string $bandingPilihan = '';
 
-    /** Tahap 3 — entri baris manual (kasbon, bonus, …) untuk slip ber-sumber SIAP. */
+    /** Entri baris manual (kasbon, bonus, …) untuk slip ber-sumber SIAP. */
     public array $manualBaru = ['jenis' => 'P', 'kode' => '', 'keterangan' => '', 'nilai' => ''];
 
     public function boot(): void
@@ -87,10 +86,6 @@ new class extends Component {
         if ($headerBulanLalu) {
             $pilihanPembanding[(string) $headerBulanLalu->gd_id] = 'Bulan jasa ' . Carbon::createFromFormat('!Y-m', $bulanLalu)->translatedFormat('M Y') . " (versi {$headerBulanLalu->versi})";
         }
-        // Tahap 2: pembanding maya = hitungan mesin SIAP atas lampiran snapshot ini + struktur SIAP (GajiDokterSirus::ujiHitungSnapshot).
-        if (($header->sumber ?? 'SIRUS') === 'SIRUS') {
-            $pilihanPembanding['SIAP'] = 'Hitungan mesin SIAP (lampiran snapshot ini + struktur SIAP)';
-        }
 
         return $pilihanPembanding;
     }
@@ -101,26 +96,15 @@ new class extends Component {
         if ($this->bandingPilihan === '' || !isset($this->pilihanPembanding()[$this->bandingPilihan])) {
             return null;
         }
-        if ($this->bandingPilihan === 'SIAP') {
-            $uji = GajiDokterSirus::ujiHitungSnapshot((int) $this->rincianGdId);
-
-            return $uji ? (object) [...$uji['hasil']['ringkas'], 'gd_id' => 0, 'periode' => $this->headerSlipDokter->periode, 'versi' => 'SIAP', 'label_pembanding' => 'hitungan SIAP',
-                'struktur_asal' => $uji['strukturAsal'], 'cocok' => $uji['banding']['cocok']] : null;
-        }
 
         return DB::table('siaptxn_gdok_hdrs')->where('gd_id', (int) $this->bandingPilihan)->first();
     }
 
-    /** Detail pembanding: dari snapshot (gd_id) atau dari hasil hitung mesin SIAP (pembanding maya). */
+    /** Detail pembanding (snapshot gd_id). */
     private function detailPembanding()
     {
         if (!$this->pembanding) {
             return collect();
-        }
-        if ($this->bandingPilihan === 'SIAP') {
-            $uji = GajiDokterSirus::ujiHitungSnapshot((int) $this->rincianGdId);
-
-            return collect($uji['hasil']['detail'] ?? [])->map(fn($komponen) => (object) $komponen);
         }
 
         return GajiDokterSirus::detail((int) $this->pembanding->gd_id);
@@ -128,7 +112,7 @@ new class extends Component {
 
     public function updatedBandingPilihan(): void { unset($this->pembanding, $this->barisRincianSlip); }
 
-    // ─── Tahap 3: baris manual & hitung ulang untuk slip ber-sumber SIAP ──────
+    // ─── Baris manual & hitung ulang untuk slip ber-sumber SIAP ─────────────
 
     #[Computed]
     public function manualList()
@@ -237,7 +221,7 @@ new class extends Component {
 
             @if ($header)
                 @php
-                    $labelPembanding = $pembanding ? ($pembanding->label_pembanding ?? ($pembanding->periode === $header->periode ? 'Versi ' . $pembanding->versi : $this::namaPeriode($pembanding->periode))) : null;
+                    $labelPembanding = $pembanding ? (($pembanding->periode === $header->periode ? 'Versi ' . $pembanding->versi : $this::namaPeriode($pembanding->periode))) : null;
                     $blokPerJenis = [
                         'J' => ['judul' => 'Jasa & Tunjangan', 'catatan' => 'Membentuk total gaji — kena PPh.'],
                         'P' => ['judul' => 'Potongan', 'catatan' => 'Dua baris teratas (Potongan RS & PPh 21) berasal dari rumus dan ikut menentukan pajak; sisanya di bawah garis dipotong setelah pajak.'],
@@ -303,10 +287,7 @@ new class extends Component {
                                 @if (($header->sumber ?? 'SIRUS') === 'SIAP')
                                     <span class="font-semibold">Dihitung SIAP</span> · versi {{ $header->versi }}{{ $header->terbaru === '1' ? ' (terbaru)' : '' }} · diproses {{ \Carbon\Carbon::parse($header->diambil_at)->format('d/m/Y H:i') }}. Komponen jasa dari transaksi SIRUS; potongan RS, PPh 21, tunjangan &amp; potongan rutin dari tab Struktur Gaji; baris manual di bawah.
                                 @else
-                                    Snapshot <span class="font-semibold">versi {{ $header->versi }}</span>{{ $header->terbaru === '1' ? ' (terbaru)' : '' }} diambil {{ \Carbon\Carbon::parse($header->diambil_at)->format('d/m/Y H:i') }}@if ($header->update_date_sirus) &middot; terakhir diubah di SIRUS {{ $header->update_date_sirus }}@endif. Angka tidak bisa disunting di SIAP; bila SIRUS berubah, Ambil ulang membuat versi baru.
-                                @endif
-                                @if ($pembanding && isset($pembanding->cocok))
-                                    <x-badge :variant="$pembanding->cocok ? 'success' : 'warning'">mesin SIAP {{ $pembanding->cocok ? 'cocok' : 'ada selisih' }} · struktur {{ $pembanding->struktur_asal === 'struktur' ? 'tab Struktur Gaji' : 'direka dari snapshot' }}</x-badge>
+                                    Snapshot <span class="font-semibold">versi {{ $header->versi }}</span>{{ $header->terbaru === '1' ? ' (terbaru)' : '' }} diambil {{ \Carbon\Carbon::parse($header->diambil_at)->format('d/m/Y H:i') }}@if ($header->update_date_sirus) &middot; terakhir diubah di SIRUS {{ $header->update_date_sirus }}@endif. Arsip dari masa SIRUS masih menghitung slip &mdash; hanya baca; Ambil dari SIRUS menghitungnya ulang di SIAP sebagai versi baru.
                                 @endif
                             </span>
                             <label class="flex items-center gap-2 ml-auto shrink-0">

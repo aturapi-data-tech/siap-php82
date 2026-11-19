@@ -2,10 +2,8 @@
 
 namespace App\Support;
 
-use Illuminate\Support\Collection;
-
 /**
- * Mesin hitung slip gaji dokter di SIAP (tahap 2 pembanding, tahap 3 sumber) — salinan setia rumus SIRUS
+ * Mesin hitung slip gaji dokter di SIAP — salinan setia rumus SIRUS
  * (App\Support\GajiDokter\GajiDokter::susunDetail + hitungUlang + potonganRs; database/sql/2026_08_04_install_gaji_dokter.sql):
  *
  *   JASA       = Σ baris J komponen (per kapita: grup RI/RJ diganti satu baris KAPITA = pasien × tarif)
@@ -16,8 +14,8 @@ use Illuminate\Support\Collection;
  *   DITERIMA   = total + pot. RS + PPh 21 + Σ P lain + Σ T
  *   Tanda: potongan NEGATIF; hanya PPh yang dibulatkan (ke bawah), komponen lain tidak.
  *
- * Masukan transaksi = baris lampiran (komponen/desc_doc, grup/group_doc, nominal, pasien) — dari API /transaksi (tahap 3)
- * atau dari snapshot siaptxn_gdok_lamps (pembanding tahap 2). Baris grup kapita ikut dikembalikan sebagai lampiran
+ * Masukan transaksi = baris lampiran (komponen/desc_doc, grup/group_doc, nominal, pasien) — dari API /transaksi (Ambil)
+ * atau dari snapshot siaptxn_gdok_lamps (hitung ulang). Baris grup kapita ikut dikembalikan sebagai lampiran
  * dengan masuk_slip = 0 (dasar hitung, bukan uang diterima).
  */
 class GajiDokterHitung
@@ -155,38 +153,5 @@ class GajiDokterHitung
             'B' => 'Potongan RS berjenjang per komponen',
             default => "Potongan RS {$persen}%",
         };
-    }
-
-    /**
-     * Banding hasil hitung SIAP dengan snapshot (header + detail) — untuk tahap 2.
-     * @return array{header: array<string, array{siap: float, sirus: float, selisih: float}>, detail: array<int, array>, cocok: bool}
-     */
-    public static function banding(array $hasilHitung, object $header, Collection $detailSnapshot): array
-    {
-        $hasilBanding = ['header' => [], 'detail' => [], 'cocok' => true];
-        foreach (['jasa_total', 'total_gaji', 'potongan_rs', 'pph21', 'potongan_lain_total', 'tambahan_total', 'gaji_diterima'] as $kolom) {
-            $siap = (float) $hasilHitung['ringkas'][$kolom];
-            $sirus = (float) ($header->$kolom ?? 0);
-            if (abs($siap - $sirus) >= 0.5) {
-                $hasilBanding['header'][$kolom] = ['siap' => $siap, 'sirus' => $sirus, 'selisih' => round($siap - $sirus, 2)];
-                $hasilBanding['cocok'] = false;
-            }
-        }
-        $detailSiap = collect($hasilHitung['detail'])->keyBy(fn($baris) => $baris['jenis'] . '|' . $baris['kode']);
-        $detailSirus = $detailSnapshot->keyBy(fn($baris) => $baris->jenis . '|' . $baris->kode);
-        foreach ($detailSiap->keys()->merge($detailSirus->keys())->unique() as $kunci) {
-            $siap = $detailSiap[$kunci] ?? null;
-            $sirus = $detailSirus[$kunci] ?? null;
-            $nilaiSiap = $siap ? (float) $siap['nilai'] : null;
-            $nilaiSirus = $sirus ? (float) $sirus->nilai : null;
-            if ($nilaiSiap !== null && $nilaiSirus !== null && abs($nilaiSiap - $nilaiSirus) < 0.5) {
-                continue;
-            }
-            [$jenis, $kode] = explode('|', $kunci, 2);
-            $hasilBanding['detail'][] = ['jenis' => $jenis, 'kode' => $kode, 'label' => $siap['label'] ?? ($sirus->label ?? $kode), 'siap' => $nilaiSiap, 'sirus' => $nilaiSirus];
-            $hasilBanding['cocok'] = false;
-        }
-
-        return $hasilBanding;
     }
 }

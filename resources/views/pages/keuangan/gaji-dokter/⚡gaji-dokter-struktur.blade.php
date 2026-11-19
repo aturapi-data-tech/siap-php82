@@ -4,13 +4,12 @@ use Livewire\Component;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Session;
 use App\Support\GajiDokterStruktur;
-use App\Support\PengaturanGajiDokter;
 
 /**
  * Tab STRUKTUR GAJI Gaji Dokter (anak pembungkus gaji-dokter) — struktur gaji tiap dokter disetel di SIAP.
  * Satu baris per dokter SIRUS: skema gaji pokok, basis & persen potongan RS (+ aturan berjenjang), PPh 21, NPWP, tarif kapita,
- * tunjangan & potongan rutin — persis panel Struktur Gaji di Master Dokter SIRUS (GajiDokterStruktur). Panel MODE di atas
- * memilih mesin slip (PengaturanGajiDokter): SIRUS (Ambil dari SIRUS) atau SIAP (Proses Slip). Dokter baru masuk lewat tab
+ * tunjangan & potongan rutin — persis panel Struktur Gaji di Master Dokter SIRUS dulu (GajiDokterStruktur). Struktur ini yang
+ * dipakai "Ambil dari SIRUS" di tab Buku untuk menghitung slip. Dokter baru masuk lewat tab
  * Pemetaan Dokter → Segarkan dari SIRUS, lalu strukturnya diisi di sini.
  */
 new class extends Component {
@@ -19,8 +18,6 @@ new class extends Component {
 
     #[Session(key: 'gaji-dokter-struktur-saring')]
     public string $saring = 'aktif'; // aktif | belum | semua
-
-    public string $mesinSlip = 'SIRUS';
 
     /** Modal form struktur satu dokter. */
     public ?string $editDrId = null;
@@ -42,7 +39,6 @@ new class extends Component {
         if (!in_array($this->saring, ['aktif', 'belum', 'semua'], true)) {
             $this->saring = 'aktif';
         }
-        $this->mesinSlip = PengaturanGajiDokter::ambil()->mesin_slip;
     }
 
     public function updatedCari(): void { unset($this->rows); }
@@ -53,21 +49,6 @@ new class extends Component {
         $this->reset(['cari']);
         $this->saring = 'aktif';
         unset($this->rows);
-    }
-
-    // ─── Mode ────────────────────────────────────────────────────────────────
-
-    public function simpanMode(): void
-    {
-        $pesanGalat = PengaturanGajiDokter::simpan($this->mesinSlip, auth()->id());
-        if ($pesanGalat !== null) {
-            $this->dispatch('toast', type: 'error', message: $pesanGalat);
-            $this->mount();
-            return;
-        }
-        $this->dispatch('toast', type: 'success', message: 'Mode disimpan: slip dihitung oleh ' . $this->mesinSlip . '.');
-        $this->dispatch('keuangan.gaji-dokter.modeBerubah');
-        unset($this->rows, $this->ringkasan);
     }
 
     // ─── Form struktur ───────────────────────────────────────────────────────
@@ -175,31 +156,6 @@ new class extends Component {
         $formatPersen = fn($nilai) => rtrim(rtrim(number_format((float) $nilai, 2, ',', '.'), '0'), ',');
         $ringkasan = $this->ringkasan;
     @endphp
-
-    {{-- MODE MESIN SLIP --}}
-    <div class="px-4 py-3 mb-3 border bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
-        <div class="flex flex-wrap items-start gap-6">
-            <div class="min-w-0">
-                <div class="text-sm font-semibold text-ink dark:text-gray-100">Mesin slip gaji dokter</div>
-                <p class="mt-0.5 text-xs text-muted dark:text-gray-400">Struktur gaji selalu disetel di sini. Pilih siapa yang menghitung slip: SIRUS (SIAP menarik hasilnya, Ambil dari SIRUS) atau SIAP (Proses Slip dari transaksi SIRUS + struktur di sini). Pindah ke SIAP setelah Uji hitung cocok beberapa bulan.</p>
-            </div>
-            <div class="flex flex-wrap items-end gap-3 ml-auto">
-                <div class="w-64">
-                    <x-input-label for="gds-mesin" value="Slip dihitung oleh" />
-                    <div class="mt-1">
-                        <x-select-input id="gds-mesin" wire:model="mesinSlip">
-                            <option value="SIRUS">SIRUS — SIAP menarik hasilnya</option>
-                            <option value="SIAP">SIAP — Proses Slip di sini</option>
-                        </x-select-input>
-                    </div>
-                </div>
-                <x-confirm-button variant="primary" action="simpanMode()" title="Simpan mode"
-                    message="Ubah mesin slip menjadi {{ $mesinSlip }}? Untuk SIAP: pastikan struktur semua dokter aktif sudah terisi dan Uji hitung sudah cocok." confirmText="Ya, simpan" cancelText="Batal">
-                    Simpan mode
-                </x-confirm-button>
-            </div>
-        </div>
-    </div>
 
     {{-- TOOLBAR --}}
     <div class="flex flex-wrap items-end gap-3 px-4 py-3 mb-3 border bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">

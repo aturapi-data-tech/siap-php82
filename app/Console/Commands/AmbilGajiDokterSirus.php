@@ -7,9 +7,9 @@ use Carbon\Carbon;
 use Illuminate\Console\Command;
 
 /**
- * Tarik snapshot gaji dokter dari SIRUS lewat terminal — untuk sinkronisasi awal di server (banyak bulan sekaligus)
- * atau cron. Sama persis dengan tombol "Ambil dari SIRUS" di halaman Gaji Dokter: aman diulang, versi baru hanya
- * bila angka SIRUS berubah, tidak menulis apa pun ke SIRUS.
+ * Ambil gaji dokter dari SIRUS lewat terminal — untuk banyak bulan sekaligus atau cron. Sama persis dengan tombol
+ * "Ambil dari SIRUS" di halaman Gaji Dokter (GajiDokterSirus::ambil): transaksi SIRUS dihitung dengan struktur gaji SIAP,
+ * aman diulang, versi baru hanya bila angkanya berubah, slip Final dilewati, tidak menulis apa pun ke SIRUS.
  *
  *   php artisan gaji:ambil-sirus                      → bulan jasa lalu
  *   php artisan gaji:ambil-sirus 2026-07              → satu bulan jasa
@@ -20,7 +20,7 @@ class AmbilGajiDokterSirus extends Command
 {
     protected $signature = 'gaji:ambil-sirus {periode? : Bulan jasa YYYY-MM (kosong = bulan lalu)} {--sampai= : Bulan jasa akhir YYYY-MM (rentang)} {--uji : Hanya uji sambungan}';
 
-    protected $description = 'Tarik snapshot slip gaji dokter dari SIRUS per bulan jasa (sama dengan tombol Ambil dari SIRUS)';
+    protected $description = 'Ambil transaksi dokter dari SIRUS & hitung slip per bulan jasa (sama dengan tombol Ambil dari SIRUS)';
 
     public function handle(): int
     {
@@ -56,11 +56,16 @@ class AmbilGajiDokterSirus extends Command
                 continue;
             }
             $detik = round(microtime(true) - $mulai, 1);
-            $this->line(sprintf('<info>%s</info>: %d slip — %d baru, %d berubah, %d sama, %s baris lampiran (%ss)%s',
-                $periode, $h['jumlah'], $h['baru'], $h['berubah'], $h['sama'], number_format($h['lampiran'], 0, ',', '.'), $detik,
-                $h['tanpaMap'] !== [] ? ' — ' . count($h['tanpaMap']) . ' dokter belum dipetakan' : ''));
+            $this->line(sprintf('<info>%s</info>: %d dokter — %d baru, %d berubah, %d sama, %d dilewati (Final) (%ss)',
+                $periode, $h['jumlah'], $h['baru'], $h['berubah'], $h['sama'], count($h['final']), $detik));
             if ($h['jumlah'] === 0) {
-                $this->comment("   SIRUS belum punya slip gaji dokter bulan jasa {$periode}.");
+                $this->comment("   SIRUS tidak punya transaksi dokter bulan jasa {$periode}.");
+            }
+            if ($h['tanpaStruktur'] !== []) {
+                $this->comment('   Belum punya struktur gaji (gaji pokok & potongan 0): ' . implode(', ', $h['tanpaStruktur']));
+            }
+            if ($h['tanpaMap'] !== []) {
+                $this->comment('   Belum dipetakan ke karyawan: ' . implode(', ', $h['tanpaMap']));
             }
         }
         if ($gagal === 0) {

@@ -3,7 +3,6 @@
 use Livewire\Component;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Session;
-use Livewire\Attributes\Url;
 use Carbon\Carbon;
 use App\Support\Format;
 use App\Support\GajiDokterBandingVersi;
@@ -13,7 +12,7 @@ use App\Support\GajiDokterSirus;
  * Tab BANDINGKAN VERSI Gaji Dokter (anak pembungkus gaji-dokter; pola SIKEU "Bandingkan Versi").
  * Pilih bulan jasa → dokter (berversi > 1 dulu) → versi lama & versi baru → yang berbeda: pengaturan slip, angka slip,
  * komponen, dan baris lampiran pasien (baru / hilang / berubah). Logika di App\Support\GajiDokterBandingVersi.
- * Hanya baca; bulan jasa berbagi Session dengan tab Buku.
+ * Hanya baca; bulan jasa berbagi Session dengan tab Buku. Pilihan dokter/versi di Session (bukan URL) supaya tidak tertinggal di alamat tab lain.
  */
 new class extends Component {
     #[Session(key: 'gaji-dokter-bulan')]
@@ -25,13 +24,13 @@ new class extends Component {
     #[Session(key: 'gaji-dokter-banding-tampilkan')]
     public string $tampilkan = 'berversi'; // berversi | semua
 
-    #[Url(as: 'dokter')]
+    #[Session(key: 'gaji-dokter-banding-dokter')]
     public string $drId = '';
 
-    #[Url(as: 'lama')]
+    #[Session(key: 'gaji-dokter-banding-lama')]
     public ?int $versiLama = null;
 
-    #[Url(as: 'baru')]
+    #[Session(key: 'gaji-dokter-banding-baru')]
     public ?int $versiBaru = null;
 
     /** semua | baru | hilang | berubah */
@@ -251,7 +250,7 @@ new class extends Component {
                             Belum ada dokter bulan jasa {{ $bulan }} yang angkanya berubah (semua masih versi 1).
                             <button type="button" wire:click="$set('tampilkan', 'semua')" class="font-semibold underline text-brand-green dark:text-brand-lime">Tampilkan semua dokter</button>
                         @else
-                            Belum ada snapshot bulan jasa {{ $bulan }}. Ambil dulu di tab Buku Gaji Dokter.
+                            Belum ada slip bulan jasa {{ $bulan }}. Ambil dulu di tab <button type="button" wire:click="$dispatch('keuangan.gaji-dokter.pindahTab', { tab: 'ambil' })" class="font-semibold underline text-brand-green dark:text-brand-lime">1. Ambil Data</button>.
                         @endif
                     </li>
                 @endforelse

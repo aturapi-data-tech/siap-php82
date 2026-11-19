@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
  * (pola SIKEU SnapshotJurnal::bandingkan): baru (ada sekarang, dulu tidak), hilang (dulu ada, sekarang tidak),
  * berubah (nominal / pasien / tanggal / klaim / masuk slip / …).
  *
- * Versi di SIAP dibuat PER DOKTER (GajiDokterSirus::ambil / prosesSiap: checksum beda → versi baru, versi lama tetap).
+ * Versi di SIAP dibuat PER DOKTER (GajiDokterSirus::ambil / hitungUlangSiap: checksum beda → versi baru, versi lama tetap).
  * Identitas baris = komponen + txn_no (cadangan bila txn_no kosong: reg_no + tanggal + nama + keterangan), TANPA nominal →
  * nominal beda = "berubah", bukan hilang + baru. Baris ber-identitas sama dalam satu versi digabung (nominal & pasien dijumlah).
  * Lampiran snapshot tidak pernah disunting → hasil banding lampiran di-cache file per pasangan versi.

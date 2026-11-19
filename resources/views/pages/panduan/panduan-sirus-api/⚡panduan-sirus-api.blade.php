@@ -53,7 +53,7 @@ new class extends Component {
 @endphp
 
 <div>
-    <x-page-title title="Panduan Bridging SIRUS" subtitle="SIAP sebagai client API gaji dokter SIRUS: setup .env & akun → token → tarik slip per bulan jasa → snapshot berversi → pemetaan dokter → penanganan masalah" />
+    <x-page-title title="Panduan Bridging SIRUS" subtitle="SIAP sebagai client API SIRUS untuk gaji dokter: setup .env & akun → token → tarik transaksi per bulan jasa → hitung slip & snapshot berversi → pemetaan dokter → penanganan masalah" />
 
     <div class="w-full min-h-[calc(100vh-5rem)] bg-surface-soft dark:bg-gray-900">
         <div class="grid grid-cols-1 gap-6 px-6 py-6 mx-auto max-w-7xl lg:grid-cols-4">
@@ -80,14 +80,14 @@ new class extends Component {
                 {{-- ALUR --}}
                 <section id="alur" class="p-6 border scroll-mt-24 bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
                     <h2>Gambaran alur</h2>
-                    <p class="mt-2 text-sm">Gaji dokter spesialis dihitung di <b>SIRUS</b> (modul Gaji Dokter). SIAP adalah <b>client</b>: meminta token, menarik slip + lampiran satu bulan jasa, lalu menyimpannya sebagai snapshot. SIAP tidak pernah menulis ke SIRUS, dan SIRUS tidak pernah memanggil SIAP.</p>
+                    <p class="mt-2 text-sm">Gaji dokter spesialis dihitung di <b>SIAP</b>; SIRUS hanya memasok transaksi pasien. SIAP adalah <b>client</b>: meminta token, menarik transaksi jasa satu bulan jasa, menghitung slip dengan struktur gaji SIAP, lalu menyimpannya sebagai snapshot berversi. SIAP tidak pernah menulis ke SIRUS, dan SIRUS tidak pernah memanggil SIAP.</p>
                     <div class="grid grid-cols-1 gap-2 mt-4 text-sm sm:grid-cols-3 xl:grid-cols-5">
                         @foreach ([
                             ['Setup', '.env SIAP: URL, user, password akun API', 'sekali'],
                             ['Token', 'POST /api/siap/token → JWT 1 jam, di-cache 45 menit', 'otomatis'],
-                            ['Tarik', 'master dokter + slip bulan jasa + lampiran', 'tiap Ambil'],
-                            ['Snapshot', 'checksum per dokter → sama / versi baru', 'tiap Ambil'],
-                            ['Pakai', 'Buku, Rincian & banding, Lampiran, Pemetaan', 'tiap bulan'],
+                            ['Tarik', 'master dokter + transaksi jasa bulan jasa', 'tiap Ambil'],
+                            ['Hitung', 'struktur gaji SIAP → slip; checksum → sama / versi baru', 'tiap Ambil'],
+                            ['Pakai', 'Buku, Rincian, Bandingkan Versi, Lampiran, Pemetaan', 'tiap bulan'],
                         ] as $urutan => [$judul, $isi, $kapan])
                             <div class="p-3 border rounded-xl border-hairline bg-surface-soft dark:bg-gray-800 dark:border-gray-700">
                                 <div class="text-xs font-semibold text-brand-green dark:text-brand-lime">{{ $urutan + 1 }} · {{ $kapan }}</div>
@@ -100,9 +100,9 @@ new class extends Component {
 App\Support\GajiDokterSirus                         /api/siap  (prefix di host SIRUS biasa)
   token()      ──── POST /token {username,password} ──►  akun users ber-role "Api Siap" → JWT
   ambil(bulan) ──── GET /dokter                     ──►  rsmst_doctors
-               ──── GET /gaji-dokter/{thn}/{bln}    ──►  rstxn_gajidoctorhdrs + dtls
-               ──── GET /gaji-dokter/…/lampiran     ──►  GajiDokterLampiran::susun
-  checksum per dokter → siaptxn_gdok_hdrs/dtls/lamps (versi), siaptxn_gdok_ambils (jejak)
+               ──── GET /gaji-dokter/{thn}/{bln}/transaksi ──►  RSVIEW_NEWDOCSALARIES (GajiDokterLampiran::barisMassal)
+  GajiDokterHitung (struktur SIAP + baris manual) → checksum per dokter
+  → siaptxn_gdok_hdrs/dtls/lamps (versi), siaptxn_gdok_ambils (jejak)
   Bearer token di setiap GET · 401 → minta token baru sekali · timeout 120 detik</pre>
                 </section>
 
@@ -177,7 +177,7 @@ php artisan gaji:ambil-sirus 2026-01 --sampai=2026-10  # rentang bulan jasa (sam
                         <li>SIAP mengirim <code>POST /api/siap/token</code> dengan username + password → SIRUS membalas token JWT berumur 1 jam (<code>expires_in</code>).</li>
                         <li>Token disimpan di cache SIAP (kunci <code>sirus-api-token</code>) selama 45 menit; selama itu tidak login ulang.</li>
                         <li>Setiap GET membawa <code>Authorization: Bearer &lt;token&gt;</code>. Bila SIRUS menjawab 401 (token kedaluwarsa / rahasia diganti), SIAP membuang cache, minta token baru, dan mengulang permintaan <b>sekali</b>.</li>
-                        <li>Timeout: 20 detik untuk token, 120 detik untuk data (lampiran semua dokter ±1 MB / ±3 detik).</li>
+                        <li>Timeout: 20 detik untuk token, 120 detik untuk data (transaksi semua dokter ±1 MB / beberapa detik).</li>
                         <li>Galat apa pun menjadi toast di layar (pesan <code>error</code> dari SIRUS diteruskan apa adanya) dan tidak mengubah snapshot.</li>
                     </ol>
                     <p class="mt-3 text-sm">Semua ini ada di <code>App\Support\GajiDokterSirus</code> (method <code>token()</code>, <code>get()</code>). Tidak ada kode lain di SIAP yang memanggil SIRUS.</p>
@@ -191,24 +191,23 @@ php artisan gaji:ambil-sirus 2026-01 --sampai=2026-10  # rentang bulan jasa (sam
                         <tbody>
                             <tr><td><code>POST /api/siap/token</code></td><td>token belum ada / kedaluwarsa</td><td>cache 45 menit</td></tr>
                             <tr><td><code>GET /api/siap/dokter</code></td><td>Uji sambungan · Segarkan (tab Pemetaan) · awal tiap Ambil</td><td><code>siapmst_dokter_sirus</code> (master + pemetaan)</td></tr>
-                            <tr><td><code>GET /api/siap/gaji-dokter/{tahun}/{bulan}</code></td><td>Ambil dari SIRUS (bulan jasa)</td><td><code>siaptxn_gdok_hdrs</code> + <code>siaptxn_gdok_dtls</code></td></tr>
-                            <tr><td><code>GET /api/siap/gaji-dokter/{tahun}/{bulan}/lampiran</code></td><td>Ambil dari SIRUS (semua dokter sekaligus)</td><td><code>siaptxn_gdok_lamps</code></td></tr>
+                            <tr><td><code>GET /api/siap/gaji-dokter/{tahun}/{bulan}/transaksi</code></td><td>Ambil dari SIRUS (bulan jasa, semua dokter sekaligus)</td><td>dihitung → <code>siaptxn_gdok_hdrs</code> + <code>dtls</code> + <code>lamps</code></td></tr>
                         </tbody>
                     </table>
-                    <p class="mt-3 text-sm">Periode selalu <b>bulan jasa</b> (bulan pelayanan). Di SIRUS slip bulan jasa Juli dibayar sebagai bulan gaji Agustus; kolom bulan gaji ikut tersimpan. Angka datang mentah seperti di SIRUS: potongan negatif, status Draft / Final apa adanya.</p>
+                    <p class="mt-3 text-sm">Periode selalu <b>bulan jasa</b> (bulan pelayanan). Slip bulan jasa Juli dibayar sebagai bulan gaji Agustus; kolom bulan gaji ikut tersimpan. Transaksi datang mentah (nominal & jumlah pasien per baris); semua rumus slip ada di SIAP. Endpoint slip SIRUS lama (<code>/gaji-dokter/{tahun}/{bulan}</code> dan <code>/lampiran</code>) sudah dihapus.</p>
                 </section>
 
                 {{-- SNAPSHOT --}}
                 <section id="snapshot" class="p-6 border scroll-mt-24 bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
                     <h2>4. Snapshot &amp; versi</h2>
                     <ol class="mt-3 text-sm">
-                        <li>Tiap Ambil, slip tiap dokter diberi <b>checksum</b> dari header (status, skema, persen, semua total), komponen (jenis, kode, nilai, pasien), dan lampiran (komponen, no. transaksi, nominal).</li>
+                        <li>Tiap Ambil, slip tiap dokter yang dihitung SIAP diberi <b>checksum</b> dari angka slip (semua total), komponen (jenis, kode, nilai, pasien), dan lampiran (komponen, no. transaksi, nominal). Slip yang sudah Final dilewati.</li>
                         <li>Checksum <b>sama</b> dengan versi terbaru → tidak ada yang ditulis selain "terakhir diambil". Dihitung sebagai <i>sama</i>.</li>
                         <li>Checksum <b>beda</b> → versi lama ditandai bukan terbaru, versi baru (versi+1) disimpan lengkap (header, komponen, lampiran). Versi lama <b>tidak pernah dihapus atau diubah</b>. Dihitung sebagai <i>berubah</i>.</li>
                         <li>Dokter yang belum punya snapshot bulan itu → versi 1, dihitung <i>baru</i>.</li>
-                        <li>Tiap Ambil dicatat di tab <b>Riwayat Ambil</b>: siapa, kapan, bulan jasa, baru / berubah / sama, baris lampiran, dokter tanpa pemetaan.</li>
+                        <li>Tiap Ambil dicatat di riwayat tab <b>1. Ambil Data</b>: siapa, kapan, bulan jasa, baru / berubah / sama, baris lampiran, dokter tanpa pemetaan.</li>
                     </ol>
-                    <p class="mt-3 text-sm">Akibatnya angka yang sudah diproses Keuangan tidak berubah diam-diam. Perubahan di SIRUS terlihat sebagai badge <i>versi N</i> di Buku, saringan "Pernah berubah", dan modal Rincian → <b>Bandingkan dengan</b> versi sebelumnya atau bulan jasa sebelumnya. Snapshot tidak bisa disunting di SIAP: koreksi dilakukan di SIRUS lalu Ambil ulang.</p>
+                    <p class="mt-3 text-sm">Akibatnya angka yang sudah diproses Keuangan tidak berubah diam-diam. Perubahan terlihat sebagai badge <i>vN</i> di Buku, saringan "Pernah berubah", tab <b>Bandingkan Versi</b> (sampai baris pasien), dan modal Rincian → <b>Bandingkan dengan</b> versi sebelumnya atau bulan jasa sebelumnya. Koreksi transaksi di SIRUS, koreksi struktur / baris manual di SIAP, lalu Ambil ulang.</p>
                 </section>
 
                 {{-- PEMETAAN --}}
@@ -226,12 +225,12 @@ php artisan gaji:ambil-sirus 2026-01 --sampai=2026-10  # rentang bulan jasa (sam
                 <section id="rutin" class="p-6 border scroll-mt-24 bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
                     <h2>6. Langkah rutin bulanan</h2>
                     <ol class="mt-3 text-sm">
-                        <li>Setelah SIRUS menutup gaji dokter bulan jasa N: {!! $tautan('keuangan.gaji-dokter', 'Gaji Dokter') !!} → Buku → pilih bulan jasa N → <b>Ambil dari SIRUS</b>.</li>
-                        <li>Baca pesan hasil (baru / berubah / sama) dan badge "dokter belum dipetakan" → lengkapi di tab Pemetaan bila ada dokter baru.</li>
+                        <li>Setelah transaksi bulan jasa N lengkap di SIRUS: {!! $tautan('keuangan.gaji-dokter', 'Gaji Dokter') !!} → tab <b>1. Ambil Data</b> → pilih bulan jasa N → <b>Ambil dari SIRUS</b>.</li>
+                        <li>Baca pesan hasil (baru / berubah / sama, dokter tanpa struktur, belum dipetakan) → lengkapi di tab Struktur Gaji / Pemetaan, lalu Ambil ulang.</li>
                         <li>Periksa kolom "vs bulan lalu"; yang mencolok dibuka Rincian / Lampiran.</li>
-                        <li>Menjelang pembayaran, Ambil ulang: bila ada "berubah", Rincian → Bandingkan dengan versi sebelumnya.</li>
+                        <li>Menjelang pembayaran, Ambil ulang: bila ada "berubah", buka tab Bandingkan Versi. Kunci Final, lalu Terapkan ke slip gaji.</li>
                     </ol>
-                    <p class="mt-3 text-sm">Ambil aman diulang kapan saja — tidak ada tulis ke SIRUS, dan snapshot yang sama tidak digandakan. Rincian kasus (SIRUS mengubah angka, dokter bukan karyawan, ejaan beda, slip belum Final, sambungan gagal) ada di {!! $tautan('panduan.gaji', 'Panduan Gaji bagian 12') !!}.</p>
+                    <p class="mt-3 text-sm">Ambil aman diulang kapan saja — tidak ada tulis ke SIRUS, dan snapshot yang sama tidak digandakan. Rincian kasus (transaksi berubah, dokter bukan karyawan, ejaan beda, Ambil terlalu awal, sambungan gagal) ada di {!! $tautan('panduan.gaji', 'Panduan Gaji bagian 12') !!}.</p>
                 </section>
 
                 {{-- MASALAH --}}
@@ -243,13 +242,15 @@ php artisan gaji:ambil-sirus 2026-01 --sampai=2026-10  # rentang bulan jasa (sam
                             <tr><td>API SIRUS belum diatur (…di .env)</td><td><code>SIAP_API_URL</code> / <code>USER</code> / <code>PASSWORD</code> kosong</td><td>isi <code>.env</code> SIAP, <code>php artisan config:clear</code></td></tr>
                             <tr><td>Gagal login API SIRUS: Username / password API salah, akun nonaktif, atau bukan akun API SIAP.</td><td>SIRUS menolak akun</td><td>minta admin SIRUS cek akun <i>siap-gaji</i> (aktif, role Api Siap) atau jalankan ulang <code>siap-api:akun</code>, lalu perbarui password di <code>.env</code> SIAP</td></tr>
                             <tr><td>Gagal login API SIRUS: HTTP 503 / API SIAP tidak aktif</td><td><code>SIAP_API_JWT_SECRET</code> di SIRUS kosong</td><td>admin SIRUS mengisi rahasia + <code>config:clear</code></td></tr>
+                            <tr><td>API SIRUS gaji-dokter/2026/10: HTTP 404</td><td>SIAP versi lama memanggil endpoint slip yang sudah dihapus di SIRUS</td><td>perbarui SIAP (git pull) — Ambil kini memakai <code>…/transaksi</code></td></tr>
                             <tr><td>Gagal login API SIRUS: HTTP 404</td><td>URL salah (host Mobile JKN, atau SIRUS mengatur <code>SIAP_API_HOST</code> lain), atau route SIRUS tidak dimuat (rahasia &lt; 32 karakter)</td><td>cek <code>SIAP_API_URL</code> (host SIRUS / SIAP_API_HOST, tanpa <code>/api/siap</code>), cek rahasia di SIRUS</td></tr>
                             <tr><td>HTTP 403 / IP tidak diizinkan</td><td>IP server SIAP tidak ada di whitelist SIRUS</td><td>admin SIRUS menambah IP ke <code>SIAP_API_IP_WHITELIST</code></td></tr>
                             <tr><td>HTTP 429</td><td>terlalu banyak permintaan dalam semenit</td><td>tunggu semenit; jangan klik Ambil berulang-ulang</td></tr>
                             <tr><td>cURL error / timed out</td><td>SIRUS tidak terjangkau dari server SIAP (jaringan, DNS, sertifikat)</td><td><code>curl -I SIAP_API_URL</code> dari server SIAP; cek firewall / HTTPS</td></tr>
-                            <tr><td>SIRUS belum punya slip gaji dokter untuk bulan jasa …</td><td>SIRUS belum menggaji bulan itu, atau salah pilih bulan (jasa ≠ gaji)</td><td>pilih bulan jasa yang benar; tunggu SIRUS memproses</td></tr>
+                            <tr><td>SIRUS tidak punya transaksi dokter untuk bulan jasa …</td><td>belum ada transaksi jasa bulan itu, atau salah pilih bulan (jasa ≠ gaji)</td><td>pilih bulan jasa yang benar</td></tr>
+                            <tr><td>N dokter belum punya struktur gaji</td><td>dokter baru / belum diisi di tab Struktur Gaji — dihitung tanpa gaji pokok &amp; potongan</td><td>isi strukturnya, lalu Ambil ulang</td></tr>
                             <tr><td>N dokter belum dipetakan ke karyawan</td><td>nama tidak cocok otomatis</td><td>tab Pemetaan → Petakan manual, atau biarkan bila bukan karyawan</td></tr>
-                            <tr><td>Badge "pernah berubah" / versi N</td><td>SIRUS mengubah angka setelah tarikan sebelumnya</td><td>Rincian → Bandingkan dengan versi sebelumnya; konfirmasi ke SIRUS bila perlu</td></tr>
+                            <tr><td>Badge "pernah berubah" / vN</td><td>transaksi SIRUS, struktur, atau baris manual berubah setelah hitungan sebelumnya</td><td>tab Bandingkan Versi; konfirmasi ke SIRUS bila transaksinya yang berubah</td></tr>
                         </tbody>
                     </table>
                 </section>
@@ -257,12 +258,11 @@ php artisan gaji:ambil-sirus 2026-01 --sampai=2026-10  # rentang bulan jasa (sam
                 {{-- KONTRAK --}}
                 <section id="kontrak" class="p-6 border scroll-mt-24 bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
                     <h2>8. Kontrak data (untuk pengembang)</h2>
-                    <p class="mt-2 text-sm"><code>GajiDokterSirus::ambil()</code> membaca JSON SIRUS kolom per kolom. Field yang <b>wajib</b> ada:</p>
+                    <p class="mt-2 text-sm"><code>GajiDokterSirus::ambil()</code> membaca JSON SIRUS kolom per kolom. Field yang dipakai:</p>
                     <ul class="mt-2 text-sm">
                         <li><b>dokter</b>: <code>dr_id, dr_name, dr_nik, kd_dr_bpjs, aktif</code>.</li>
-                        <li><b>slip</b>: <code>gajidoctor_no, dr_id, dr_name, tahun_gaji, bulan_gaji, skema_gaji_pokok, nilai_gaji_pokok, potongan_rs_basis, potongan_rs_persen, pph21_persen, npwp_status, jasa_total, total_gaji, potongan_rs, pph21, potongan_lain_total, tambahan_total, gaji_diterima, gaji_status, tanggal_bayar, update_date, detail[]</code>.</li>
-                        <li><b>detail</b>: <code>jenis, kode, label, keterangan, nilai, nilai_manual, jumlah_pasien, urutan</code>.</li>
-                        <li><b>lampiran.baris</b>: <code>komponen, label, tgl, reg_no, nama, keterangan, klaim, klaim_status, no_sep, txn_no, nominal, pasien, masuk_slip</code>.</li>
+                        <li><b>transaksi.dokter</b>: <code>dr_id, dr_name, aktif, baris[]</code>.</li>
+                        <li><b>baris</b>: <code>komponen, group, label, tgl, reg_no, nama, keterangan, klaim, klaim_status, no_sep, txn_no, nominal, pasien</code> (<code>group</code> menentukan kapita RI/RJ).</li>
                     </ul>
                     <p class="mt-3 text-sm">Menambah field di SIRUS aman (diabaikan). Mengganti nama / arti field harus bersamaan di dua repo: SIRUS <code>Api\Siap\GajiDokterApiController</code> ↔ SIAP <code>App\Support\GajiDokterSirus</code>. Checksum ikut berubah bila nilai atau pembulatan berubah, jadi perubahan format angka di SIRUS akan tampak sebagai "berubah" satu kali.</p>
                     <p class="mt-2 text-sm">Panjang kolom snapshot: nama dokter 100, kode komponen 20, label 100, keterangan lampiran 200, klaim 60, no. SEP 30, no. transaksi 30 — nilai lebih panjang dipotong saat disimpan.</p>
