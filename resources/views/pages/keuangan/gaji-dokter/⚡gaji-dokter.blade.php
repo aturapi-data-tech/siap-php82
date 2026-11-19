@@ -10,6 +10,7 @@ use Livewire\Attributes\Url;
  *   PEMETAAN : pages::keuangan.gaji-dokter.gaji-dokter-pemetaan — dokter SIRUS ↔ karyawan SIAP (LOV), segarkan master dokter.
  *   STRUKTUR : pages::keuangan.gaji-dokter.gaji-dokter-struktur — struktur gaji per dokter (disetel di SIAP) + mode mesin slip SIRUS/SIAP.
  *   RIWAYAT  : pages::keuangan.gaji-dokter.gaji-dokter-riwayat  — jejak tiap penarikan (baru / berubah / sama).
+ *   BANDING  : pages::keuangan.gaji-dokter.gaji-dokter-banding  — bandingkan dua versi snapshot satu dokter sampai baris lampiran pasien (pola SIKEU).
  *
  * Modal Rincian & Lampiran = komponen terpisah yang dipasang di sini SEJAJAR tab (pola Slip Gaji Dokter SIRUS), dibuka lewat event:
  *   'keuangan.gaji-dokter.openRincianSlipDokter' (gdId)           → modal gaji-dokter-rincian
@@ -20,7 +21,7 @@ use Livewire\Attributes\Url;
  */
 new class extends Component {
     #[Url(as: 'tab')]
-    public string $tab = 'buku'; // buku | pemetaan | struktur | riwayat
+    public string $tab = 'buku'; // buku | pemetaan | struktur | riwayat | banding
 
     public function boot(): void
     {
@@ -29,14 +30,14 @@ new class extends Component {
 
     public function mount(): void
     {
-        if (!in_array($this->tab, ['buku', 'pemetaan', 'struktur', 'riwayat'], true)) {
+        if (!in_array($this->tab, ['buku', 'pemetaan', 'struktur', 'riwayat', 'banding'], true)) {
             $this->tab = 'buku';
         }
     }
 
     public function setTab(string $tab): void
     {
-        if (!in_array($tab, ['buku', 'pemetaan', 'struktur', 'riwayat'], true)) {
+        if (!in_array($tab, ['buku', 'pemetaan', 'struktur', 'riwayat', 'banding'], true)) {
             return;
         }
         $this->tab = $tab;
@@ -64,6 +65,9 @@ new class extends Component {
                     <x-tab :active="$tab === 'riwayat'" wire:click="setTab('riwayat')">
                         <svg class="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>Riwayat Ambil
                     </x-tab>
+                    <x-tab :active="$tab === 'banding'" wire:click="setTab('banding')">
+                        <svg class="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" /></svg>Bandingkan Versi
+                    </x-tab>
                 </x-tabs>
                 <a href="{{ route('keuangan.gaji-karyawan') }}" wire:navigate
                     class="inline-flex items-center gap-1 px-3 py-2.5 text-sm font-medium rounded-lg text-brand-green hover:underline dark:text-brand-lime focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green">Ke Gaji Karyawan →</a>
@@ -76,6 +80,8 @@ new class extends Component {
                 <livewire:pages::keuangan.gaji-dokter.gaji-dokter-struktur wire:key="gaji-dokter-struktur" />
             @elseif ($tab === 'riwayat')
                 <livewire:pages::keuangan.gaji-dokter.gaji-dokter-riwayat wire:key="gaji-dokter-riwayat" />
+            @elseif ($tab === 'banding')
+                <livewire:pages::keuangan.gaji-dokter.gaji-dokter-banding wire:key="gaji-dokter-banding" />
             @else
                 <livewire:pages::keuangan.gaji-dokter.gaji-dokter-buku wire:key="gaji-dokter-buku" />
             @endif

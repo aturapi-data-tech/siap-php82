@@ -16,7 +16,7 @@
         </div>
         <div>
             <div class="font-semibold">Versi snapshot</div>
-            <p class="mt-0.5">Setiap <span class="font-semibold">Ambil dari SIRUS</span> membandingkan angka. Dokter yang sama tidak berubah; yang berbeda mendapat <span class="font-semibold">versi baru</span>, versi lama tetap tersimpan. Buka <span class="font-semibold">Rincian</span> lalu pilih pembanding (versi lain / bulan lalu) untuk melihat selisihnya per komponen.</p>
+            <p class="mt-0.5">Setiap <span class="font-semibold">Ambil dari SIRUS</span> membandingkan angka. Dokter yang sama tidak berubah; yang berbeda mendapat <span class="font-semibold">versi baru</span>, versi lama tetap tersimpan. Buka <span class="font-semibold">Rincian</span> lalu pilih pembanding (versi lain / bulan lalu) untuk melihat selisihnya per komponen. Tab <span class="font-semibold">Bandingkan Versi</span> menjajarkan dua versi (A &amp; B) satu dokter sampai baris lampiran pasien: mana yang <span class="font-semibold">baru</span>, <span class="font-semibold">hilang</span>, atau <span class="font-semibold">berubah</span> (nominal, klaim, tanggal, …).</p>
         </div>
         <div>
             <div class="font-semibold">Membaca slip</div>
