@@ -11,8 +11,9 @@ use App\Support\GajiKaryawan;
 
 /**
  * Tab BUKU Gaji Dokter (anak pembungkus gaji-dokter; Rincian & Lampiran = modal terpisah sejajar tab): slip gaji dokter per
- * BULAN JASA — versi terbaru tiap dokter. Langkah 2 setelah tab 1 Ambil Data (GajiDokterSirus::ambil): periksa, Final per dokter,
- * lalu "Terapkan ke slip gaji" (snapshot → slip Draft Gaji Karyawan, pola Jasa Medik). Rincian = komponen gaji-dokter-rincian; banding versi = tab Bandingkan Versi.
+ * BULAN JASA — VERSI DIPAKAI tiap dokter. Langkah 2 setelah tab 1 Ambil Data (GajiDokterSirus::ambil): periksa, putuskan versi
+ * baru yang belum dipakai (Bandingkan / Pakai semua versi terbaru), Final per dokter, lalu "Terapkan ke slip gaji" (versi dipakai →
+ * slip Draft Gaji Karyawan, pola Jasa Medik). Rincian = komponen gaji-dokter-rincian; banding versi = tab Bandingkan Versi.
  * Bulan jasa & saringan disimpan di Session (komponen di-unmount saat ganti tab — docs/tabs-pattern.md).
  * Tidak ada tulis ke SIRUS; snapshot tidak bisa disunting.
  */
@@ -24,7 +25,7 @@ new class extends Component {
     public string $searchKeyword = '';
 
     #[Session(key: 'gaji-dokter-saring')]
-    public string $saring = 'semua'; // semua | berubah | tanpa_map | final
+    public string $saring = 'semua'; // semua | versi_baru | berubah | tanpa_map | final
 
     public function boot(): void
     {
@@ -36,7 +37,7 @@ new class extends Component {
         if (!$this->bulanValid()) {
             $this->bulan = now()->subMonthNoOverflow()->format(Format::BULAN);
         }
-        if (!in_array($this->saring, ['semua', 'berubah', 'tanpa_map', 'final'], true)) {
+        if (!in_array($this->saring, ['semua', 'versi_baru', 'berubah', 'tanpa_map', 'final'], true)) {
             $this->saring = 'semua';
         }
     }
@@ -86,7 +87,7 @@ new class extends Component {
         unset($this->rows, $this->ambilTerakhirPeriodeIni, $this->ringkasanPeriode);
     }
 
-    /** Tulis snapshot terbaru dokter terpetakan ke slip Draft Gaji Karyawan bulan gaji (jasa + 1) — GajiDokterSirus::terapkan(). */
+    /** Tulis versi dipakai dokter terpetakan ke slip Draft Gaji Karyawan bulan gaji (jasa + 1) — GajiDokterSirus::terapkan(). */
     public function terapkanGajiDokterKeSlip(): void
     {
         if (!$this->bulanValid()) {
@@ -160,11 +161,31 @@ new class extends Component {
         return GajiDokterSirus::daftar($this->periode(), $this->searchKeyword, $this->saring);
     }
 
+    /** Pakai versi terbaru untuk semua dokter bulan ini yang versi terbarunya belum dipakai (yang Final dilewati). */
+    public function pakaiSemuaTerbaru(): void
+    {
+        $hasil = GajiDokterSirus::pakaiSemuaTerbaru($this->periode(), auth()->id());
+        $pesan = count($hasil['dipakai']) . ' dokter kini memakai versi terbaru.';
+        if ($hasil['final'] !== []) {
+            $pesan .= ' Dilewati karena Final (' . count($hasil['final']) . '): ' . implode(', ', array_slice($hasil['final'], 0, 4)) . (count($hasil['final']) > 4 ? ' …' : '') . '.';
+        }
+        $this->dispatch('toast', type: $hasil['dipakai'] !== [] ? 'success' : 'warning', message: $pesan . ($hasil['dipakai'] !== [] ? ' Terapkan ke slip gaji ulang bila slip karyawan sudah terisi.' : ''));
+        $this->segarkanTampilan();
+    }
+
+    /** Buka tab Bandingkan Versi untuk satu dokter: A = versi dipakai, B = versi terbaru. */
+    public function bandingkanVersiBaru(string $drId, int $gdDipakai, int $gdTerbaru): void
+    {
+        session(['gaji-dokter-banding-dokter' => $drId, 'gaji-dokter-banding-lama' => $gdDipakai, 'gaji-dokter-banding-baru' => $gdTerbaru, 'gaji-dokter-banding-tampilkan' => 'berversi']);
+        $this->dispatch('keuangan.gaji-dokter.pindahTab', tab: 'banding');
+    }
+
     #[Computed]
     public function ringkasanPeriode(): array
     {
         $rows = GajiDokterSirus::daftar($this->periode());
         $totalPeriode = ['jumlah' => $rows->count(), 'final' => $rows->where('gaji_status', 'F')->count(), 'tanpa_map' => $rows->whereNull('emp_id_map')->count(), 'berubah' => $rows->where('versi_sebelumnya', true)->count(),
+            'versi_baru' => $rows->whereNotNull('versi_baru')->count(),
             'diterapkan' => $rows->filter(fn($row) => $row->diterapkan_versi === (int) $row->versi)->count(),
             'diterapkan_lama' => $rows->filter(fn($row) => $row->diterapkan_versi !== null && $row->diterapkan_versi !== (int) $row->versi)->count()];
         foreach (GajiDokterSirus::KOLOM_NOMINAL as $kolomNominal) {
@@ -223,6 +244,7 @@ new class extends Component {
             <div class="mt-1">
                 <x-select-input id="gd-saring" wire:model.live="saring">
                     <option value="semua">Semua slip</option>
+                    <option value="versi_baru">Ada versi baru belum dipakai</option>
                     <option value="berubah">Pernah berubah (versi &gt; 1)</option>
                     <option value="tanpa_map">Dokter belum dipetakan</option>
                     <option value="final">Final</option>
@@ -233,7 +255,7 @@ new class extends Component {
             @if ($totalPeriode['jumlah'] > 0)
                 {{-- Terapkan = pola "Terapkan ke Slip" Pembagian Jasa Medik: aman diulang (baris lama ditimpa), slip Final dilewati. --}}
                 <x-confirm-button variant="secondary" action="terapkanGajiDokterKeSlip()" title="Terapkan ke slip gaji"
-                    message="Tulis jasa dokter bulan jasa {{ $bulan }} (snapshot versi terbaru) ke slip Draft Gaji Karyawan bulan kerja {{ $labelBulanJasa }} (dibayar {{ $labelBulanGaji }}) untuk dokter yang sudah dipetakan? Dokter yang belum punya slip dibuatkan slip Draft baru. Jasa, gaji pokok dokter, tambahan, Potongan RS, dan PPh 21 ditulis apa adanya dari slip dokter; baris hasil terapkan sebelumnya ditimpa. Slip yang sudah Final dilewati." confirmText="Ya, terapkan" cancelText="Batal">
+                    message="Tulis jasa dokter bulan jasa {{ $bulan }} (versi dipakai) ke slip Draft Gaji Karyawan bulan kerja {{ $labelBulanJasa }} (dibayar {{ $labelBulanGaji }}) untuk dokter yang sudah dipetakan? Dokter yang belum punya slip dibuatkan slip Draft baru. Jasa, gaji pokok dokter, tambahan, Potongan RS, dan PPh 21 ditulis apa adanya dari slip dokter; baris hasil terapkan sebelumnya ditimpa. Slip yang sudah Final dilewati." confirmText="Ya, terapkan" cancelText="Batal">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
                     Terapkan ke slip gaji
                 </x-confirm-button>
@@ -253,9 +275,23 @@ new class extends Component {
     <p class="px-4 mb-3 text-sm text-muted dark:text-gray-400">
         Jasa <span class="font-semibold text-body dark:text-gray-200">{{ $labelBulanJasa }}</span> dibayarkan pada gaji
         <span class="font-semibold text-body dark:text-gray-200">{{ $labelBulanGaji }}</span>.
-        Slip dihitung dari transaksi SIRUS + struktur gaji SIAP; baris manual (kasbon, bonus) lewat Rincian, lalu kunci dengan Final. Ambil ulang di tab 1 kapan saja &mdash; yang berubah jadi versi baru.
+        Slip dihitung dari transaksi SIRUS + struktur gaji SIAP; baris manual (kasbon, bonus) lewat Rincian, lalu kunci dengan Final. Ambil ulang di tab 1 kapan saja &mdash; yang berubah disimpan sebagai versi baru dan <b>baru masuk gaji setelah dipilih</b>.
         @if ($ambilTerakhir)<span class="whitespace-nowrap">Terakhir diambil {{ \Carbon\Carbon::parse($ambilTerakhir->diambil_at)->format('d/m/Y H:i') }} oleh {{ $ambilTerakhir->name ?? '–' }}.</span>@endif
     </p>
+
+    {{-- VERSI BARU BELUM DIPAKAI — menetap di atas, keputusan Keuangan (pola SIKEU "sahkan versi"). --}}
+    @if (($totalPeriode['versi_baru'] ?? 0) > 0)
+        <div class="flex flex-wrap items-center gap-3 px-4 py-3 mb-3 text-sm border rounded-2xl border-hairline bg-warning-soft text-fg-warning dark:border-gray-700" role="status">
+            <span><b>{{ $totalPeriode['versi_baru'] }} dokter punya versi baru yang belum dipakai.</b> Gaji masih memakai versi lama sampai dipilih.</span>
+            <div class="flex flex-wrap gap-2 ml-auto">
+                <x-secondary-button type="button" wire:click="$set('saring', 'versi_baru')">Tampilkan dokternya</x-secondary-button>
+                <x-confirm-button variant="primary" action="pakaiSemuaTerbaru()" title="Pakai semua versi terbaru"
+                    message="Pakai versi terbaru untuk {{ $totalPeriode['versi_baru'] }} dokter bulan jasa {{ $bulan }}? Sebaiknya bandingkan dulu (badge 'Bandingkan →' di tiap baris). Slip yang sudah Final dilewati; slip gaji karyawan baru berubah setelah Terapkan ulang." confirmText="Ya, pakai" cancelText="Batal">
+                    Pakai semua versi terbaru
+                </x-confirm-button>
+            </div>
+        </div>
+    @endif
 
     {{-- RINGKASAN & PANDUAN sebaris: keduanya panel yang bisa ditutup (pola SIRUS). items-start supaya yang terbuka tidak menarik tinggi pasangannya. --}}
     <div class="grid items-start grid-cols-1 gap-3 mb-4 lg:grid-cols-2">
@@ -351,8 +387,14 @@ new class extends Component {
                                 <div class="flex flex-wrap items-center gap-1.5 mt-1">
                                     <x-badge :variant="$row->gaji_status === 'F' ? 'success' : 'warning'">{{ $row->gaji_status === 'F' ? 'Final' : 'Draft' }}</x-badge>
                                     @if (($row->sumber ?? 'SIRUS') === 'SIRUS')<x-badge variant="gray" title="Snapshot lama yang dihitung SIRUS (sebelum penggajian dokter pindah ke SIAP) — Ambil ulang untuk menghitungnya di SIAP">arsip SIRUS</x-badge>@endif
-                                    @if ($row->versi_sebelumnya)
-                                        <x-badge variant="info" title="Angka berubah sejak pertama diambil — versi lama tersimpan, lihat tab Bandingkan Versi">v{{ $row->versi }}</x-badge>
+                                    @if ($row->versi_sebelumnya || $row->versi_baru)
+                                        <x-badge variant="info" title="Versi yang dipakai untuk gaji">pakai v{{ $row->versi }}</x-badge>
+                                    @endif
+                                    @if ($row->versi_baru)
+                                        <button type="button" wire:click="bandingkanVersiBaru('{{ $row->dr_id }}', {{ $row->gd_id }}, {{ $row->versi_baru->gd_id }})"
+                                            class="inline-flex items-center rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green" title="Bandingkan v{{ $row->versi }} (dipakai) dengan v{{ $row->versi_baru->versi }} lalu pilih">
+                                            <x-badge variant="warning">v{{ $row->versi_baru->versi }} baru belum dipakai · Bandingkan →</x-badge>
+                                        </button>
                                     @endif
                                     <span class="text-sm text-muted dark:text-gray-400">
                                         {{ $row->dr_id }} &middot; <span class="font-mono">{{ $row->skema_gaji_pokok }}/{{ $row->potongan_rs_basis }}</span>
@@ -420,7 +462,7 @@ new class extends Component {
                                                 Buka Kunci
                                             </x-confirm-button>
                                         @else
-                                            <x-confirm-button variant="primary" action="finalkanSiap({{ $row->gd_id }})" title="Final" message="Kunci slip {{ $row->dr_name }} sebagai Final? Ambil dari SIRUS berikutnya melewatinya." confirmText="Ya, kunci" cancelText="Batal" class="whitespace-nowrap shrink-0">
+                                            <x-confirm-button variant="primary" action="finalkanSiap({{ $row->gd_id }})" title="Final" message="Kunci slip {{ $row->dr_name }} (versi {{ $row->versi }}) sebagai Final? Versi dipakai tidak bisa diganti sampai dibuka lagi; Ambil berikutnya tetap mencatat versi baru untuk pembanding." confirmText="Ya, kunci" cancelText="Batal" class="whitespace-nowrap shrink-0">
                                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                                                 Final
                                             </x-confirm-button>

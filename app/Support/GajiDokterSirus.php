@@ -17,8 +17,11 @@ use RuntimeException;
  * Snapshot lama ber-sumber SIRUS (sebelum 7 Nov 2026, saat SIRUS masih menghitung slip) tetap bisa dibaca.
  *
  * VERSI: tiap Ambil, slip tiap dokter diberi checksum (angka + komponen + lampiran). Sama → hanya diambil_at
- * diperbarui; beda → versi baru, versi lama tetap tersimpan (terbaru = '0'). Jadi angka yang pernah diproses
- * tidak berubah diam-diam, dan perubahan terlihat di tab Bandingkan Versi.
+ * diperbarui; beda → versi baru (terbaru = '1'), versi lama tetap tersimpan.
+ * VERSI DIPAKAI (dipakai = '1', pola SIKEU "versi disahkan"): tepat satu per dokter per bulan jasa — yang tampil di Buku,
+ * dikunci Final, dan ditulis ke slip gaji. Versi pertama otomatis dipakai; versi baru hasil Ambil ulang TIDAK menggeser
+ * versi dipakai sampai Keuangan memilihnya (pakaiVersi / pakaiSemuaTerbaru) setelah membandingkan. Versi dipakai yang
+ * Final (hitungan SIAP) tidak bisa diganti sebelum Buka Kunci; Ambil tetap mencatat versi barunya untuk pembanding.
  *
  * PEMETAAN: dokter SIRUS (dr_id) ↔ karyawan SIAP (emp_id). Otomatis bila nama cocok persis (huruf saja, tanpa gelar),
  * selebihnya dipilih Keuangan di tab Pemetaan. Dokter tanpa pemetaan tetap diambil — anomali ditampilkan, bukan diblokir.
@@ -168,24 +171,28 @@ class GajiDokterSirus
 
     // ─── Baca snapshot ────────────────────────────────────────────────────────
 
-    /** Header versi terbaru satu bulan jasa + pemetaan + penanda perubahan. @return Collection<int, object> */
+    /** Versi DIPAKAI satu bulan jasa + pemetaan + penanda perubahan & versi baru yang belum dipakai. @return Collection<int, object> */
     public static function daftar(string $periode, string $cari = '', string $saring = 'semua'): Collection
     {
         $rows = DB::table('siaptxn_gdok_hdrs as h')
             ->leftJoin('siapmst_dokter_sirus as d', 'd.dr_id', '=', 'h.dr_id')
             ->leftJoin('siapmst_employers as em', 'em.emp_id', '=', 'd.emp_id')
-            ->where('h.periode', $periode)->where('h.terbaru', '1')
+            ->where('h.periode', $periode)->where('h.dipakai', '1')
             ->when(trim($cari) !== '', fn($subQuery) => $subQuery->whereRaw('UPPER(h.dr_name) LIKE ?', ['%' . mb_strtoupper(trim($cari)) . '%']))
             ->orderBy('h.dr_name')
             ->get(['h.*', 'd.emp_id as emp_id_map', 'd.cara_map', 'em.emp_name']);
         $bulanLalu = Carbon::createFromFormat('!Y-m', $periode)->subMonthNoOverflow()->format('Y-m');
-        $headerBulanLalu = DB::table('siaptxn_gdok_hdrs')->where('periode', $bulanLalu)->where('terbaru', '1')->get()->keyBy('dr_id');
+        $headerBulanLalu = DB::table('siaptxn_gdok_hdrs')->where('periode', $bulanLalu)->where('dipakai', '1')->get()->keyBy('dr_id');
+        $versiTerbaru = DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->where('terbaru', '1')->get(['dr_id', 'gd_id', 'versi', 'gaji_diterima'])->keyBy('dr_id');
         // Versi yang pernah ditulis ke slip gaji (bisa versi lama) — penanda "slip memakai v1, snapshot sudah v2".
         $diterapkan = DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->whereNotNull('diterapkan_at')
             ->orderBy('versi')->get(['dr_id', 'versi', 'gaji_id', 'diterapkan_at'])->keyBy('dr_id');
 
-        $rows = $rows->map(function ($row) use ($headerBulanLalu, $diterapkan) {
+        $rows = $rows->map(function ($row) use ($headerBulanLalu, $diterapkan, $versiTerbaru) {
             $row->versi_sebelumnya = (int) $row->versi > 1;
+            $terbaru = $versiTerbaru[$row->dr_id] ?? null;
+            $row->versi_baru = $terbaru && (int) $terbaru->gd_id !== (int) $row->gd_id ? $terbaru : null; // versi baru belum dipakai
+            $row->terkunci = self::terkunci($row);
             $row->bulan_lalu = $headerBulanLalu[$row->dr_id] ?? null;
             $row->selisih_bulan_lalu = $row->bulan_lalu ? (float) $row->gaji_diterima - (float) $row->bulan_lalu->gaji_diterima : null;
             $terapkanTerakhir = $diterapkan[$row->dr_id] ?? null;
@@ -197,7 +204,8 @@ class GajiDokterSirus
         });
 
         return match ($saring) {
-            'berubah'   => $rows->filter(fn($row) => $row->versi_sebelumnya)->values(),
+            'berubah'   => $rows->filter(fn($row) => $row->versi_sebelumnya || $row->versi_baru)->values(),
+            'versi_baru' => $rows->filter(fn($row) => $row->versi_baru !== null)->values(),
             'tanpa_map' => $rows->filter(fn($row) => $row->emp_id_map === null)->values(),
             'final'     => $rows->where('gaji_status', 'F')->values(),
             default     => $rows,
@@ -207,10 +215,10 @@ class GajiDokterSirus
     // ─── Terapkan ke slip Gaji Karyawan ───────────────────────────────────────
 
     /**
-     * Tulis snapshot versi terbaru tiap dokter TERPETAKAN ke slip Draft Gaji Karyawan periode BULAN KERJA = bulan jasa.
+     * Tulis VERSI DIPAKAI tiap dokter TERPETAKAN ke slip Draft Gaji Karyawan periode BULAN KERJA = bulan jasa.
      * (Slip SIAP bulan kerja Oktober dibayar awal November = "jasa Oktober, gaji November" di SIRUS — periode yang sama,
      * beda sebutan.) Pola JasaMedik::terapkan: AMAN DIULANG — baris berkode KODE_DOKTER_SIRUS dihapus lalu ditulis
-     * ulang dari snapshot terbaru, slip dihitung ulang; slip Final dilewati; dokter tanpa slip / tanpa pemetaan dilaporkan.
+     * ulang dari versi dipakai, slip dihitung ulang; slip Final dilewati; dokter tanpa slip / tanpa pemetaan dilaporkan.
      * Baris ditulis dengan otomatis = '0' (seperti Jasa Medik) supaya Generate ulang slip tidak menghapusnya.
      * Yang ditulis = angka SIRUS apa adanya, PER KOMPONEN slip (uang periksa, visite, operator, …; gaji pokok dokter bila ada;
      * tambahan) sebagai pendapatan; Potongan RS, PPh 21 SIRUS, potongan lain (IDI, BPJS, …) sebagai potongan
@@ -329,10 +337,13 @@ class GajiDokterSirus
     /**
      * AMBIL DARI SIRUS — satu-satunya jalur: tarik transaksi mentah bulan jasa dari SIRUS (GET …/transaksi), hitung slip dengan
      * struktur gaji SIAP (+ baris manual), simpan sebagai snapshot berversi: angka sama → versi tetap (hanya tanggal ambil
-     * diperbarui), berubah → versi baru, versi lama tetap tersimpan (lihat tab Bandingkan Versi). Slip Final dilewati.
+     * diperbarui), berubah → versi baru, versi lama tetap tersimpan; versi DIPAKAI tidak bergeser sampai dipilih.
      * Dokter yang belum punya struktur tetap dihitung (gaji pokok & potongan 0) dan dilaporkan supaya strukturnya diisi.
      * Aman diulang ("ambil ulang"), juga lewat `php artisan gaji:ambil-sirus`.
-     * @return array{jumlah: int, baru: int, berubah: int, sama: int, final: array<int, string>, tanpaStruktur: array<int, string>, tanpaMap: array<int, string>, catatan: array<int, string>}
+     * baru = dokter pertama kali (versi 1, langsung dipakai); berubah = versi baru tersimpan, BELUM dipakai (pilih di Bandingkan
+     * Versi / Pakai semua versi terbaru); final = berubah tetapi versi dipakainya Final; menungguPilih = dokter bulan itu yang
+     * versi terbarunya belum dipakai (termasuk dari Ambil sebelumnya).
+     * @return array{jumlah: int, baru: int, berubah: int, sama: int, final: array<int, string>, tanpaStruktur: array<int, string>, tanpaMap: array<int, string>, catatan: array<int, string>, menungguPilih: int}
      */
     public static function ambil(string $periode, ?int $userId, ?string $drId = null): array
     {
@@ -366,18 +377,33 @@ class GajiDokterSirus
             $baris = array_map(fn($row) => [...$row, 'masuk_slip' => !in_array((string) ($row['group'] ?? ''), $hasilHitung['grupKapita'], true)], $dokter['baris'] ?? []);
             $checksum = self::checksumSiap($hasilHitung['ringkas'], $hasilHitung['detail'], $baris);
             $snapshotTerbaru = DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->where('dr_id', $drIdDokter)->where('terbaru', '1')->first();
-            if ($snapshotTerbaru && $snapshotTerbaru->sumber === 'SIAP' && $snapshotTerbaru->gaji_status === 'F') {
-                $hasilProses['final'][] = $namaDokter;
-                continue;
-            }
             if ($snapshotTerbaru && $snapshotTerbaru->checksum === $checksum) {
                 DB::table('siaptxn_gdok_hdrs')->where('gd_id', $snapshotTerbaru->gd_id)->update(['diambil_at' => now(), 'diambil_oleh' => $userId, 'emp_id' => $empId, 'updated_at' => now()]);
                 $hasilProses['sama']++;
                 continue;
             }
-            self::simpanSnapshotSiap($periode, $periodeGaji, $drIdDokter, $namaDokter, $empId, $struktur, $hasilHitung, $baris, $checksum, $snapshotTerbaru, $userId);
-            $snapshotTerbaru ? $hasilProses['berubah']++ : $hasilProses['baru']++;
+            // Data kembali sama dengan versi DIPAKAI (versi baru yang belum dipilih ternyata batal di SIRUS) → tidak membuat
+            // salinan; versi dipakai kembali menjadi yang terbaru.
+            $dipakaiSekarang = DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->where('dr_id', $drIdDokter)->where('dipakai', '1')->first();
+            if ($dipakaiSekarang && $dipakaiSekarang->checksum === $checksum) {
+                DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->where('dr_id', $drIdDokter)->update(['terbaru' => '0']);
+                DB::table('siaptxn_gdok_hdrs')->where('gd_id', $dipakaiSekarang->gd_id)->update(['terbaru' => '1', 'diambil_at' => now(), 'diambil_oleh' => $userId, 'emp_id' => $empId, 'updated_at' => now()]);
+                $hasilProses['sama']++;
+                continue;
+            }
+            // Versi pertama langsung dipakai; versi berikutnya menunggu dipilih (versi dipakai tidak bergeser diam-diam).
+            self::simpanSnapshotSiap($periode, $periodeGaji, $drIdDokter, $namaDokter, $empId, $struktur, $hasilHitung, $baris, $checksum, $snapshotTerbaru, $userId, jadikanDipakai: !$snapshotTerbaru);
+            if (!$snapshotTerbaru) {
+                $hasilProses['baru']++;
+                continue;
+            }
+            $hasilProses['berubah']++;
+            $dipakai = DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->where('dr_id', $drIdDokter)->where('dipakai', '1')->first();
+            if ($dipakai && self::terkunci($dipakai)) {
+                $hasilProses['final'][] = $namaDokter;
+            }
         }
+        $hasilProses['menungguPilih'] = self::jumlahMenungguPilih($periode);
 
         DB::table('siaptxn_gdok_ambils')->insert(['periode' => $periode, 'diambil_at' => now(), 'diambil_oleh' => $userId, 'jumlah_slip' => $hasilProses['jumlah'],
             'baru' => $hasilProses['baru'], 'berubah' => $hasilProses['berubah'], 'sama' => $hasilProses['sama'], 'lampiran_baris' => array_sum(array_map(fn($dokter) => count($dokter['baris'] ?? []), $dataTransaksi['dokter'] ?? [])),
@@ -387,19 +413,23 @@ class GajiDokterSirus
         return $hasilProses;
     }
 
-    private static function simpanSnapshotSiap(string $periode, string $periodeGaji, string $drId, string $namaDokter, ?string $empId, array $struktur, array $hasilHitung, array $baris, string $checksum, ?object $snapshotTerbaru, ?int $userId): int
+    private static function simpanSnapshotSiap(string $periode, string $periodeGaji, string $drId, string $namaDokter, ?string $empId, array $struktur, array $hasilHitung, array $baris, string $checksum, ?object $snapshotTerbaru, ?int $userId, bool $jadikanDipakai): int
     {
-        return DB::transaction(function () use ($periode, $periodeGaji, $drId, $namaDokter, $empId, $struktur, $hasilHitung, $baris, $checksum, $snapshotTerbaru, $userId) {
+        return DB::transaction(function () use ($periode, $periodeGaji, $drId, $namaDokter, $empId, $struktur, $hasilHitung, $baris, $checksum, $snapshotTerbaru, $userId, $jadikanDipakai) {
             if ($snapshotTerbaru) {
                 DB::table('siaptxn_gdok_hdrs')->where('gd_id', $snapshotTerbaru->gd_id)->update(['terbaru' => '0', 'updated_at' => now()]);
             }
-            $versi = $snapshotTerbaru ? (int) $snapshotTerbaru->versi + 1 : 1;
+            if ($jadikanDipakai) {
+                DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->where('dr_id', $drId)->update(['dipakai' => '0']);
+            }
+            $versi = (int) DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->where('dr_id', $drId)->max('versi') + 1;
             DB::table('siaptxn_gdok_hdrs')->insert([
                 'periode' => $periode, 'dr_id' => $drId, 'versi' => $versi, 'terbaru' => '1', 'emp_id' => $empId, 'gajidoctor_no' => 0, 'dr_name' => mb_substr($namaDokter, 0, 100),
                 'periode_gaji' => $periodeGaji, 'skema_gaji_pokok' => $struktur['skema_gaji_pokok'], 'nilai_gaji_pokok' => $struktur['basic_salary'],
                 'potongan_rs_basis' => $struktur['potongan_rs_basis'], 'potongan_rs_persen' => $struktur['potongan_rs_persen'], 'pph21_persen' => $struktur['pph21_persen'],
                 'npwp_status' => $struktur['npwp_status'], ...$hasilHitung['ringkas'], 'gaji_status' => 'D', 'tanggal_bayar' => null, 'update_date_sirus' => null,
                 'checksum' => $checksum, 'jumlah_lampiran' => count($baris), 'sumber' => 'SIAP', 'diambil_at' => now(), 'diambil_oleh' => $userId, 'created_at' => now(), 'updated_at' => now(),
+                'dipakai' => $jadikanDipakai ? '1' : '0', 'dipakai_at' => $jadikanDipakai ? now() : null, 'dipakai_oleh' => $jadikanDipakai ? $userId : null,
             ]);
             $gdId = (int) DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->where('dr_id', $drId)->where('versi', $versi)->value('gd_id');
             foreach ($hasilHitung['detail'] as $komponen) {
@@ -422,8 +452,8 @@ class GajiDokterSirus
     }
 
     /**
-     * Hitung ulang satu snapshot SIAP tanpa memanggil SIRUS: transaksi diambil dari lampiran snapshot itu sendiri
-     * (dipakai setelah baris manual / struktur diubah). Menghasilkan versi baru bila angkanya berubah.
+     * Hitung ulang VERSI DIPAKAI tanpa memanggil SIRUS: transaksi diambil dari lampiran versi itu sendiri (setelah baris
+     * manual / struktur diubah). Angka berubah → versi baru yang langsung menjadi versi dipakai (keputusan Keuangan sendiri).
      * @return array{gd_id: int, berubah: bool, pesan: ?string}
      */
     public static function hitungUlangSiap(int $gdId, ?int $userId): array
@@ -431,6 +461,9 @@ class GajiDokterSirus
         $header = DB::table('siaptxn_gdok_hdrs')->where('gd_id', $gdId)->first();
         if (!$header) {
             return ['gd_id' => $gdId, 'berubah' => false, 'pesan' => 'Snapshot tidak ditemukan.'];
+        }
+        if ($header->dipakai !== '1') {
+            return ['gd_id' => $gdId, 'berubah' => false, 'pesan' => 'Hanya versi dipakai yang bisa dihitung ulang — pakai versi ini dulu.'];
         }
         if ($header->gaji_status === 'F') {
             return ['gd_id' => $gdId, 'berubah' => false, 'pesan' => 'Slip sudah Final — buka kunci dulu.'];
@@ -442,22 +475,22 @@ class GajiDokterSirus
         $hasilHitung = GajiDokterHitung::hitung($struktur, $lampiran, self::manualList($header->periode, $header->dr_id));
         $baris = array_map(fn($row) => [...$row, 'masuk_slip' => !in_array((string) $row['group'], $hasilHitung['grupKapita'], true)], $lampiran);
         $checksum = self::checksumSiap($hasilHitung['ringkas'], $hasilHitung['detail'], $baris);
-        $terbaru = DB::table('siaptxn_gdok_hdrs')->where('periode', $header->periode)->where('dr_id', $header->dr_id)->where('terbaru', '1')->first();
-        if ($terbaru && $terbaru->checksum === $checksum && $terbaru->sumber === 'SIAP') {
-            return ['gd_id' => (int) $terbaru->gd_id, 'berubah' => false, 'pesan' => null];
+        if ($header->checksum === $checksum && $header->sumber === 'SIAP') {
+            return ['gd_id' => (int) $header->gd_id, 'berubah' => false, 'pesan' => null];
         }
+        $terbaru = DB::table('siaptxn_gdok_hdrs')->where('periode', $header->periode)->where('dr_id', $header->dr_id)->where('terbaru', '1')->first();
         $gdIdBaru = self::simpanSnapshotSiap($header->periode, $header->periode_gaji ?: Carbon::createFromFormat('!Y-m', $header->periode)->addMonthNoOverflow()->format('Y-m'),
-            $header->dr_id, $header->dr_name, $header->emp_id, $struktur, $hasilHitung, $baris, $checksum, $terbaru, $userId);
+            $header->dr_id, $header->dr_name, $header->emp_id, $struktur, $hasilHitung, $baris, $checksum, $terbaru, $userId, jadikanDipakai: true);
 
         return ['gd_id' => $gdIdBaru, 'berubah' => true, 'pesan' => null];
     }
 
-    /** Kunci / buka kunci slip SIAP (hanya snapshot ber-sumber SIAP, versi terbaru). @return string|null pesan galat */
+    /** Kunci / buka kunci slip SIAP (hanya versi dipakai ber-sumber SIAP). @return string|null pesan galat */
     public static function ubahStatusSiap(int $gdId, string $status, ?int $userId): ?string
     {
         $header = DB::table('siaptxn_gdok_hdrs')->where('gd_id', $gdId)->first();
-        if (!$header || $header->terbaru !== '1') {
-            return 'Hanya versi terbaru yang bisa diubah statusnya.';
+        if (!$header || $header->dipakai !== '1') {
+            return 'Hanya versi dipakai yang bisa diubah statusnya.';
         }
         if ($header->sumber !== 'SIAP') {
             return 'Slip ini dihitung SIRUS — status Final diatur di SIRUS.';
@@ -466,6 +499,61 @@ class GajiDokterSirus
             'difinalkan_at' => $status === 'F' ? now() : null, 'difinalkan_oleh' => $status === 'F' ? $userId : null, 'updated_at' => now()]);
 
         return null;
+    }
+
+    // ─── Versi dipakai ────────────────────────────────────────────────────────
+
+    /** Versi dipakai terkunci = slip hitungan SIAP berstatus Final (arsip SIRUS tidak mengunci — Final-nya milik SIRUS). */
+    public static function terkunci(object $header): bool
+    {
+        return ($header->sumber ?? 'SIRUS') === 'SIAP' && $header->gaji_status === 'F';
+    }
+
+    /** Jumlah dokter satu bulan jasa yang versi terbarunya belum dipakai. */
+    public static function jumlahMenungguPilih(string $periode): int
+    {
+        return DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->where('terbaru', '1')->where('dipakai', '0')->count();
+    }
+
+    /**
+     * Jadikan satu versi sebagai VERSI DIPAKAI dokter itu di bulan jasanya. Ditolak bila versi dipakai sekarang Final (Buka
+     * Kunci dulu). Slip gaji karyawan tidak ikut berubah sampai Terapkan ulang (badge "slip pakai vN" di Buku).
+     * @return string|null pesan galat
+     */
+    public static function pakaiVersi(int $gdId, ?int $userId): ?string
+    {
+        $header = DB::table('siaptxn_gdok_hdrs')->where('gd_id', $gdId)->first();
+        if (!$header) {
+            return 'Versi tidak ditemukan.';
+        }
+        if ($header->dipakai === '1') {
+            return "Versi {$header->versi} sudah dipakai.";
+        }
+        $dipakai = DB::table('siaptxn_gdok_hdrs')->where('periode', $header->periode)->where('dr_id', $header->dr_id)->where('dipakai', '1')->first();
+        if ($dipakai && self::terkunci($dipakai)) {
+            return "Versi {$dipakai->versi} {$header->dr_name} sudah Final — Buka Kunci dulu di Buku sebelum mengganti versi.";
+        }
+        DB::transaction(function () use ($header, $userId) {
+            DB::table('siaptxn_gdok_hdrs')->where('periode', $header->periode)->where('dr_id', $header->dr_id)->update(['dipakai' => '0']);
+            DB::table('siaptxn_gdok_hdrs')->where('gd_id', $header->gd_id)->update(['dipakai' => '1', 'dipakai_at' => now(), 'dipakai_oleh' => $userId, 'updated_at' => now()]);
+        });
+
+        return null;
+    }
+
+    /**
+     * Pakai versi terbaru untuk semua dokter satu bulan jasa yang versi terbarunya belum dipakai (yang Final dilewati).
+     * @return array{dipakai: array<int, string>, final: array<int, string>}
+     */
+    public static function pakaiSemuaTerbaru(string $periode, ?int $userId): array
+    {
+        $hasil = ['dipakai' => [], 'final' => []];
+        foreach (DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->where('terbaru', '1')->where('dipakai', '0')->orderBy('dr_name')->get(['gd_id', 'dr_name']) as $versiBaru) {
+            $pesanGalat = self::pakaiVersi((int) $versiBaru->gd_id, $userId);
+            $pesanGalat === null ? $hasil['dipakai'][] = $versiBaru->dr_name : $hasil['final'][] = $versiBaru->dr_name;
+        }
+
+        return $hasil;
     }
 
     public static function namaPeriode(?string $periode): string
@@ -478,7 +566,7 @@ class GajiDokterSirus
 
     public static function periodeTersedia(): Collection
     {
-        return DB::table('siaptxn_gdok_hdrs')->where('terbaru', '1')->select('periode', DB::raw('count(*) n'))->groupBy('periode')->orderByDesc('periode')->get();
+        return DB::table('siaptxn_gdok_hdrs')->where('dipakai', '1')->select('periode', DB::raw('count(*) n'))->groupBy('periode')->orderByDesc('periode')->get();
     }
 
     public static function riwayatAmbil(int $batasBaris = 30): Collection

@@ -77,22 +77,35 @@ new class extends Component {
             message: $hasil['jumlah'] === 0 ? "SIRUS tidak punya transaksi dokter untuk bulan jasa {$this->bulan}." : "Ambil {$this->bulan} selesai: {$hasil['jumlah']} dokter.");
     }
 
+    /** Pakai versi terbaru untuk semua dokter bulan ini yang versi terbarunya belum dipakai (yang Final dilewati). */
+    public function pakaiSemuaTerbaru(): void
+    {
+        $hasil = GajiDokterSirus::pakaiSemuaTerbaru($this->periode(), auth()->id());
+        $pesan = count($hasil['dipakai']) . ' dokter kini memakai versi terbaru.' . ($hasil['final'] !== [] ? ' Dilewati karena Final: ' . count($hasil['final']) . '.' : '');
+        $this->dispatch('toast', type: $hasil['dipakai'] !== [] ? 'success' : 'warning', message: $pesan);
+        if ($this->hasilAmbil) {
+            $this->hasilAmbil['menungguPilih'] = GajiDokterSirus::jumlahMenungguPilih($this->periode());
+        }
+        unset($this->statusBulan);
+    }
+
     public function pindahTab(string $tab): void
     {
         $this->dispatch('keuangan.gaji-dokter.pindahTab', tab: $tab);
     }
 
-    /** Keadaan bulan jasa terpilih: jumlah slip (versi terbaru), Final, yang pernah berubah, ambil terakhir. */
+    /** Keadaan bulan jasa terpilih: jumlah slip (versi dipakai), Final, yang pernah berubah, versi baru belum dipakai, ambil terakhir. */
     #[Computed]
     public function statusBulan(): array
     {
         $periode = $this->periode();
-        $terbaru = DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->where('terbaru', '1');
+        $dipakai = DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->where('dipakai', '1');
 
         return [
-            'slip' => (clone $terbaru)->count(),
-            'final' => (clone $terbaru)->where('gaji_status', 'F')->count(),
-            'berversi' => (clone $terbaru)->where('versi', '>', 1)->count(),
+            'slip' => (clone $dipakai)->count(),
+            'final' => (clone $dipakai)->where('gaji_status', 'F')->count(),
+            'berversi' => DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->where('versi', '>', 1)->distinct()->count('dr_id'),
+            'menunggu' => GajiDokterSirus::jumlahMenungguPilih($periode),
             'ambil' => DB::table('siaptxn_gdok_ambils as a')->leftJoin('users as u', 'u.id', '=', 'a.diambil_oleh')
                 ->where('a.periode', $periode)->orderByDesc('a.ambil_id')->first(['a.diambil_at', 'u.name']),
         ];
@@ -153,6 +166,7 @@ new class extends Component {
                     @if ($status['slip'] > 0)
                         Sudah ada <span class="font-semibold text-body dark:text-gray-200">{{ $status['slip'] }} slip</span>
                         &middot; {{ $status['final'] }} Final @if ($status['berversi'] > 0) &middot; {{ $status['berversi'] }} pernah berubah @endif
+                        @if ($status['menunggu'] > 0) &middot; <span class="font-semibold text-fg-warning">{{ $status['menunggu'] }} versi baru belum dipakai</span> @endif
                         @if ($status['ambil']) &middot; terakhir diambil {{ Carbon::parse($status['ambil']->diambil_at)->format('d/m/Y H:i') }} oleh {{ $status['ambil']->name ?? '–' }}@endif
                     @else
                         Belum pernah diambil.
@@ -160,7 +174,7 @@ new class extends Component {
                 </p>
             </div>
         </div>
-        <p class="mt-3 text-xs text-muted dark:text-gray-400">Aman diulang kapan saja: yang berubah (transaksi SIRUS, struktur gaji, atau baris manual) menjadi versi baru, yang sama dibiarkan. Setelah itu periksa di <b>2. Buku Gaji Dokter</b>.</p>
+        <p class="mt-3 text-xs text-muted dark:text-gray-400">Aman diulang kapan saja. Ambil pertama langsung dipakai untuk gaji. Ambil ulang yang hasilnya berbeda disimpan sebagai <b>versi baru</b> tetapi <b>belum dipakai</b> &mdash; gaji tetap memakai versi lama sampai Anda memilihnya (3. Bandingkan Versi &rarr; Pakai versi ini, atau Pakai semua versi terbaru).</p>
     </div>
 
     {{-- HASIL AMBIL TERAKHIR — menetap, dengan tindak lanjut --}}
@@ -170,7 +184,7 @@ new class extends Component {
                 <h2 class="font-semibold text-ink dark:text-gray-100">Hasil ambil {{ $labelBulanJasa }} <span class="text-sm font-normal text-muted">· {{ $hasil['waktu'] }}</span></h2>
                 <div class="flex flex-wrap gap-2">
                     @if ($hasil['berubah'] > 0)
-                        <x-secondary-button type="button" wire:click="pindahTab('banding')">Lihat perubahan di 3. Bandingkan Versi</x-secondary-button>
+                        <x-secondary-button type="button" wire:click="pindahTab('banding')">Bandingkan &amp; pilih di 3. Bandingkan Versi</x-secondary-button>
                     @endif
                     @if ($hasil['jumlah'] > 0)
                         <x-primary-button type="button" wire:click="pindahTab('buku')">Lanjut ke 2. Buku Gaji Dokter →</x-primary-button>
@@ -180,14 +194,26 @@ new class extends Component {
             @if ($hasil['jumlah'] === 0)
                 <p class="mt-2 text-sm text-body dark:text-gray-300">SIRUS tidak punya transaksi dokter untuk bulan jasa {{ $labelBulanJasa }}. Periksa bulan yang dipilih (bulan jasa, bukan bulan gaji).</p>
             @else
-                <div class="grid grid-cols-2 gap-3 mt-3 sm:grid-cols-5">
-                    @foreach ([['Dokter', $hasil['jumlah'], null], ['Baru', $hasil['baru'], 'success'], ['Berubah · versi baru', $hasil['berubah'], 'warning'], ['Sama', $hasil['sama'], null], ['Dilewati (Final)', count($hasil['final']), null]] as [$judul, $angka, $warna])
+                <div class="grid grid-cols-2 gap-3 mt-3 sm:grid-cols-4">
+                    @foreach ([['Dokter', $hasil['jumlah'], null], ['Baru · langsung dipakai', $hasil['baru'], 'success'], ['Versi baru · belum dipakai', $hasil['berubah'], 'warning'], ['Sama', $hasil['sama'], null]] as [$judul, $angka, $warna])
                         <div class="px-3 py-2 border rounded-xl border-hairline bg-surface-soft dark:bg-gray-800 dark:border-gray-700">
                             <p class="text-xs font-semibold uppercase text-muted">{{ $judul }}</p>
                             <p @class(['text-xl font-semibold tabular-nums', 'text-ink dark:text-gray-100' => !$warna || $angka === 0, 'text-fg-success-strong' => $warna === 'success' && $angka > 0, 'text-fg-warning' => $warna === 'warning' && $angka > 0])>{{ $angka }}</p>
                         </div>
                     @endforeach
                 </div>
+                @if (($hasil['menungguPilih'] ?? 0) > 0)
+                    <div class="flex flex-wrap items-center gap-3 px-3 py-2 mt-3 text-sm rounded-xl bg-warning-soft text-fg-warning">
+                        <span><b>{{ $hasil['menungguPilih'] }} dokter punya versi baru yang belum dipakai</b> &mdash; gaji masih memakai versi lama sampai dipilih.</span>
+                        <div class="flex flex-wrap gap-2 ml-auto">
+                            <x-secondary-button type="button" wire:click="pindahTab('banding')">Bandingkan dulu</x-secondary-button>
+                            <x-confirm-button variant="primary" action="pakaiSemuaTerbaru()" title="Pakai semua versi terbaru"
+                                message="Pakai versi terbaru untuk {{ $hasil['menungguPilih'] }} dokter bulan jasa {{ $bulan }}? Slip yang sudah Final dilewati; slip gaji karyawan baru berubah setelah Terapkan ulang di Buku." confirmText="Ya, pakai" cancelText="Batal">
+                                Pakai semua versi terbaru
+                            </x-confirm-button>
+                        </div>
+                    </div>
+                @endif
                 <ul class="mt-3 space-y-1.5 text-sm">
                     @if ($hasil['tanpaStruktur'] !== [])
                         <li class="flex gap-2"><x-badge variant="warning" class="shrink-0">Perlu tindakan</x-badge>
@@ -201,7 +227,7 @@ new class extends Component {
                     @endif
                     @if ($hasil['final'] !== [])
                         <li class="flex gap-2"><x-badge variant="gray" class="shrink-0">Catatan</x-badge>
-                            <span>Dilewati karena sudah Final: {{ $daftarNama($hasil['final']) }}. Buka Kunci di Buku bila perlu dihitung ulang.</span></li>
+                            <span>Versi dipakai sudah Final, versi barunya hanya disimpan untuk pembanding: {{ $daftarNama($hasil['final']) }}. Buka Kunci di Buku bila versi baru harus dipakai.</span></li>
                     @endif
                     @foreach (array_slice($hasil['catatan'], 0, 10) as $catatan)
                         <li class="flex gap-2"><x-badge variant="gray" class="shrink-0">Catatan</x-badge><span>{{ $catatan }}</span></li>

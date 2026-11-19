@@ -19,7 +19,7 @@
             <div class="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
                 <h3 class="flex items-center gap-2 text-base font-bold text-ink dark:text-gray-100">
                     {{ $header->dr_name }}
-                    <x-badge variant="{{ $header->terbaru === '1' ? 'brand' : 'gray' }}">Versi {{ $header->versi }}{{ $header->terbaru === '1' ? ' · terbaru' : '' }}</x-badge>
+                    <x-badge variant="{{ $header->dipakai === '1' ? 'brand' : 'gray' }}">Versi {{ $header->versi }}{{ $header->dipakai === '1' ? ' · dipakai' : '' }}{{ $header->terbaru === '1' ? ' · terbaru' : '' }}</x-badge>
                 </h3>
                 <div class="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted dark:text-gray-400">
                     <span>Periode Jasa: <span class="font-medium text-body dark:text-gray-200">{{ $namaPeriode($header->periode) }}</span></span>
@@ -33,7 +33,7 @@
                             <select wire:change="gantiVersiSnapshot($event.target.value)" aria-label="Versi snapshot"
                                 class="py-1 pl-2 text-xs border rounded-lg pr-7 bg-gray-50 border-gray-300 text-body focus:border-brand-green focus:ring-brand-green dark:bg-gray-800 dark:border-gray-600 dark:text-gray-200">
                                 @foreach ($snapshot['versiOpsi'] as $versi)
-                                    <option value="{{ $versi->gd_id }}" @selected((int) $versi->gd_id === (int) $header->gd_id)>Versi {{ $versi->versi }}{{ $versi->terbaru === '1' ? ' (terbaru)' : '' }} · {{ \Carbon\Carbon::parse($versi->diambil_at)->format('d/m/Y H:i') }}</option>
+                                    <option value="{{ $versi->gd_id }}" @selected((int) $versi->gd_id === (int) $header->gd_id)>Versi {{ $versi->versi }}{{ $versi->dipakai === '1' ? ' (dipakai)' : '' }}{{ $versi->terbaru === '1' ? ' (terbaru)' : '' }} · {{ \Carbon\Carbon::parse($versi->diambil_at)->format('d/m/Y H:i') }}</option>
                                 @endforeach
                             </select>
                         </label>

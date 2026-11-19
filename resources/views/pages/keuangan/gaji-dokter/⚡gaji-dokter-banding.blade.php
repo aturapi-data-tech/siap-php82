@@ -95,7 +95,7 @@ new class extends Component {
         $this->pilihVersiBawaan();
     }
 
-    /** Bawaan: baru = versi terbaru, lama = versi tepat sebelumnya. */
+    /** Bawaan: B = versi terbaru; A = versi DIPAKAI bila berbeda dari terbaru (yang perlu diputuskan), selain itu versi sebelumnya. */
     private function pilihVersiBawaan(): void
     {
         unset($this->versiList, $this->hasil);
@@ -104,7 +104,8 @@ new class extends Component {
             $this->versiBaru = $idList[0] ?? null;
         }
         if (!in_array($this->versiLama, $idList, true) || $this->versiLama === $this->versiBaru) {
-            $this->versiLama = collect($idList)->first(fn($gdId) => $gdId !== $this->versiBaru);
+            $gdDipakai = (int) ($this->versiList->firstWhere('dipakai', '1')?->gd_id ?? 0);
+            $this->versiLama = $gdDipakai && $gdDipakai !== $this->versiBaru ? $gdDipakai : collect($idList)->first(fn($gdId) => $gdId !== $this->versiBaru);
         }
         $this->filterJenis = 'semua';
     }
@@ -129,6 +130,19 @@ new class extends Component {
     public function setFilterJenis(string $jenis): void
     {
         $this->filterJenis = in_array($jenis, ['semua', 'baru', 'hilang', 'berubah'], true) ? $jenis : 'semua';
+    }
+
+    /** Jadikan versi (A atau B) sebagai versi dipakai untuk gaji — GajiDokterSirus::pakaiVersi. */
+    public function pakaiVersi(int $gdId): void
+    {
+        if (!in_array($gdId, [(int) $this->versiLama, (int) $this->versiBaru], true)) {
+            return;
+        }
+        $pesanGalat = GajiDokterSirus::pakaiVersi($gdId, auth()->id());
+        $versi = $this->versiList->firstWhere('gd_id', $gdId);
+        $this->dispatch('toast', type: $pesanGalat ? 'error' : 'success',
+            message: $pesanGalat ?? "Versi {$versi?->versi} sekarang dipakai untuk gaji. Terapkan ke slip gaji ulang di Buku bila slip karyawan sudah terisi.");
+        unset($this->versiList, $this->dokterList, $this->hasil);
     }
 
     public function bukaRincian(): void
@@ -174,7 +188,7 @@ new class extends Component {
         $rupiah = fn($nilai) => $nilai === null ? '—' : \App\Support\GajiKaryawan::rupiah($nilai);
         $formatSelisih = fn($nilai) => $nilai > 0 ? '+' . $rupiah($nilai) : ($nilai < 0 ? '−' . $rupiah(abs($nilai)) : '0');
         $labelVersi = fn($versi) => 'v' . $versi->versi . ' · ' . ($versi->created_at ? Carbon::parse($versi->created_at)->format('d/m/Y H:i') : '–') . ' · ' . ($versi->sumber ?? 'SIRUS')
-            . ($versi->terbaru === '1' ? ' · terbaru' : '');
+            . ($versi->dipakai === '1' ? ' · DIPAKAI' : '') . ($versi->terbaru === '1' ? ' · terbaru' : '');
         $nilaiPengaturan = fn($kolom, $nilai) => match (true) {
             $nilai === null || $nilai === '' => '—',
             in_array($kolom, ['nilai_gaji_pokok'], true) => $rupiah($nilai),
@@ -221,7 +235,7 @@ new class extends Component {
         <div class="flex flex-col overflow-hidden border bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700 lg:max-h-[calc(100dvh-14rem)]">
             <div class="px-4 py-2 border-b border-hairline dark:border-gray-700">
                 <h2 class="text-sm font-semibold text-ink dark:text-gray-100">Dokter · {{ $dokterList->count() }}</h2>
-                <p class="text-xs text-muted">Selisih = diterima versi terbaru − versi pertama.</p>
+                <p class="text-xs text-muted">Selisih diterima: versi terbaru − versi dipakai (bila belum dipilih), selain itu − versi pertama.</p>
             </div>
             <ul class="overflow-y-auto divide-y divide-hairline dark:divide-gray-700">
                 @forelse ($dokterList as $dokter)
@@ -232,6 +246,13 @@ new class extends Component {
                             <span class="flex items-start justify-between gap-2">
                                 <span class="text-sm font-medium text-ink dark:text-gray-100">{{ $dokter->dr_name }}</span>
                                 <x-badge :variant="$dokter->jumlah_versi > 1 ? 'warning' : 'gray'" class="shrink-0">{{ $dokter->jumlah_versi }} versi</x-badge>
+                            </span>
+                            <span class="block mt-0.5 text-xs text-muted">
+                                @if ($dokter->perlu_keputusan)
+                                    <span class="font-semibold text-fg-warning">v{{ $dokter->versi_terbaru }} baru, belum dipakai</span> · gaji pakai v{{ $dokter->versi_dipakai }}{{ $dokter->terkunci ? ' (Final)' : '' }}
+                                @elseif ($dokter->versi_dipakai)
+                                    gaji pakai v{{ $dokter->versi_dipakai }}{{ $dokter->terkunci ? ' (Final)' : '' }}
+                                @endif
                             </span>
                             <span class="flex justify-between gap-2 mt-0.5 text-xs text-muted">
                                 <span class="font-mono">{{ $dokter->dr_id }}</span>
@@ -291,6 +312,36 @@ new class extends Component {
                     @endif
                 </div>
 
+                {{-- KEPUTUSAN: versi mana yang dipakai untuk gaji (pola SIKEU "sahkan versi") --}}
+                @php
+                    $versiDipakai = $this->versiList->firstWhere('dipakai', '1');
+                    $dipakaiTerkunci = $versiDipakai && GajiDokterSirus::terkunci($versiDipakai);
+                @endphp
+                @if ($this->versiList->count() > 1)
+                    <div class="flex flex-wrap items-center gap-3 px-4 py-3 text-sm border rounded-2xl border-hairline bg-canvas dark:bg-gray-900 dark:border-gray-700" role="status">
+                        <span class="text-body dark:text-gray-300">
+                            Dipakai untuk gaji: <span class="font-semibold text-ink dark:text-gray-100">{{ $versiDipakai ? 'v' . $versiDipakai->versi : 'belum ada' }}</span>
+                            @if ($versiDipakai && $versiDipakai->dipakai_at)<span class="text-muted">· dipilih {{ Carbon::parse($versiDipakai->dipakai_at)->format('d/m/Y H:i') }}</span>@endif
+                            @if ($dipakaiTerkunci)<x-badge variant="success">Final</x-badge>@endif
+                        </span>
+                        <div class="flex flex-wrap items-center gap-2 ml-auto">
+                            @if ($dipakaiTerkunci)
+                                <span class="text-xs text-muted">Versi dipakai sudah Final — Buka Kunci di Buku untuk mengganti versi.</span>
+                            @else
+                                @foreach ([['A', $versiLama], ['B', $versiBaru]] as [$hurufVersi, $gdPilihan])
+                                    @php $versiPilihan = $gdPilihan ? $this->versiList->firstWhere('gd_id', $gdPilihan) : null; @endphp
+                                    @if ($versiPilihan && $versiPilihan->dipakai !== '1')
+                                        <x-confirm-button :variant="$hurufVersi === 'B' ? 'primary' : 'secondary'" action="pakaiVersi({{ $gdPilihan }})" title="Pakai versi {{ $hurufVersi }}"
+                                            message="Pakai versi {{ $versiPilihan->versi }} untuk gaji {{ $versiPilihan->dr_name }} bulan jasa {{ $bulan }}? Buku, Final, dan Terapkan ke slip gaji akan memakai versi ini. Versi lain tetap tersimpan. Slip gaji karyawan yang sudah terisi baru berubah setelah Terapkan ulang." confirmText="Ya, pakai" cancelText="Batal">
+                                            Pakai versi {{ $hurufVersi }} (v{{ $versiPilihan->versi }}) untuk gaji
+                                        </x-confirm-button>
+                                    @endif
+                                @endforeach
+                            @endif
+                        </div>
+                    </div>
+                @endif
+
                 @php $hasil = $this->hasil; @endphp
                 @if ($this->versiList->count() < 2)
                     <div class="p-4 text-sm border rounded-2xl border-hairline bg-canvas text-body dark:bg-gray-900 dark:border-gray-700 dark:text-gray-300">
@@ -310,7 +361,7 @@ new class extends Component {
                     @endphp
 
                     {{-- RINGKASAN --}}
-                    <div class="grid gap-3 sm:grid-cols-3">
+                    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                         @foreach ($kartu as [$judul, $nilaiLama, $nilaiBaru, $uang])
                             @php $selisih = $nilaiBaru - $nilaiLama; @endphp
                             <div class="p-4 border rounded-2xl border-hairline bg-canvas dark:bg-gray-900 dark:border-gray-700">
@@ -322,6 +373,22 @@ new class extends Component {
                                 </p>
                             </div>
                         @endforeach
+                        {{-- Kartu 4: transaksi yang berbeda (tingkat baris) — tautan ke tabel transaksi di bawah. --}}
+                        @php $perJenis = $lampiran['jumlah_per_jenis'] ?? []; @endphp
+                        <div class="p-4 border rounded-2xl border-hairline bg-canvas dark:bg-gray-900 dark:border-gray-700">
+                            <p class="text-xs font-semibold uppercase text-muted">Transaksi berbeda</p>
+                            @if ($lampiran['jumlah_selisih'] > 0)
+                                <p class="mt-1 text-sm text-body dark:text-gray-300">
+                                    <span class="font-semibold text-fg-success-strong">{{ $perJenis['baru'] ?? 0 }} baru</span> ·
+                                    <span class="font-semibold text-fg-danger-strong">{{ $perJenis['hilang'] ?? 0 }} hilang</span> ·
+                                    <span class="font-semibold text-fg-warning">{{ $perJenis['berubah'] ?? 0 }} berubah</span>
+                                </p>
+                                <a href="#gdb-transaksi" class="inline-block mt-1 text-sm font-semibold underline underline-offset-2 text-brand-green dark:text-brand-lime focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green rounded">Lihat per transaksi ↓</a>
+                            @else
+                                <p class="mt-1 text-sm font-semibold text-fg-success-strong">Tidak ada</p>
+                                <p class="text-xs text-muted">Semua transaksi sama — selisih angka berasal dari cara hitung slip / struktur.</p>
+                            @endif
+                        </div>
                     </div>
 
                     @if ($hasil['identik'])
@@ -368,6 +435,12 @@ new class extends Component {
                                                     <span class="font-medium text-ink dark:text-gray-100">{{ $komponen['label'] }}</span>
                                                     <span class="block text-xs text-muted">{{ GajiDokterSirus::LABEL_JENIS[$komponen['jenis']] ?? $komponen['jenis'] }}
                                                         @if ($komponen['lama'] === null) · <b>baru</b> @elseif ($komponen['baru'] === null) · <b>hilang</b> @endif</span>
+                                                    @if (!empty($komponen['keterangan_asal']))
+                                                        <span class="flex items-start gap-1.5 mt-1 text-xs">
+                                                            <x-badge :variant="match ($komponen['asal']) { 'transaksi' => 'warning', 'hitung' => 'info', default => 'gray' }" class="shrink-0">{{ match ($komponen['asal']) { 'transaksi' => 'dari transaksi', 'hitung' => 'dari cara hitung', default => 'dari struktur' } }}</x-badge>
+                                                            <span class="text-body dark:text-gray-300">{{ $komponen['keterangan_asal'] }}</span>
+                                                        </span>
+                                                    @endif
                                                 </td>
                                                 <td class="font-mono text-right tabular-nums whitespace-nowrap">{{ $komponen['pasien_lama'] ?? '—' }} → {{ $komponen['pasien_baru'] ?? '—' }}</td>
                                                 <td class="font-mono text-right tabular-nums">{{ $rupiah($komponen['lama']) }}</td>
@@ -380,12 +453,12 @@ new class extends Component {
                             </div>
                         @endif
 
-                        {{-- LAMPIRAN PASIEN --}}
+                        {{-- LAMPIRAN PASIEN (per transaksi) --}}
                         @if ($lampiran['jumlah_selisih'] > 0)
-                            <div class="border bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
+                            <div id="gdb-transaksi" class="scroll-mt-24 border bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
                                 <div class="flex flex-wrap items-end justify-between gap-2 px-4 pt-3">
                                     <div>
-                                        <h3 class="text-sm font-semibold text-ink dark:text-gray-100">Lampiran pasien yang berbeda</h3>
+                                        <h3 class="text-sm font-semibold text-ink dark:text-gray-100">Transaksi (lampiran pasien) yang berbeda</h3>
                                         <p class="text-xs text-muted">Baris dicocokkan per komponen + no. transaksi; nominal berbeda = <b>berubah</b>, bukan hilang + baru.</p>
                                     </div>
                                     <x-tabs variant="pill" aria-label="Saring jenis perbedaan">

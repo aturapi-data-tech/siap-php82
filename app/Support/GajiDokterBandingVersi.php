@@ -36,8 +36,9 @@ class GajiDokterBandingVersi
     ];
 
     /**
-     * Dokter satu bulan jasa + ringkasan versinya, berversi > 1 dulu.
-     * @return Collection<int, object{dr_id: string, dr_name: string, jumlah_versi: int, gd_terbaru: int, gd_pertama: int, versi_terbaru: int, diterima_pertama: float, diterima_terbaru: float, selisih: float, diambil_terakhir: ?string}>
+     * Dokter satu bulan jasa + ringkasan versinya. Urutan: yang versi terbarunya BELUM DIPAKAI (perlu keputusan) dulu, lalu
+     * yang berversi > 1, lalu nama. selisih = diterima versi terbaru − versi dipakai (perlu keputusan) atau − versi pertama.
+     * @return Collection<int, object>
      */
     public static function dokterList(string $periode, string $cari = '', bool $hanyaBerversi = true): Collection
     {
@@ -45,23 +46,29 @@ class GajiDokterBandingVersi
 
         return DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)
             ->orderBy('dr_id')->orderBy('versi')
-            ->get(['gd_id', 'dr_id', 'dr_name', 'versi', 'terbaru', 'gaji_diterima', 'diambil_at', 'created_at'])
+            ->get(['gd_id', 'dr_id', 'dr_name', 'versi', 'terbaru', 'dipakai', 'gaji_status', 'sumber', 'gaji_diterima', 'diambil_at', 'created_at'])
             ->groupBy('dr_id')
             ->map(function (Collection $versiDokter) {
                 $pertama = $versiDokter->first();
                 $terbaru = $versiDokter->firstWhere('terbaru', '1') ?? $versiDokter->last();
+                $dipakai = $versiDokter->firstWhere('dipakai', '1');
+                $perluKeputusan = $dipakai && (int) $dipakai->gd_id !== (int) $terbaru->gd_id;
+                $acuan = $perluKeputusan ? $dipakai : $pertama;
 
                 return (object) [
                     'dr_id' => (string) $pertama->dr_id, 'dr_name' => (string) $terbaru->dr_name, 'jumlah_versi' => $versiDokter->count(),
                     'gd_terbaru' => (int) $terbaru->gd_id, 'gd_pertama' => (int) $pertama->gd_id, 'versi_terbaru' => (int) $terbaru->versi,
+                    'gd_dipakai' => $dipakai ? (int) $dipakai->gd_id : null, 'versi_dipakai' => $dipakai ? (int) $dipakai->versi : null,
+                    'perlu_keputusan' => $perluKeputusan, 'terkunci' => $dipakai && GajiDokterSirus::terkunci($dipakai),
                     'diterima_pertama' => (float) $pertama->gaji_diterima, 'diterima_terbaru' => (float) $terbaru->gaji_diterima,
-                    'selisih' => (float) $terbaru->gaji_diterima - (float) $pertama->gaji_diterima,
+                    'selisih' => (float) $terbaru->gaji_diterima - (float) $acuan->gaji_diterima,
                     'diambil_terakhir' => $terbaru->created_at ?? $terbaru->diambil_at,
                 ];
             })
             ->filter(fn($dokter) => (!$hanyaBerversi || $dokter->jumlah_versi > 1)
                 && ($kataCari === '' || str_contains(mb_strtolower($dokter->dr_name), $kataCari) || str_contains(mb_strtolower($dokter->dr_id), $kataCari)))
-            ->sortBy([fn($kiri, $kanan) => ($kanan->jumlah_versi > 1) <=> ($kiri->jumlah_versi > 1), fn($kiri, $kanan) => strcmp($kiri->dr_name, $kanan->dr_name)])
+            ->sortBy([fn($kiri, $kanan) => $kanan->perlu_keputusan <=> $kiri->perlu_keputusan, fn($kiri, $kanan) => ($kanan->jumlah_versi > 1) <=> ($kiri->jumlah_versi > 1),
+                fn($kiri, $kanan) => strcmp($kiri->dr_name, $kanan->dr_name)])
             ->values();
     }
 
@@ -94,6 +101,7 @@ class GajiDokterBandingVersi
         }
 
         $bandingSlip = GajiDokterSirus::banding($headerLama, $headerBaru);
+        $bandingSlip['detail'] = self::asalSelisihKomponen($bandingSlip['detail'], $gdLama, $gdBaru);
         $lampiran = $headerLama->checksum === $headerBaru->checksum
             ? self::lampiranKosong($headerLama, $headerBaru)
             : Cache::store('file')->remember("siap.gdok.banding.{$gdLama}.{$gdBaru}", now()->addDay(), fn() => self::bandingkanLampiran($gdLama, $gdBaru));
@@ -103,6 +111,60 @@ class GajiDokterBandingVersi
             'identik' => $pengaturan === [] && $bandingSlip['header'] === [] && $bandingSlip['detail'] === [] && $lampiran['baris'] === [],
             'pengaturan' => $pengaturan, 'angka' => $bandingSlip['header'], 'detail' => $bandingSlip['detail'], 'lampiran' => $lampiran,
         ];
+    }
+
+    /** Σ nominal & jumlah baris lampiran per komponen satu snapshot. @return array<string, array{nominal: float, baris: int}> */
+    private static function transaksiPerKomponen(int $gdId): array
+    {
+        return DB::table('siaptxn_gdok_lamps')->where('gd_id', $gdId)->selectRaw('komponen, SUM(nominal) AS nominal, COUNT(*) AS baris')->groupBy('komponen')->get()
+            ->mapWithKeys(fn($row) => [(string) $row->komponen => ['nominal' => (float) $row->nominal, 'baris' => (int) $row->baris]])->all();
+    }
+
+    /**
+     * Beri tiap komponen yang berbeda keterangan ASAL selisihnya, supaya terbaca tanpa menyimpulkan sendiri:
+     *   transaksi — Σ transaksi komponen itu berbeda antar versi (lihat tabel transaksi);
+     *   hitung    — transaksinya sama persis di kedua versi, jadi selisih berasal dari cara hitung slip (mis. arsip SIRUS
+     *               tidak menghitung transaksi yang sudah ada di lampirannya, atau struktur/kapita berbeda);
+     *   struktur  — komponen tanpa transaksi: kapita, tunjangan rutin, potongan RS/PPh (ikut total & persen), potongan/tambahan.
+     * Kode komponen jasa = kode komponen transaksi (desc_doc), lihat GajiDokterHitung::hitung.
+     */
+    private static function asalSelisihKomponen(array $detail, int $gdLama, int $gdBaru): array
+    {
+        $transaksiLama = self::transaksiPerKomponen($gdLama);
+        $transaksiBaru = self::transaksiPerKomponen($gdBaru);
+        $rupiah = fn($nilai) => 'Rp ' . number_format((float) $nilai, 0, ',', '.');
+
+        return array_map(function (array $komponen) use ($transaksiLama, $transaksiBaru, $rupiah) {
+            $kode = $komponen['kode'];
+            $lama = $transaksiLama[$kode] ?? null;
+            $baru = $transaksiBaru[$kode] ?? null;
+            if ($komponen['jenis'] === 'J' && ($lama || $baru)) {
+                $nominalLama = $lama['nominal'] ?? 0.0;
+                $nominalBaru = $baru['nominal'] ?? 0.0;
+                if (abs($nominalLama - $nominalBaru) >= 0.5 || ($lama['baris'] ?? 0) !== ($baru['baris'] ?? 0)) {
+                    return [...$komponen, 'asal' => 'transaksi', 'keterangan_asal' => 'Transaksinya berubah: ' . $rupiah($nominalLama) . ' (' . ($lama['baris'] ?? 0) . ' baris) → '
+                        . $rupiah($nominalBaru) . ' (' . ($baru['baris'] ?? 0) . ' baris) — rinciannya di tabel transaksi di bawah.'];
+                }
+                $slipLama = $komponen['lama'];
+                $keterangan = 'Transaksinya SAMA di kedua versi (' . $rupiah($nominalBaru) . ', ' . ($baru['baris'] ?? 0) . ' baris) — selisih dari cara hitung slip, bukan dari transaksi.';
+                if ($slipLama === null) {
+                    $keterangan .= ' Versi lama tidak menghitung transaksi ini di slipnya walau sudah ada di lampirannya.';
+                } elseif (abs($slipLama - $nominalLama) >= 0.5) {
+                    $keterangan .= ' Slip versi lama menghitung ' . $rupiah($slipLama) . ' dari transaksi ' . $rupiah($nominalLama) . '.';
+                }
+
+                return [...$komponen, 'asal' => 'hitung', 'keterangan_asal' => $keterangan];
+            }
+            $keterangan = match (true) {
+                str_starts_with($kode, 'KAPITA') => 'Per kapita: tarif × pasien dari struktur gaji.',
+                str_starts_with($kode, 'TUNJ') => 'Tunjangan rutin dari struktur gaji.',
+                in_array($kode, ['RS', 'PPH21'], true) => 'Mengikuti total gaji serta basis & persen di struktur gaji.',
+                $komponen['jenis'] === 'J' => 'Komponen tanpa transaksi di kedua versi.',
+                default => 'Potongan / tambahan: struktur gaji (rutin) atau baris manual.',
+            };
+
+            return [...$komponen, 'asal' => 'struktur', 'keterangan_asal' => $keterangan];
+        }, $detail);
     }
 
     private static function lampiranKosong(object $headerLama, object $headerBaru): array

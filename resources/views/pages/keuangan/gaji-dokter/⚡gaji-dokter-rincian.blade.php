@@ -68,7 +68,7 @@ new class extends Component {
         return $this->rincianGdId ? DB::table('siaptxn_gdok_hdrs')->where('gd_id', $this->rincianGdId)->first() : null;
     }
 
-    /** Pilihan pembanding: versi lain dokter yang sama bulan ini + versi terbaru bulan lalu. [kunci => label] */
+    /** Pilihan pembanding: versi lain dokter yang sama bulan ini + versi dipakai bulan lalu. [kunci => label] */
     public function pilihanPembanding(): array
     {
         $header = $this->headerSlipDokter;
@@ -78,11 +78,11 @@ new class extends Component {
         $pilihanPembanding = [];
         foreach (GajiDokterSirus::versiList($header->periode, $header->dr_id) as $versi) {
             if ((int) $versi->gd_id !== (int) $header->gd_id) {
-                $pilihanPembanding[(string) $versi->gd_id] = "Versi {$versi->versi} (diambil " . Carbon::parse($versi->diambil_at)->format('d/m/Y H:i') . ')';
+                $pilihanPembanding[(string) $versi->gd_id] = "Versi {$versi->versi}" . ($versi->dipakai === '1' ? ' · dipakai' : '') . ($versi->terbaru === '1' ? ' · terbaru' : '') . ' (diambil ' . Carbon::parse($versi->diambil_at)->format('d/m/Y H:i') . ')';
             }
         }
         $bulanLalu = Carbon::createFromFormat('!Y-m', $header->periode)->subMonthNoOverflow()->format('Y-m');
-        $headerBulanLalu = DB::table('siaptxn_gdok_hdrs')->where('periode', $bulanLalu)->where('dr_id', $header->dr_id)->where('terbaru', '1')->first();
+        $headerBulanLalu = DB::table('siaptxn_gdok_hdrs')->where('periode', $bulanLalu)->where('dr_id', $header->dr_id)->where('dipakai', '1')->first();
         if ($headerBulanLalu) {
             $pilihanPembanding[(string) $headerBulanLalu->gd_id] = 'Bulan jasa ' . Carbon::createFromFormat('!Y-m', $bulanLalu)->translatedFormat('M Y') . " (versi {$headerBulanLalu->versi})";
         }
@@ -125,8 +125,8 @@ new class extends Component {
     public function tambahManual(): void
     {
         $header = $this->headerSlipDokter;
-        if (!$header || $header->sumber !== 'SIAP' || $header->gaji_status === 'F') {
-            $this->dispatch('toast', type: 'error', message: 'Baris manual hanya untuk slip Draft yang dihitung SIAP.');
+        if (!$header || $header->sumber !== 'SIAP' || $header->gaji_status === 'F' || $header->dipakai !== '1') {
+            $this->dispatch('toast', type: 'error', message: 'Baris manual hanya untuk versi dipakai yang masih Draft.');
             return;
         }
         $jenis = $this->manualBaru['jenis'] === 'T' ? 'T' : 'P';
@@ -149,8 +149,8 @@ new class extends Component {
     public function hapusManual(int $manualId): void
     {
         $header = $this->headerSlipDokter;
-        if (!$header || $header->gaji_status === 'F') {
-            $this->dispatch('toast', type: 'error', message: 'Slip sudah Final — buka kunci dulu.');
+        if (!$header || $header->gaji_status === 'F' || $header->dipakai !== '1') {
+            $this->dispatch('toast', type: 'error', message: $header && $header->dipakai !== '1' ? 'Buka versi yang dipakai untuk mengubah baris manual.' : 'Slip sudah Final — buka kunci dulu.');
             return;
         }
         DB::table('siaptxn_gdok_manuals')->where('manual_id', $manualId)->where('periode', $header->periode)->where('dr_id', $header->dr_id)->delete();
@@ -285,9 +285,9 @@ new class extends Component {
                         <div class="flex flex-wrap items-center gap-3 px-4 py-2.5 text-sm border rounded-xl bg-emerald-50 border-emerald-200 text-emerald-900 dark:bg-emerald-900/20 dark:border-emerald-800 dark:text-emerald-200">
                             <span>
                                 @if (($header->sumber ?? 'SIRUS') === 'SIAP')
-                                    <span class="font-semibold">Dihitung SIAP</span> · versi {{ $header->versi }}{{ $header->terbaru === '1' ? ' (terbaru)' : '' }} · diproses {{ \Carbon\Carbon::parse($header->diambil_at)->format('d/m/Y H:i') }}. Komponen jasa dari transaksi SIRUS; potongan RS, PPh 21, tunjangan &amp; potongan rutin dari tab Struktur Gaji; baris manual di bawah.
+                                    <span class="font-semibold">Dihitung SIAP</span> · versi {{ $header->versi }}{{ $header->dipakai === '1' ? ' (dipakai untuk gaji)' : ' (tidak dipakai)' }} · diproses {{ \Carbon\Carbon::parse($header->diambil_at)->format('d/m/Y H:i') }}. Komponen jasa dari transaksi SIRUS; potongan RS, PPh 21, tunjangan &amp; potongan rutin dari tab Struktur Gaji; baris manual di bawah.
                                 @else
-                                    Snapshot <span class="font-semibold">versi {{ $header->versi }}</span>{{ $header->terbaru === '1' ? ' (terbaru)' : '' }} diambil {{ \Carbon\Carbon::parse($header->diambil_at)->format('d/m/Y H:i') }}@if ($header->update_date_sirus) &middot; terakhir diubah di SIRUS {{ $header->update_date_sirus }}@endif. Arsip dari masa SIRUS masih menghitung slip &mdash; hanya baca; Ambil dari SIRUS menghitungnya ulang di SIAP sebagai versi baru.
+                                    Snapshot <span class="font-semibold">versi {{ $header->versi }}</span>{{ $header->dipakai === '1' ? ' (dipakai untuk gaji)' : ' (tidak dipakai)' }} diambil {{ \Carbon\Carbon::parse($header->diambil_at)->format('d/m/Y H:i') }}@if ($header->update_date_sirus) &middot; terakhir diubah di SIRUS {{ $header->update_date_sirus }}@endif. Arsip dari masa SIRUS masih menghitung slip &mdash; hanya baca; Ambil dari SIRUS menghitungnya ulang di SIAP sebagai versi baru.
                                 @endif
                             </span>
                             <label class="flex items-center gap-2 ml-auto shrink-0">
@@ -372,8 +372,8 @@ new class extends Component {
                     </div>
                 </div>
 
-                {{-- TAHAP 3: BARIS MANUAL (slip ber-sumber SIAP) — kasbon, bonus, rapel, koreksi; ikut dihitung ulang. --}}
-                @if (($header->sumber ?? 'SIRUS') === 'SIAP')
+                {{-- BARIS MANUAL (versi dipakai ber-sumber SIAP) — kasbon, bonus, rapel, koreksi; ikut dihitung ulang. --}}
+                @if (($header->sumber ?? 'SIRUS') === 'SIAP' && $header->dipakai === '1')
                     <div class="px-4 pb-4 bg-surface-soft dark:bg-gray-950/20">
                         <x-border-form title="Baris manual (potongan & tambahan)">
                             <p class="mb-2 text-sm text-muted dark:text-gray-400">Kasbon, iuran insidental, bonus, rapel, koreksi bulan lalu. Ketik nilai positif — potongan otomatis minus. Tiap perubahan menghitung ulang slip (versi baru).{{ $header->gaji_status === 'F' ? ' Slip sudah Final: buka kunci di Buku untuk mengubah.' : '' }}</p>
@@ -420,7 +420,7 @@ new class extends Component {
                         </div>
                         <div class="flex items-center gap-2 shrink-0">
                             <x-secondary-button type="button" wire:click="closeModal">Tutup</x-secondary-button>
-                            @if (($header->sumber ?? 'SIRUS') === 'SIAP' && $header->gaji_status !== 'F' && $header->terbaru === '1')
+                            @if (($header->sumber ?? 'SIRUS') === 'SIAP' && $header->gaji_status !== 'F' && $header->dipakai === '1')
                                 <x-secondary-button type="button" class="gap-2" wire:click="hitungUlangSiap" wire:loading.attr="disabled" wire:target="hitungUlangSiap" title="Hitung ulang dari lampiran snapshot ini + struktur gaji terbaru + baris manual">
                                     <span wire:loading.remove wire:target="hitungUlangSiap">Hitung ulang</span>
                                     <span wire:loading wire:target="hitungUlangSiap"><x-loading /> Menghitung…</span>

@@ -9,8 +9,8 @@ use Livewire\Attributes\Url;
  *
  * Tab bernomor = urutan kerja bulanan; Struktur & Pemetaan = setelan (dipisah garis di kanan):
  *   1 AMBIL    : pages::keuangan.gaji-dokter.gaji-dokter-ambil    — bulan jasa + Ambil dari SIRUS (transaksi SIRUS dihitung dengan struktur SIAP), hasil & riwayat ambil.
- *   2 BUKU     : pages::keuangan.gaji-dokter.gaji-dokter-buku     — slip per bulan jasa (versi terbaru), Rincian/Lampiran, Final, Terapkan ke slip gaji.
- *   3 BANDING  : pages::keuangan.gaji-dokter.gaji-dokter-banding  — bandingkan dua versi satu dokter sampai baris lampiran pasien (pola SIKEU).
+ *   2 BUKU     : pages::keuangan.gaji-dokter.gaji-dokter-buku     — slip per bulan jasa (versi DIPAKAI), keputusan versi baru, Rincian/Lampiran, Final, Terapkan ke slip gaji.
+ *   3 BANDING  : pages::keuangan.gaji-dokter.gaji-dokter-banding  — bandingkan dua versi satu dokter sampai baris pasien, lalu Pakai versi ini (pola SIKEU).
  *   STRUKTUR   : pages::keuangan.gaji-dokter.gaji-dokter-struktur — struktur gaji per dokter (disetel di SIAP).
  *   PEMETAAN   : pages::keuangan.gaji-dokter.gaji-dokter-pemetaan — dokter SIRUS ↔ karyawan SIAP (LOV), segarkan master dokter.
  * Anak tab pindah tab lewat event 'keuangan.gaji-dokter.pindahTab' (tab).
