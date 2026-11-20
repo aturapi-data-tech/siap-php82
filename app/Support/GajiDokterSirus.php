@@ -342,6 +342,7 @@ class GajiDokterSirus
      * diperbarui), berubah → versi baru, versi lama tetap tersimpan; versi periode yang DIPAKAI tidak bergeser sampai dipilih.
      * Dokter yang belum punya struktur tetap dihitung (gaji pokok & potongan 0) dan dilaporkan supaya strukturnya diisi.
      * Aman diulang ("ambil ulang"), juga lewat `php artisan gaji:ambil-sirus`.
+     * Dokter = yang bertransaksi di SIRUS bulan itu + dokter PER KAPITA di struktur gaji SIAP walau tanpa transaksi (aturan SIRUS lama).
      * Per dokter: baru = belum punya snapshot bulan itu; berubah = snapshot baru tersimpan; final = berubah tetapi versi dipakainya
      * Final. Keadaan seluruh dokter dicatat sebagai VERSI PERIODE (GajiDokterVersiPeriode::catat) bila berbeda dari versi terakhir:
      * versi pertama langsung dipakai, berikutnya menunggu dipilih di Bandingkan Versi.
@@ -360,7 +361,22 @@ class GajiDokterSirus
         $hasilProses = ['jumlah' => 0, 'baru' => 0, 'berubah' => 0, 'sama' => 0, 'final' => [], 'tanpaStruktur' => [], 'tanpaMap' => [], 'catatan' => []];
         $petaVersi = []; // dr_id → gd_id: keadaan bulan ini menurut Ambil ini (bahan versi periode)
 
-        foreach ($dataTransaksi['dokter'] ?? [] as $dokter) {
+        // Dokter bertarif PER KAPITA tetap mendapat slip walau tidak punya transaksi jasa bulan itu (aturan SIRUS lama,
+        // GajiDokter::dokterPerKapita — mis. Patologi Klinik: gaji pokok + kapita tanpa baris jasa). /transaksi SIRUS hanya
+        // mengirim dokter yang bertransaksi; daftar kapita kini ada di struktur gaji SIAP, jadi ditambahkan di sini.
+        $dokterSirus = $dataTransaksi['dokter'] ?? [];
+        $drIdBertransaksi = array_map(fn($dokter) => (string) $dokter['dr_id'], $dokterSirus);
+        $dokterKapita = DB::table('siapmst_gdok_strukturs as s')->leftJoin('siapmst_dokter_sirus as d', 'd.dr_id', '=', 's.dr_id')
+            ->where(fn($subQuery) => $subQuery->where('s.tarif_per_kapita_ri', '>', 0)->orWhere('s.tarif_per_kapita_rj', '>', 0))
+            ->when($drId !== null, fn($subQuery) => $subQuery->where('s.dr_id', $drId))
+            ->when($drIdBertransaksi !== [], fn($subQuery) => $subQuery->whereNotIn('s.dr_id', $drIdBertransaksi)) // Oracle: NOT IN ('') = NOT IN (NULL) → kosong
+            ->get(['s.dr_id', 'd.dr_name']);
+        foreach ($dokterKapita as $kapita) {
+            $dokterSirus[] = ['dr_id' => (string) $kapita->dr_id, 'dr_name' => (string) ($kapita->dr_name ?? $kapita->dr_id), 'baris' => []];
+        }
+        $hasilProses['kapitaTanpaTransaksi'] = $dokterKapita->pluck('dr_name')->filter()->values()->all();
+
+        foreach ($dokterSirus as $dokter) {
             $drIdDokter = (string) $dokter['dr_id'];
             $namaDokter = trim((string) $dokter['dr_name']) !== '' ? $dokter['dr_name'] : '(tanpa nama) ' . $drIdDokter;
             $hasilProses['jumlah']++;

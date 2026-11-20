@@ -263,6 +263,10 @@ new class extends Component {
                         <li class="flex gap-2"><x-badge variant="gray" class="shrink-0">Catatan</x-badge>
                             <span>Slip dokter ini sudah Final dan angkanya berbeda di versi baru: {{ $daftarNama($hasil['final']) }}. Versi baru tidak bisa dipakai sebelum Buka Kunci di Buku.</span></li>
                     @endif
+                    @if (($hasil['kapitaTanpaTransaksi'] ?? []) !== [])
+                        <li class="flex gap-2"><x-badge variant="info" class="shrink-0">Info</x-badge>
+                            <span>Ikut dihitung walau tanpa transaksi bulan ini (dokter per kapita &mdash; gaji pokok &amp; kapita dari Struktur Gaji): {{ $daftarNama($hasil['kapitaTanpaTransaksi']) }}.</span></li>
+                    @endif
                     @foreach (array_slice($hasil['catatan'], 0, 10) as $catatan)
                         <li class="flex gap-2"><x-badge variant="gray" class="shrink-0">Catatan</x-badge><span>{{ $catatan }}</span></li>
                     @endforeach
