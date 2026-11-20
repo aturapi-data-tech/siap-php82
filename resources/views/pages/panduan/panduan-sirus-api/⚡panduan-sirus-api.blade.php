@@ -205,7 +205,7 @@ php artisan gaji:ambil-sirus 2026-01 --sampai=2026-10  # rentang bulan jasa (sam
                         <li>Checksum <b>sama</b> dengan versi terbaru → tidak ada yang ditulis selain "terakhir diambil". Dihitung sebagai <i>sama</i>.</li>
                         <li>Checksum <b>beda</b> → versi lama ditandai bukan terbaru, versi baru (versi+1) disimpan lengkap (header, komponen, lampiran). Versi lama <b>tidak pernah dihapus atau diubah</b>. Dihitung sebagai <i>berubah</i>.</li>
                         <li>Dokter yang belum punya snapshot bulan itu → versi 1, dihitung <i>baru</i>.</li>
-                        <li>Tiap Ambil dicatat di riwayat tab <b>1. Ambil Data</b>: siapa, kapan, bulan jasa, baru / berubah / sama, baris lampiran, dokter tanpa pemetaan.</li>
+                        <li>Tiap Ambil dicatat di riwayat tab <b>Ambil Data</b>: siapa, kapan, bulan jasa, baru / berubah / sama, baris lampiran, dokter tanpa pemetaan.</li>
                     </ol>
                     <p class="mt-3 text-sm">Akibatnya angka yang sudah diproses Keuangan tidak berubah diam-diam. Perubahan terlihat sebagai badge <i>vN</i> di Buku, saringan "Pernah berubah", tab <b>Bandingkan Versi</b> (sampai baris pasien), dan modal Rincian → <b>Bandingkan dengan</b> versi sebelumnya atau bulan jasa sebelumnya. Koreksi transaksi di SIRUS, koreksi struktur / baris manual di SIAP, lalu Ambil ulang.</p>
                 </section>
@@ -225,7 +225,7 @@ php artisan gaji:ambil-sirus 2026-01 --sampai=2026-10  # rentang bulan jasa (sam
                 <section id="rutin" class="p-6 border scroll-mt-24 bg-canvas border-hairline rounded-2xl dark:bg-gray-900 dark:border-gray-700">
                     <h2>6. Langkah rutin bulanan</h2>
                     <ol class="mt-3 text-sm">
-                        <li>Setelah transaksi bulan jasa N lengkap di SIRUS: {!! $tautan('keuangan.gaji-dokter', 'Gaji Dokter') !!} → tab <b>1. Ambil Data</b> → pilih bulan jasa N → <b>Ambil dari SIRUS</b>.</li>
+                        <li>Setelah transaksi bulan jasa N lengkap di SIRUS: {!! $tautan('keuangan.gaji-dokter', 'Gaji Dokter') !!} → tab <b>Ambil Data</b> → pilih bulan jasa N → <b>Ambil dari SIRUS</b>.</li>
                         <li>Baca pesan hasil (baru / berubah / sama, dokter tanpa struktur, belum dipetakan) → lengkapi di tab Struktur Gaji / Pemetaan, lalu Ambil ulang.</li>
                         <li>Periksa kolom "vs bulan lalu"; yang mencolok dibuka Rincian / Lampiran.</li>
                         <li>Menjelang pembayaran, Ambil ulang: bila ada "berubah", buka tab Bandingkan Versi. Kunci Final, lalu Terapkan ke slip gaji.</li>

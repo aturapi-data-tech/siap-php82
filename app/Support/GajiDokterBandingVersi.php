@@ -11,7 +11,8 @@ use Illuminate\Support\Facades\DB;
  * (pola SIKEU SnapshotJurnal::bandingkan): baru (ada sekarang, dulu tidak), hilang (dulu ada, sekarang tidak),
  * berubah (nominal / pasien / tanggal / klaim / masuk slip / …).
  *
- * Versi di SIAP dibuat PER DOKTER (GajiDokterSirus::ambil / hitungUlangSiap: checksum beda → versi baru, versi lama tetap).
+ * Dipakai tab Bandingkan Versi untuk dokter yang berbeda di antara dua VERSI PERIODE (GajiDokterVersiPeriode::bandingkan):
+ * snapshot dokter di versi A vs di versi B.
  * Identitas baris = komponen + txn_no (cadangan bila txn_no kosong: reg_no + tanggal + nama + keterangan), TANPA nominal →
  * nominal beda = "berubah", bukan hilang + baru. Baris ber-identitas sama dalam satu versi digabung (nominal & pasien dijumlah).
  * Lampiran snapshot tidak pernah disunting → hasil banding lampiran di-cache file per pasangan versi.
@@ -34,49 +35,6 @@ class GajiDokterBandingVersi
         'nominal' => 'nominal', 'pasien' => 'jumlah pasien', 'jumlah_baris' => 'jumlah baris', 'tgl' => 'tanggal', 'reg_no' => 'no. registrasi',
         'nama' => 'nama pasien', 'keterangan' => 'keterangan', 'klaim' => 'klaim', 'klaim_status' => 'status klaim', 'masuk_slip' => 'masuk slip',
     ];
-
-    /**
-     * Dokter satu bulan jasa + ringkasan versinya. Urutan: yang versi terbarunya BELUM DIPAKAI (perlu keputusan) dulu, lalu
-     * yang berversi > 1, lalu nama. selisih = diterima versi terbaru − versi dipakai (perlu keputusan) atau − versi pertama.
-     * @return Collection<int, object>
-     */
-    public static function dokterList(string $periode, string $cari = '', bool $hanyaBerversi = true): Collection
-    {
-        $kataCari = mb_strtolower(trim($cari));
-
-        return DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)
-            ->orderBy('dr_id')->orderBy('versi')
-            ->get(['gd_id', 'dr_id', 'dr_name', 'versi', 'terbaru', 'dipakai', 'gaji_status', 'sumber', 'gaji_diterima', 'diambil_at', 'created_at'])
-            ->groupBy('dr_id')
-            ->map(function (Collection $versiDokter) {
-                $pertama = $versiDokter->first();
-                $terbaru = $versiDokter->firstWhere('terbaru', '1') ?? $versiDokter->last();
-                $dipakai = $versiDokter->firstWhere('dipakai', '1');
-                $perluKeputusan = $dipakai && (int) $dipakai->gd_id !== (int) $terbaru->gd_id;
-                $acuan = $perluKeputusan ? $dipakai : $pertama;
-
-                return (object) [
-                    'dr_id' => (string) $pertama->dr_id, 'dr_name' => (string) $terbaru->dr_name, 'jumlah_versi' => $versiDokter->count(),
-                    'gd_terbaru' => (int) $terbaru->gd_id, 'gd_pertama' => (int) $pertama->gd_id, 'versi_terbaru' => (int) $terbaru->versi,
-                    'gd_dipakai' => $dipakai ? (int) $dipakai->gd_id : null, 'versi_dipakai' => $dipakai ? (int) $dipakai->versi : null,
-                    'perlu_keputusan' => $perluKeputusan, 'terkunci' => $dipakai && GajiDokterSirus::terkunci($dipakai),
-                    'diterima_pertama' => (float) $pertama->gaji_diterima, 'diterima_terbaru' => (float) $terbaru->gaji_diterima,
-                    'selisih' => (float) $terbaru->gaji_diterima - (float) $acuan->gaji_diterima,
-                    'diambil_terakhir' => $terbaru->created_at ?? $terbaru->diambil_at,
-                ];
-            })
-            ->filter(fn($dokter) => (!$hanyaBerversi || $dokter->jumlah_versi > 1)
-                && ($kataCari === '' || str_contains(mb_strtolower($dokter->dr_name), $kataCari) || str_contains(mb_strtolower($dokter->dr_id), $kataCari)))
-            ->sortBy([fn($kiri, $kanan) => $kanan->perlu_keputusan <=> $kiri->perlu_keputusan, fn($kiri, $kanan) => ($kanan->jumlah_versi > 1) <=> ($kiri->jumlah_versi > 1),
-                fn($kiri, $kanan) => strcmp($kiri->dr_name, $kanan->dr_name)])
-            ->values();
-    }
-
-    /** Jumlah dokter bulan itu yang punya lebih dari satu versi (untuk teks kosong / penanda). */
-    public static function jumlahDokterBerversi(string $periode): int
-    {
-        return DB::table('siaptxn_gdok_hdrs')->where('periode', $periode)->where('versi', '>', 1)->distinct()->count('dr_id');
-    }
 
     /**
      * Bandingkan dua snapshot (gd_id) satu dokter.

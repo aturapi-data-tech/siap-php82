@@ -172,7 +172,7 @@ new class extends Component {
         $this->rincianGdId = $hasilHitungUlang['gd_id'];
         $this->bandingPilihan = '';
         unset($this->headerSlipDokter, $this->pembanding, $this->barisRincianSlip, $this->manualList);
-        $this->dispatch('toast', type: 'success', message: $hasilHitungUlang['berubah'] ? 'Slip dihitung ulang — versi baru dibuat.' : 'Angka tidak berubah.');
+        $this->dispatch('toast', type: 'success', message: $hasilHitungUlang['berubah'] ? 'Slip dihitung ulang — versi baru bulan ini (koreksi manual) dibuat dan langsung dipakai.' : 'Angka tidak berubah.');
         $this->dispatch('keuangan.gaji-dokter.slipBerubah');
     }
 
