@@ -51,19 +51,35 @@ serta **Tailwind CSS + Flowbite (UI only)** dan **Alpine.js** untuk tampilan.
 
 ---
 
-## Role
+## Hak akses (Role)
 
-Menu ditampilkan sesuai role (definisi tunggal di `app/Services/AppMenu.php`).
+Pola sama dengan SIRUS & SIKEU: **siapa boleh apa diatur di Sistem › Role Control** dengan mencentang hak per role.
+
+- **Definisi hak** ada di `app/Akses/Program/<Kelompok>/` — satu berkas per program (menu + hak *Lihat halaman*
+  `{route}.lihat` + aksi khusus seperti `gaji.kelola`, `absensi.kelola`), urutan program di `_kelompok.php`.
+- **Keputusan** satu pintu: `App\Support\AksesHalaman` — dipakai menu (sidebar & dashboard), penjaga URL + aksi
+  Livewire (`CekAksesMenu`) dan Gate aksi (`@can` / `->can()`). Role **Admin** selalu boleh semua.
+- **Permission dibuat otomatis** pada request pertama sesudah deploy (`App\Support\SinkronAksesOtomatis` →
+  `php artisan akses:sinkron`); manual: `php artisan akses:sinkron --dry-run`. Centang awal = nama role di berkas
+  program, dipakai **sekali** saat hak dibuat; sesudahnya yang berlaku centang Role Control. Role baru yang dibuat
+  belakangan (mis. "IPSRS") **tidak** otomatis dapat akses dari namanya — centang hak-nya dulu.
+- Route grup `menu` yang belum didefinisikan: `AKSES_HALAMAN_MODE=log` (bawaan) diizinkan + dicatat di
+  `storage/logs/akses-halaman-*.log`; `tolak` = 403.
+
+Centang awal (sebelum diubah di Role Control):
 
 | Role | Akses |
 |---|---|
-| **admin** | Semua menu |
+| **admin** | Semua menu & aksi |
 | **manager umum**, **manager medis**, **supervisor penunjang**, **supervisor tu** | Menu Master |
-| **hrd** | Jadwal Dinas, Kiosk, Rekap Harian & Bulanan, Master Shift |
+| **hrd** | Master Karyawan/Unit/Shift/Lokasi, Jadwal Dinas, Kiosk, Rekap Harian & Bulanan, Pengaturan Absensi, Laporan Kepegawaian |
+| **manager keuangan** | Penggajian, Rekap Harian & Bulanan, Master Karyawan (lihat) |
+| **supervisor unit** | Jadwal Dinas, Rekap Bulanan + nilai lembur (unitnya) |
 | **ipsrs** | Inventaris, Kalibrasi, Pemeliharaan, Perbaikan, Master Ruang |
-| **kepala ruang** | Jadwal Dinas, Pemeliharaan & Perbaikan Alat |
+| **kepala ruang** | Jadwal Dinas, Pemeliharaan & Perbaikan Alat, Indikator Mutu |
+| **komite mutu** | Indikator Mutu + kunci kertas kerja |
 | **kiosk** | Layar Kiosk Absensi saja |
-| *semua user* | Panduan |
+| *semua user* | Absen HP, Panduan Absensi & Aset |
 
 ---
 

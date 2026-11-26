@@ -9,10 +9,14 @@ use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
 use App\Http\Traits\Concerns\WithRenderVersioningTrait;
+use App\Support\AksesHalaman;
+use App\Support\HakAkses;
+use App\Support\ProgramAkses;
 
 /**
  * Modal CRUD role (Spatie) + permission yang melekat.
- * Role 'Admin' dikunci: tidak bisa dihapus / diganti nama (cegah semua admin terkunci keluar).
+ * Role 'Admin' dikunci: tidak bisa dihapus / diganti nama (cegah semua admin terkunci keluar) dan selalu boleh semua.
+ * Permission = hak akses aplikasi (definisi per program: app/Akses/Program); dicentang di sini per role.
  */
 new class extends Component {
     use WithRenderVersioningTrait;
@@ -122,6 +126,62 @@ new class extends Component {
             ->where('guard_name', $this->form['guard_name'] ?? 'web')
             ->orderBy('name')
             ->get();
+    }
+
+    /**
+     * Hak dikelompokkan PER KELOMPOK → PROGRAM (berkas app/Akses/Program, urutan definisi): baris "Lihat halaman"
+     * tiap menu program itu, lalu aksi khususnya. 'id' null = permission belum dibuat (akses:sinkron belum jalan).
+     * Permission di luar definisi masuk 'Lainnya' — seharusnya kosong (sinkron menghapusnya).
+     *
+     * @return array{kelompok: array<string, array<string, array<int, array{nama: string, label: string, id: ?int}>>>, lainnya: array<int, array{nama: string, label: string, id: int}>, belumSinkron: bool}
+     */
+    #[Computed]
+    public function hakTerkelompok(): array
+    {
+        $idPerNama = $this->allPermissions->pluck('id', 'name')->map(fn ($v) => (int) $v)->all();
+        $terpakai = [];
+        $kelompok = [];
+
+        foreach (ProgramAkses::kelompok() as $k) {
+            foreach ($k['program'] as $namaProgram => $definisi) {
+                $baris = [];
+                foreach ($definisi['menu'] ?? [] as $m) {
+                    if (in_array(HakAkses::SEMUA_ROLE, $m['roles'], true)) {
+                        continue; // terbuka untuk semua user login — tak ada centang
+                    }
+                    foreach (AksesHalaman::aksiBerlaku($m['route']) as $aksi) {
+                        $nama = AksesHalaman::namaPermission($m['route'], $aksi);
+                        if (isset($terpakai[$nama])) {
+                            continue;
+                        }
+                        $terpakai[$nama] = true;
+                        $baris[] = ['nama' => $nama, 'label' => ucfirst($aksi) . ' halaman ' . $m['title'], 'id' => $idPerNama[$nama] ?? null];
+                    }
+                }
+                foreach ($definisi['aksiKhusus'] ?? [] as $nama => $aksi) {
+                    $terpakai[$nama] = true;
+                    $baris[] = ['nama' => $nama, 'label' => $aksi['label'], 'id' => $idPerNama[$nama] ?? null];
+                }
+                if ($baris) {
+                    $kelompok[$k['judul']][$namaProgram] = $baris;
+                }
+            }
+        }
+
+        $lainnya = $this->allPermissions
+            ->reject(fn ($p) => isset($terpakai[$p->name]))
+            ->map(fn ($p) => ['nama' => $p->name, 'label' => 'Di luar definisi — akan dihapus akses:sinkron', 'id' => (int) $p->id])
+            ->values()
+            ->all();
+
+        $belumSinkron = false;
+        foreach ($kelompok as $daftarProgram) {
+            foreach ($daftarProgram as $baris) {
+                $belumSinkron = $belumSinkron || in_array(null, array_column($baris, 'id'), true);
+            }
+        }
+
+        return compact('kelompok', 'lainnya', 'belumSinkron');
     }
 
     public function togglePermission(int $permissionId): void
@@ -294,7 +354,7 @@ new class extends Component {
                                 <div class="p-4 text-sm text-center border border-gray-300 border-dashed text-muted dark:text-gray-400 dark:border-gray-700 rounded-xl">
                                     Belum ada permission untuk guard
                                     <code class="font-mono">{{ $form['guard_name'] }}</code>.
-                                    Hak akses saat ini cukup diatur lewat role.
+                                    Hak akses dibuat otomatis saat halaman dibuka, atau jalankan php artisan akses:sinkron.
                                 </div>
                             @else
                                 <div class="flex items-center justify-between pb-2 border-b border-hairline dark:border-gray-700">
@@ -310,28 +370,62 @@ new class extends Component {
                                     </div>
                                 </div>
 
-                                <div class="grid grid-cols-1 gap-2 max-h-[50vh] overflow-y-auto pr-1">
-                                    @foreach ($this->allPermissions as $perm)
-                                        @php $isActive = in_array((int) $perm->id, $selectedPermissions, true); @endphp
-                                        {{-- <button role="switch">: bisa dipilih dengan Tab + Spasi, status terbaca pembaca layar --}}
-                                        <button type="button" role="switch" aria-checked="{{ $isActive ? 'true' : 'false' }}"
-                                            wire:key="perm-{{ $perm->id }}"
-                                            wire:click="togglePermission({{ (int) $perm->id }})"
-                                            wire:loading.attr="disabled" wire:target="togglePermission({{ (int) $perm->id }})"
-                                            class="flex items-center justify-between w-full gap-3 p-3 text-left rounded-lg border cursor-pointer transition
-                                                focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green dark:focus-visible:ring-brand-lime
-                                                {{ $isActive
-                                                    ? 'border-brand-green/50 bg-brand-green/5 dark:border-brand-lime/50 dark:bg-brand-lime/5'
-                                                    : 'border-hairline dark:border-gray-700 hover:bg-surface-soft dark:hover:bg-gray-800/60' }}">
-                                            <div class="flex-1 min-w-0">
-                                                <div class="text-sm font-medium truncate text-ink dark:text-gray-200">{{ $perm->name }}</div>
-                                                <div class="text-[11px] text-muted-soft font-mono">id: {{ $perm->id }} · guard: {{ $perm->guard_name }}</div>
+                                @php $hak = $this->hakTerkelompok; @endphp
+                                @if ($hak['belumSinkron'])
+                                    <div role="status" class="px-3 py-2 text-xs rounded-lg bg-warning-soft text-fg-warning">
+                                        Sebagian hak belum dibuat — otomatis dibuat pada pembukaan halaman berikutnya, atau jalankan
+                                        <code class="font-mono">php artisan akses:sinkron</code>.
+                                    </div>
+                                @endif
+
+                                {{-- Per kelompok → program (berkas app/Akses/Program): Lihat halaman lalu aksi khusus programnya --}}
+                                <div class="pr-1 space-y-4 max-h-[50vh] overflow-y-auto">
+                                    @foreach ([...$hak['kelompok'], ...($hak['lainnya'] ? ['Lainnya' => ['Di luar definisi' => $hak['lainnya']]] : [])] as $judulKelompok => $daftarProgram)
+                                        <div wire:key="kelompok-{{ \Illuminate\Support\Str::slug($judulKelompok) }}">
+                                            <h4 class="mb-2 text-xs font-semibold tracking-wide uppercase text-muted dark:text-gray-400">{{ $judulKelompok }}</h4>
+                                            <div class="space-y-3">
+                                                @foreach ($daftarProgram as $namaProgram => $daftarBaris)
+                                                    <div class="p-3 border rounded-xl border-hairline dark:border-gray-700"
+                                                        wire:key="program-{{ \Illuminate\Support\Str::slug($judulKelompok . '-' . $namaProgram) }}">
+                                                        <p class="mb-2 text-sm font-semibold text-ink dark:text-gray-100">{{ $namaProgram }}</p>
+                                                        <div class="grid grid-cols-1 gap-2">
+                                                            @foreach ($daftarBaris as $baris)
+                                                                @if ($baris['id'] === null)
+                                                                    <div wire:key="perm-{{ $baris['nama'] }}"
+                                                                        class="flex items-center justify-between w-full gap-3 p-3 border border-dashed rounded-lg border-hairline dark:border-gray-700">
+                                                                        <div class="flex-1 min-w-0">
+                                                                            <div class="text-sm font-medium text-ink dark:text-gray-200">{{ $baris['label'] }}</div>
+                                                                            <div class="font-mono text-xs truncate text-muted dark:text-gray-400">{{ $baris['nama'] }} · belum dibuat</div>
+                                                                        </div>
+                                                                    </div>
+                                                                @else
+                                                                    @php $isActive = in_array($baris['id'], $selectedPermissions, true); @endphp
+                                                                    {{-- <button role="switch">: bisa dipilih dengan Tab + Spasi, status terbaca pembaca layar --}}
+                                                                    <button type="button" role="switch" aria-checked="{{ $isActive ? 'true' : 'false' }}"
+                                                                        wire:key="perm-{{ $baris['id'] }}"
+                                                                        wire:click="togglePermission({{ $baris['id'] }})"
+                                                                        wire:loading.attr="disabled" wire:target="togglePermission({{ $baris['id'] }})"
+                                                                        class="flex items-center justify-between w-full gap-3 p-3 text-left rounded-lg border cursor-pointer transition
+                                                                            focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green dark:focus-visible:ring-brand-lime
+                                                                            {{ $isActive
+                                                                                ? 'border-brand-green/50 bg-brand-green/5 dark:border-brand-lime/50 dark:bg-brand-lime/5'
+                                                                                : 'border-hairline dark:border-gray-700 hover:bg-surface-soft dark:hover:bg-gray-800/60' }}">
+                                                                        <div class="flex-1 min-w-0">
+                                                                            <div class="text-sm font-medium text-ink dark:text-gray-200">{{ $baris['label'] }}</div>
+                                                                            <div class="font-mono text-xs truncate text-muted dark:text-gray-400">{{ $baris['nama'] }}</div>
+                                                                        </div>
+                                                                        <div aria-hidden="true"
+                                                                            class="relative h-6 transition rounded-full w-11 shrink-0 {{ $isActive ? 'bg-brand-green dark:bg-brand-lime' : 'bg-gray-300 dark:bg-gray-600' }}">
+                                                                            <div class="absolute top-1 w-4 h-4 transition-all bg-canvas rounded-full shadow {{ $isActive ? 'left-6' : 'left-1' }}"></div>
+                                                                        </div>
+                                                                    </button>
+                                                                @endif
+                                                            @endforeach
+                                                        </div>
+                                                    </div>
+                                                @endforeach
                                             </div>
-                                            <div aria-hidden="true"
-                                                class="relative h-6 transition rounded-full w-11 shrink-0 {{ $isActive ? 'bg-brand-green dark:bg-brand-lime' : 'bg-gray-300 dark:bg-gray-600' }}">
-                                                <div class="absolute top-1 w-4 h-4 transition-all bg-canvas rounded-full shadow {{ $isActive ? 'left-6' : 'left-1' }}"></div>
-                                            </div>
-                                        </button>
+                                        </div>
                                     @endforeach
                                 </div>
                             @endif

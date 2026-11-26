@@ -21,8 +21,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 });
 
 Route::middleware(['auth', 'menu'])->group(function () {
-    // Daftarkan modul SIAP di sini (absensi, kepegawaian, aset), lalu tambahkan
-    // entri menunya di App\Services\AppMenu::definitions() — daftar role di sana sekaligus membatasi akses halaman.
+    // Daftarkan modul SIAP di sini (absensi, kepegawaian, aset), lalu tambahkan entri menunya di berkas program
+    // app/Akses/Program/<Kelompok>/*.php — hak "Lihat" halaman (centang Role Control) membatasi akses halaman.
+    // Route di grup ini yang bukan halaman menu: daftarkan di AksesHalaman::ROUTE_PENJAGA_SENDIRI + jaga sendiri.
 
     // ── MASTER ──
     Route::livewire('/master/karyawan', 'pages::master.master-karyawan.master-karyawan')
@@ -71,7 +72,7 @@ Route::middleware(['auth', 'menu'])->group(function () {
     Route::livewire('/absensi/rekap-bulanan', 'pages::absensi.rekap-bulanan.rekap-bulanan')
         ->name('absensi.rekap-bulanan');
 
-    // Keuangan — hak akses dicek di komponen (Gate gaji.kelola, AksiRole::GAJI_KELOLA)
+    // Keuangan — hak Lihat halaman + aksi gaji.kelola dicek di komponen (app/Akses/Program/Penggajian)
     Route::livewire('/keuangan/gaji-karyawan', 'pages::keuangan.gaji-karyawan.gaji-karyawan')
         ->name('keuangan.gaji-karyawan');
     Route::livewire('/keuangan/pembagian-jm', 'pages::keuangan.pembagian-jm.pembagian-jm')

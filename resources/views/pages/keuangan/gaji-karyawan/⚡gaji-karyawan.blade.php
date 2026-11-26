@@ -16,7 +16,7 @@ use App\Support\UnitKerja;
  * Alur: atur parameter gaji (Master Karyawan → tombol Gaji) → Generate (Draft, dari parameter + hari hadir absensi)
  *   → Rincian: hari kerja & upah lembur dari menu Laporan Kepegawaian, jasa medik dari Pembagian Jasa Medik, angsuran dari Pinjaman Karyawan, bonus, kasbon … → Final (terkunci) → Cetak slip.
  * Generate ulang aman: slip Final dilewati, baris yang diisi / ditimpa petugas dipertahankan.
- * Hanya role gaji.kelola (AksiRole::GAJI_KELOLA) — dicek di boot(), berlaku untuk setiap aksi.
+ * Hanya yang ber-hak gaji.kelola (centang Role Control, app/Akses/Program/Penggajian) — dicek di boot(), berlaku untuk setiap aksi.
  */
 new class extends Component {
     use WithPagination;

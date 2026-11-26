@@ -65,6 +65,15 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Hak akses: sinkron gagal, permission yang dihapus sinkron, route grup menu tanpa definisi (App\Http\Middleware\CekAksesMenu).
+        'akses' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/akses-halaman.log'),
+            'level' => 'warning',
+            'days' => 90,
+            'replace_placeholders' => true,
+        ],
+
         'daily' => [
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),

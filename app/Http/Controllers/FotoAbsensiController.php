@@ -8,13 +8,12 @@ use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Selfie absen HP disimpan privat (disk 'local'). Hanya admin / HRD dan
- * karyawan pemilik absensi itu sendiri yang boleh membukanya.
+ * Selfie absen HP disimpan privat (disk 'local'). Hanya role ber-hak absensi.lihatFoto (centang Role Control,
+ * awal: Admin / HRD) dan karyawan pemilik absensi itu sendiri yang boleh membukanya.
+ * Route-nya dilewatkan penjaga halaman (AksesHalaman::ROUTE_PENJAGA_SENDIRI) — penjaganya di sini.
  */
 class FotoAbsensiController extends Controller
 {
-    private const ROLE_PENINJAU = ['admin', 'hrd'];
-
     public function __invoke(Request $request, int $absId, string $jenis): Response
     {
         if (!in_array($jenis, ['masuk', 'pulang'], true)) {
@@ -27,8 +26,7 @@ class FotoAbsensiController extends Controller
         }
 
         $user = $request->user();
-        $roles = $user->getRoleNames()->map(fn($role) => trim(strtolower($role)))->all();
-        $bolehLihat = array_intersect(self::ROLE_PENINJAU, $roles) !== [] || (string) $user->emp_id === (string) $row->emp_id;
+        $bolehLihat = $user->can('absensi.lihatFoto') || (string) $user->emp_id === (string) $row->emp_id;
         abort_unless($bolehLihat, 403);
 
         return Storage::disk('local')->response($row->foto, null, ['Cache-Control' => 'private, max-age=86400']);

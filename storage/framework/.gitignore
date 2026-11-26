@@ -7,3 +7,5 @@ routes.php
 routes.scanned.php
 schedule-*
 services.json
+akses-sinkron.tanda
+akses-sinkron.tanda.lock

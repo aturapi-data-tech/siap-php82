@@ -24,13 +24,13 @@ new class extends Component {
     #[Computed]
     public function visibleMenus(): array
     {
-        return AppMenu::forRoles($this->userRoles);
+        return AppMenu::forUser(auth()->user());
     }
 
     #[Computed]
     public function groupedMenus()
     {
-        $grouped = AppMenu::grouped($this->userRoles);
+        $grouped = AppMenu::grouped(auth()->user());
 
         $q = trim(mb_strtolower($this->search));
         if ($q === '') {
