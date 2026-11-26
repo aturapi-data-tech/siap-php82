@@ -71,7 +71,7 @@ new class extends Component {
         $this->selectedPermissions = DB::table('role_has_permissions')
             ->where('role_id', $this->roleId)
             ->pluck('permission_id')
-            ->map(fn($v) => (int) $v)
+            ->map(fn($v) => (string) $v)
             ->all();
 
         $this->incrementVersion('modal');
@@ -129,81 +129,59 @@ new class extends Component {
     }
 
     /**
-     * Hak dikelompokkan PER KELOMPOK → PROGRAM (berkas app/Akses/Program, urutan definisi): baris "Lihat halaman"
-     * tiap menu program itu, lalu aksi khususnya. 'id' null = permission belum dibuat (akses:sinkron belum jalan).
-     * Permission di luar definisi masuk 'Lainnya' — seharusnya kosong (sinkron menghapusnya).
+     * Matriks centang PER KELOMPOK → PROGRAM (berkas app/Akses/Program, urutan definisi) — tampilan sama dengan
+     * SIRUS: tiap program memuat baris halamannya (Lihat) lalu baris aksi khususnya.
+     * 'id' = id permission (string), null bila belum dibuat (akses:sinkron belum jalan).
+     * 'lainnya' = permission di luar definisi (seharusnya kosong — sinkron menghapusnya).
      *
-     * @return array{kelompok: array<string, array<string, array<int, array{nama: string, label: string, id: ?int}>>>, lainnya: array<int, array{nama: string, label: string, id: int}>, belumSinkron: bool}
+     * @return array{program: array<string, array<string, array{halaman: array, khusus: array}>>, lainnya: array, belumSinkron: bool}
      */
     #[Computed]
-    public function hakTerkelompok(): array
+    public function matriks(): array
     {
-        $idPerNama = $this->allPermissions->pluck('id', 'name')->map(fn ($v) => (int) $v)->all();
+        $idPerNama = $this->allPermissions->pluck('id', 'name')->map(fn ($v) => (string) $v)->all();
         $terpakai = [];
-        $kelompok = [];
+        $sudah = [];
+        $program = [];
+        $belumSinkron = false;
 
-        foreach (ProgramAkses::kelompok() as $k) {
-            foreach ($k['program'] as $namaProgram => $definisi) {
-                $baris = [];
+        foreach (ProgramAkses::kelompok() as $kelompok) {
+            foreach ($kelompok['program'] as $namaProgram => $definisi) {
+                $halaman = [];
                 foreach ($definisi['menu'] ?? [] as $m) {
-                    if (in_array(HakAkses::SEMUA_ROLE, $m['roles'], true)) {
-                        continue; // terbuka untuk semua user login — tak ada centang
+                    if (isset($sudah[$m['route']])) {
+                        continue;
                     }
-                    foreach (AksesHalaman::aksiBerlaku($m['route']) as $aksi) {
-                        $nama = AksesHalaman::namaPermission($m['route'], $aksi);
-                        if (isset($terpakai[$nama])) {
-                            continue;
-                        }
-                        $terpakai[$nama] = true;
-                        $baris[] = ['nama' => $nama, 'label' => ucfirst($aksi) . ' halaman ' . $m['title'], 'id' => $idPerNama[$nama] ?? null];
-                    }
+                    $sudah[$m['route']] = true;
+                    $nama = AksesHalaman::namaPermission($m['route'], 'lihat');
+                    $terpakai[$nama] = true;
+                    $terbuka = in_array(HakAkses::SEMUA_ROLE, $m['roles'], true);
+                    $id = $idPerNama[$nama] ?? null;
+                    $belumSinkron = $belumSinkron || (!$terbuka && $id === null);
+                    $halaman[] = ['route' => $m['route'], 'title' => $m['title'], 'terbuka' => $terbuka, 'id' => $id];
                 }
+
+                $khusus = [];
                 foreach ($definisi['aksiKhusus'] ?? [] as $nama => $aksi) {
                     $terpakai[$nama] = true;
-                    $baris[] = ['nama' => $nama, 'label' => $aksi['label'], 'id' => $idPerNama[$nama] ?? null];
+                    $id = $idPerNama[$nama] ?? null;
+                    $belumSinkron = $belumSinkron || $id === null;
+                    $khusus[] = ['nama' => $nama, 'label' => $aksi['label'], 'id' => $id];
                 }
-                if ($baris) {
-                    $kelompok[$k['judul']][$namaProgram] = $baris;
+
+                if ($halaman || $khusus) {
+                    $program[$kelompok['judul']][$namaProgram] = ['halaman' => $halaman, 'khusus' => $khusus];
                 }
             }
         }
 
         $lainnya = $this->allPermissions
             ->reject(fn ($p) => isset($terpakai[$p->name]))
-            ->map(fn ($p) => ['nama' => $p->name, 'label' => 'Di luar definisi — akan dihapus akses:sinkron', 'id' => (int) $p->id])
+            ->map(fn ($p) => ['id' => (string) $p->id, 'nama' => $p->name])
             ->values()
             ->all();
 
-        $belumSinkron = false;
-        foreach ($kelompok as $daftarProgram) {
-            foreach ($daftarProgram as $baris) {
-                $belumSinkron = $belumSinkron || in_array(null, array_column($baris, 'id'), true);
-            }
-        }
-
-        return compact('kelompok', 'lainnya', 'belumSinkron');
-    }
-
-    public function togglePermission(int $permissionId): void
-    {
-        $key = array_search($permissionId, $this->selectedPermissions, true);
-
-        if ($key === false) {
-            $this->selectedPermissions[] = $permissionId;
-        } else {
-            unset($this->selectedPermissions[$key]);
-            $this->selectedPermissions = array_values($this->selectedPermissions);
-        }
-    }
-
-    public function selectAllPermissions(): void
-    {
-        $this->selectedPermissions = $this->allPermissions->pluck('id')->map(fn($v) => (int) $v)->all();
-    }
-
-    public function clearAllPermissions(): void
-    {
-        $this->selectedPermissions = [];
+        return compact('program', 'lainnya', 'belumSinkron');
     }
 
     // ─── Validasi ─────────────────────────────────────────────────────────────
@@ -216,7 +194,8 @@ new class extends Component {
             'form.name'             => "required|string|max:125|unique:roles,name,{$ignore},id,guard_name,{$guard}",
             'form.guard_name'       => 'required|in:web,api',
             'selectedPermissions'   => 'array',
-            'selectedPermissions.*' => 'integer|exists:permissions,id',
+            // Tanpa `exists` (1 query per centang); id asing tersaring whereIn di save().
+            'selectedPermissions.*' => 'integer',
         ];
     }
 
@@ -227,7 +206,6 @@ new class extends Component {
             'unique'   => ':attribute sudah digunakan pada guard yang sama.',
             'max'      => ':attribute maksimal :max karakter.',
             'in'       => ':attribute tidak valid.',
-            'selectedPermissions.*.exists' => 'Salah satu permission tidak valid.',
         ];
     }
 
@@ -259,7 +237,7 @@ new class extends Component {
                 $role->update(['name' => $this->form['name'], 'guard_name' => $this->form['guard_name']]);
             }
 
-            $permissions = Permission::whereIn('id', $this->selectedPermissions)
+            $permissions = Permission::whereIn('id', array_map('intval', $this->selectedPermissions))
                 ->where('guard_name', $this->form['guard_name'])
                 ->get();
 
@@ -311,124 +289,209 @@ new class extends Component {
                 <x-slot:badge><x-badge class="shrink-0 whitespace-nowrap" :variant="$formMode === 'edit' ? 'warning' : 'success'"> {{ $formMode === 'edit' ? 'Mode: Edit' : 'Mode: Tambah' }} </x-badge></x-slot:badge>
             </x-modul-dokumen.header>
 
-            {{-- BODY --}}
+            {{-- BODY — tampilan sama dengan Role Control SIRUS. Sengaja TANPA overflow-y-auto: yang scroll panel
+                 x-modal, supaya thead tabel hak akses bisa menempel (sticky). --}}
             <div class="flex-1 px-4 py-4 bg-surface-soft dark:bg-gray-950/20" x-enter-chain>
-                <div class="grid max-w-5xl grid-cols-1 gap-4 lg:grid-cols-2"
+                <div class="p-1 space-y-4"
                     x-data
                     x-on:focus-role-control-name.window="$nextTick(() => setTimeout(() => $refs.inputRoleName?.focus(), 150))">
 
-                    <x-border-form title="Data Role">
-                        <div class="space-y-4">
-                            <div>
-                                <x-input-label value="Nama Role *" />
-                                <x-text-input wire:model.live="form.name" x-ref="inputRoleName"
-                                    maxlength="125" placeholder="Contoh: Admin, Hrd, Karyawan"
-                                    :disabled="$formMode === 'edit' && $originalName === 'Admin'"
-                                    :error="$errors->has('form.name')" class="w-full mt-1"
-                                    x-on:keydown.enter.prevent="$wire.save()" />
-                                <x-input-error :messages="$errors->get('form.name')" class="mt-1" />
-                                <p class="mt-1 text-[11px] text-muted dark:text-gray-400">
-                                    Nama unik per guard — gunakan huruf kapital di awal (Admin, Hrd, Karyawan).
-                                    Menu memeriksa nama role tanpa membedakan huruf besar/kecil.
-                                </p>
-                            </div>
-
-                            <div>
-                                <x-input-label value="Guard *" />
-                                <x-select-input wire:model.live="form.guard_name"
-                                    :error="$errors->has('form.guard_name')" class="w-full mt-1">
-                                    <option value="web">web</option>
-                                    <option value="api">api</option>
-                                </x-select-input>
-                                <x-input-error :messages="$errors->get('form.guard_name')" class="mt-1" />
-                                <p class="mt-1 text-[11px] text-muted dark:text-gray-400">
-                                    Biasanya <code class="font-mono">web</code> untuk aplikasi ini.
-                                </p>
-                            </div>
-                        </div>
-                    </x-border-form>
-
-                    <x-border-form title="Permissions">
-                        <div class="space-y-3">
-                            @if ($this->allPermissions->isEmpty())
-                                <div class="p-4 text-sm text-center border border-gray-300 border-dashed text-muted dark:text-gray-400 dark:border-gray-700 rounded-xl">
-                                    Belum ada permission untuk guard
-                                    <code class="font-mono">{{ $form['guard_name'] }}</code>.
-                                    Hak akses dibuat otomatis saat halaman dibuka, atau jalankan php artisan akses:sinkron.
-                                </div>
-                            @else
-                                <div class="flex items-center justify-between pb-2 border-b border-hairline dark:border-gray-700">
-                                    <p class="text-xs text-muted dark:text-gray-400">
-                                        {{ count($selectedPermissions) }} dari {{ $this->allPermissions->count() }} permission aktif
+                        <x-border-form title="Data Role">
+                            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <div>
+                                    <x-input-label value="Nama Role *" />
+                                    <x-text-input wire:model.live="form.name" x-ref="inputRoleName"
+                                        maxlength="125" placeholder="Contoh: Admin, Hrd, Karyawan"
+                                        :disabled="$formMode === 'edit' && $originalName === 'Admin'"
+                                        :error="$errors->has('form.name')" class="w-full mt-1"
+                                        x-on:keydown.enter.prevent="$wire.save()" />
+                                    <x-input-error :messages="$errors->get('form.name')" class="mt-1" />
+                                    <p class="mt-1 text-[11px] text-muted dark:text-gray-400">
+                                        Nama unik per guard — gunakan huruf kapital di awal (Admin, Hrd, Karyawan).
+                                        Menu memeriksa nama role tanpa membedakan huruf besar/kecil.
                                     </p>
-                                    <div class="flex gap-2">
-                                        <button type="button" wire:click="selectAllPermissions"
-                                            class="text-xs font-medium text-brand-green dark:text-brand-lime hover:underline">Aktifkan semua</button>
-                                        <span class="text-xs text-gray-300">|</span>
-                                        <button type="button" wire:click="clearAllPermissions"
-                                            class="text-xs font-medium text-muted hover:underline">Nonaktifkan semua</button>
-                                    </div>
                                 </div>
 
-                                @php $hak = $this->hakTerkelompok; @endphp
-                                @if ($hak['belumSinkron'])
-                                    <div role="status" class="px-3 py-2 text-xs rounded-lg bg-warning-soft text-fg-warning">
-                                        Sebagian hak belum dibuat — otomatis dibuat pada pembukaan halaman berikutnya, atau jalankan
-                                        <code class="font-mono">php artisan akses:sinkron</code>.
-                                    </div>
-                                @endif
+                                <div>
+                                    <x-input-label value="Guard *" />
+                                    <x-select-input wire:model.live="form.guard_name"
+                                        :error="$errors->has('form.guard_name')" class="w-full mt-1">
+                                        <option value="web">web</option>
+                                        <option value="api">api</option>
+                                    </x-select-input>
+                                    <x-input-error :messages="$errors->get('form.guard_name')" class="mt-1" />
+                                    <p class="mt-1 text-[11px] text-muted dark:text-gray-400">
+                                        Biasanya <code class="font-mono">web</code> untuk aplikasi ini.
+                                    </p>
+                                </div>
+                            </div>
+                        </x-border-form>
 
-                                {{-- Per kelompok → program (berkas app/Akses/Program): Lihat halaman lalu aksi khusus programnya --}}
-                                <div class="pr-1 space-y-4 max-h-[50vh] overflow-y-auto">
-                                    @foreach ([...$hak['kelompok'], ...($hak['lainnya'] ? ['Lainnya' => ['Di luar definisi' => $hak['lainnya']]] : [])] as $judulKelompok => $daftarProgram)
-                                        <div wire:key="kelompok-{{ \Illuminate\Support\Str::slug($judulKelompok) }}">
-                                            <h4 class="mb-2 text-xs font-semibold tracking-wide uppercase text-muted dark:text-gray-400">{{ $judulKelompok }}</h4>
-                                            <div class="space-y-3">
-                                                @foreach ($daftarProgram as $namaProgram => $daftarBaris)
-                                                    <div class="p-3 border rounded-xl border-hairline dark:border-gray-700"
-                                                        wire:key="program-{{ \Illuminate\Support\Str::slug($judulKelompok . '-' . $namaProgram) }}">
-                                                        <p class="mb-2 text-sm font-semibold text-ink dark:text-gray-100">{{ $namaProgram }}</p>
-                                                        <div class="grid grid-cols-1 gap-2">
-                                                            @foreach ($daftarBaris as $baris)
-                                                                @if ($baris['id'] === null)
-                                                                    <div wire:key="perm-{{ $baris['nama'] }}"
-                                                                        class="flex items-center justify-between w-full gap-3 p-3 border border-dashed rounded-lg border-hairline dark:border-gray-700">
-                                                                        <div class="flex-1 min-w-0">
-                                                                            <div class="text-sm font-medium text-ink dark:text-gray-200">{{ $baris['label'] }}</div>
-                                                                            <div class="font-mono text-xs truncate text-muted dark:text-gray-400">{{ $baris['nama'] }} · belum dibuat</div>
-                                                                        </div>
-                                                                    </div>
-                                                                @else
-                                                                    @php $isActive = in_array($baris['id'], $selectedPermissions, true); @endphp
-                                                                    {{-- <button role="switch">: bisa dipilih dengan Tab + Spasi, status terbaca pembaca layar --}}
-                                                                    <button type="button" role="switch" aria-checked="{{ $isActive ? 'true' : 'false' }}"
-                                                                        wire:key="perm-{{ $baris['id'] }}"
-                                                                        wire:click="togglePermission({{ $baris['id'] }})"
-                                                                        wire:loading.attr="disabled" wire:target="togglePermission({{ $baris['id'] }})"
-                                                                        class="flex items-center justify-between w-full gap-3 p-3 text-left rounded-lg border cursor-pointer transition
-                                                                            focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green dark:focus-visible:ring-brand-lime
-                                                                            {{ $isActive
-                                                                                ? 'border-brand-green/50 bg-brand-green/5 dark:border-brand-lime/50 dark:bg-brand-lime/5'
-                                                                                : 'border-hairline dark:border-gray-700 hover:bg-surface-soft dark:hover:bg-gray-800/60' }}">
-                                                                        <div class="flex-1 min-w-0">
-                                                                            <div class="text-sm font-medium text-ink dark:text-gray-200">{{ $baris['label'] }}</div>
-                                                                            <div class="font-mono text-xs truncate text-muted dark:text-gray-400">{{ $baris['nama'] }}</div>
-                                                                        </div>
-                                                                        <div aria-hidden="true"
-                                                                            class="relative h-6 transition rounded-full w-11 shrink-0 {{ $isActive ? 'bg-brand-green dark:bg-brand-lime' : 'bg-gray-300 dark:bg-gray-600' }}">
-                                                                            <div class="absolute top-1 w-4 h-4 transition-all bg-canvas rounded-full shadow {{ $isActive ? 'left-6' : 'left-1' }}"></div>
-                                                                        </div>
-                                                                    </button>
-                                                                @endif
-                                                            @endforeach
-                                                        </div>
-                                                    </div>
-                                                @endforeach
-                                            </div>
-                                        </div>
-                                    @endforeach
+                    {{-- MATRIKS HAK AKSES --}}
+                    @php $matriks = $this->matriks; @endphp
+                    <x-border-form title="Hak Akses">
+                        <div x-data="{
+                                pilih: $wire.entangle('selectedPermissions'),
+                                cari: '',
+                                cocok(teks) { return this.cari === '' || teks.includes(this.cari.toLowerCase()) },
+                                semuaNyala(ids) { return ids.length > 0 && ids.every(i => this.pilih.includes(i)) },
+                                atur(ids) {
+                                    const nyala = !this.semuaNyala(ids);
+                                    const sisa = this.pilih.filter(i => !ids.includes(i));
+                                    this.pilih = nyala ? [...sisa, ...ids] : sisa;
+                                    $el.dispatchEvent(new Event('change', { bubbles: true }));
+                                },
+                            }" class="space-y-4">
+
+                            <div class="p-3 text-sm text-blue-800 border border-blue-200 rounded-lg bg-blue-50 dark:bg-blue-900/20 dark:border-blue-800/40 dark:text-blue-200">
+                                <p><b>Lihat</b> = menu tampil & halaman bisa dibuka. <b>Aksi Khusus</b> = hak di dalam halaman
+                                    (kelola gaji, ubah rekap absensi, nilai lembur, kunci mutu, dll.).</p>
+                                <p class="mt-1">User mendapat gabungan hak dari semua role yang dipegangnya. Perubahan berlaku setelah <b>Simpan</b>.</p>
+                            </div>
+
+                            @if ($originalName === 'Admin')
+                                <div class="p-3 text-sm border rounded-lg text-amber-800 bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800/40 dark:text-amber-200">
+                                    Role <b>Admin</b> selalu boleh semua (pengaman supaya tidak ada yang terkunci keluar) — centang di bawah tidak berpengaruh.
                                 </div>
                             @endif
+
+                            @if ($matriks['belumSinkron'])
+                                <div class="flex items-start gap-2 p-3 text-sm border rounded-lg text-amber-800 bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800/40 dark:text-amber-200">
+                                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+                                    <p>Sebagian hak belum dibuat (tanda —) — otomatis dibuat pada pembukaan halaman berikutnya, atau jalankan <code class="font-mono">php artisan akses:sinkron</code>.</p>
+                                </div>
+                            @endif
+
+                            <div class="flex flex-wrap items-center justify-between gap-3">
+                                <div class="w-full sm:w-80">
+                                    <x-text-input x-model.debounce.200ms="cari" placeholder="Cari menu / aksi..." class="w-full" />
+                                </div>
+                                <p class="text-sm text-muted dark:text-gray-400">
+                                    <span x-text="pilih.length"></span> hak aktif
+                                </p>
+                            </div>
+
+                            <div class="border rounded-lg border-hairline dark:border-gray-700">
+                                <table class="w-full text-sm">
+                                    <thead class="sticky top-0 z-10 text-xs uppercase shadow-sm bg-surface-soft text-muted dark:bg-gray-800 dark:text-gray-400">
+                                        <tr>
+                                            <th class="px-3 py-2 text-left">Halaman / Aksi</th>
+                                            <th class="w-20 px-2 py-2 text-center">Lihat</th>
+                                            <th class="w-28 px-2 py-2 text-center">Aksi Khusus</th>
+                                            <th class="w-16 px-2 py-2 text-center">Semua</th>
+                                        </tr>
+                                    </thead>
+                                    {{-- Per KELOMPOK → per PROGRAM: baris judul program (tombol "semua" per kolom), baris halamannya,
+                                         lalu baris aksi khususnya. --}}
+                                    @foreach ($matriks['program'] as $judulKelompok => $daftarProgram)
+                                        @php
+                                            $teksKelompok = mb_strtolower($judulKelompok . ' ' . collect($daftarProgram)->map(fn ($isi, $namaProgram) => $namaProgram . ' '
+                                                . collect($isi['halaman'])->map(fn ($r) => $r['title'] . ' ' . $r['route'])->implode(' ') . ' '
+                                                . collect($isi['khusus'])->map(fn ($r) => $r['label'] . ' ' . $r['nama'])->implode(' '))->implode(' '));
+                                        @endphp
+                                        <tbody wire:key="kelompok-{{ md5($judulKelompok) }}" x-show="cocok(@js($teksKelompok))">
+                                            <tr class="border-t-2 border-brand/40 bg-brand/10 dark:bg-gray-700/60 dark:border-gray-600">
+                                                <td colspan="4" class="px-3 py-2 text-sm font-bold tracking-wide uppercase text-ink dark:text-gray-100">{{ $judulKelompok }}</td>
+                                            </tr>
+                                        </tbody>
+                                        @foreach ($daftarProgram as $namaProgram => $isi)
+                                            @php
+                                                $awalan = mb_strtolower($judulKelompok . ' ' . $namaProgram . ' ');
+                                                $teksProgram = $awalan . mb_strtolower(collect($isi['halaman'])->map(fn ($r) => $r['title'] . ' ' . $r['route'])->implode(' ') . ' '
+                                                    . collect($isi['khusus'])->map(fn ($r) => $r['label'] . ' ' . $r['nama'])->implode(' '));
+                                                $idsLihat = array_values(array_filter(array_column($isi['halaman'], 'id')));
+                                                $idsKhusus = array_values(array_filter(array_column($isi['khusus'], 'id')));
+                                                $idsProgram = [...$idsLihat, ...$idsKhusus];
+                                            @endphp
+                                            <tbody wire:key="program-{{ md5($judulKelompok . '|' . $namaProgram) }}" x-show="cocok(@js($teksProgram))">
+                                                <tr class="border-t bg-brand/5 border-hairline dark:bg-gray-800/60 dark:border-gray-700">
+                                                    <td class="px-3 py-2 font-semibold text-ink dark:text-gray-200">{{ $namaProgram }}</td>
+                                                    @foreach ([$idsLihat, $idsKhusus] as $ids)
+                                                        <td class="px-2 py-2 text-center">
+                                                            @if ($ids)
+                                                                <button type="button" x-on:click="atur(@js($ids))"
+                                                                    class="text-xs font-medium hover:underline"
+                                                                    x-bind:class="semuaNyala(@js($ids)) ? 'text-fg-brand' : 'text-muted'"
+                                                                    title="Centang / lepas semua di {{ $namaProgram }}">semua</button>
+                                                            @endif
+                                                        </td>
+                                                    @endforeach
+                                                    <td class="px-2 py-2 text-center">
+                                                        @if ($idsProgram)
+                                                            <button type="button" x-on:click="atur(@js($idsProgram))"
+                                                                class="text-xs font-medium text-muted hover:underline"
+                                                                title="Centang / lepas SEMUA hak {{ $namaProgram }}">semua</button>
+                                                        @endif
+                                                    </td>
+                                                </tr>
+
+                                                {{-- Halaman program ini --}}
+                                                @foreach ($isi['halaman'] as $r)
+                                                    <tr wire:key="hal-{{ $r['route'] }}"
+                                                        x-show="cocok(@js($awalan . mb_strtolower($r['title'] . ' ' . $r['route'])))"
+                                                        class="border-t border-hairline dark:border-gray-700 hover:bg-surface-soft dark:hover:bg-gray-800/40">
+                                                        <td class="px-3 py-1.5 pl-6">
+                                                            <div class="text-ink dark:text-gray-200">{{ $r['title'] }}</div>
+                                                            <div class="font-mono text-xs text-muted-soft">{{ $r['route'] }}</div>
+                                                        </td>
+                                                        @if ($r['terbuka'])
+                                                            <td colspan="3" class="px-2 py-1.5 text-center">
+                                                                <x-badge variant="alternative">Terbuka untuk semua user</x-badge>
+                                                            </td>
+                                                        @else
+                                                            <td class="px-2 py-1.5 text-center">
+                                                                @if ($r['id'])
+                                                                    <x-toggle-alpine x-model="pilih" :value="$r['id']" :aria-label="'Lihat ' . $r['title']" />
+                                                                @else
+                                                                    <span class="text-muted-soft" title="Belum dibuat — jalankan akses:sinkron">—</span>
+                                                                @endif
+                                                            </td>
+                                                            <td></td>
+                                                            <td></td>
+                                                        @endif
+                                                    </tr>
+                                                @endforeach
+
+                                                {{-- Aksi khusus program ini --}}
+                                                @foreach ($isi['khusus'] as $r)
+                                                    <tr wire:key="khusus-{{ $r['nama'] }}"
+                                                        x-show="cocok(@js($awalan . mb_strtolower($r['label'] . ' ' . $r['nama'])))"
+                                                        class="border-t border-hairline dark:border-gray-700 hover:bg-surface-soft dark:hover:bg-gray-800/40">
+                                                        <td class="px-3 py-1.5 pl-6">
+                                                            <div class="text-ink dark:text-gray-200">{{ $r['label'] }}</div>
+                                                            <div class="font-mono text-xs text-muted-soft">{{ $r['nama'] }}</div>
+                                                        </td>
+                                                        <td class="px-2 py-1.5 text-xs text-center text-muted-soft">aksi khusus</td>
+                                                        <td class="px-2 py-1.5 text-center">
+                                                            @if ($r['id'])
+                                                                <x-toggle-alpine x-model="pilih" :value="$r['id']" :aria-label="$r['label']" />
+                                                            @else
+                                                                <span class="text-muted-soft" title="Belum dibuat — jalankan akses:sinkron">—</span>
+                                                            @endif
+                                                        </td>
+                                                        <td></td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        @endforeach
+                                    @endforeach
+                                </table>
+                            </div>
+
+                            {{-- Permission di luar definisi (lama / buatan manual) — dihapus akses:sinkron --}}
+                            @if ($matriks['lainnya'])
+                                <div class="border rounded-lg border-hairline dark:border-gray-700" x-show="cocok('lainnya ' + @js(mb_strtolower(collect($matriks['lainnya'])->pluck('nama')->implode(' '))))">
+                                    <div class="px-3 py-2 text-sm font-semibold border-b text-ink bg-surface-soft border-hairline dark:bg-gray-800/60 dark:border-gray-700 dark:text-gray-200">
+                                        Lainnya (di luar definisi — akan dihapus akses:sinkron)
+                                    </div>
+                                    <div class="flex flex-wrap gap-4 p-3">
+                                        @foreach ($matriks['lainnya'] as $r)
+                                            <x-toggle-alpine wire:key="lain-{{ $r['id'] }}" x-model="pilih" :value="$r['id']" :label="$r['nama']" />
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @endif
+
                             <x-input-error :messages="$errors->get('selectedPermissions')" class="mt-1" />
                             <x-input-error :messages="$errors->get('selectedPermissions.*')" class="mt-1" />
                         </div>

@@ -74,8 +74,14 @@ new class extends Component {
             ->select('role_id', DB::raw('COUNT(*) AS jumlah'))
             ->pluck('jumlah', 'role_id');
 
+        // Ringkasan, bukan daftar nama (pola SIRUS): rinciannya di modal Edit.
+        $katalogKhusus = \App\Support\ProgramAkses::aksiKhusus();
         foreach ($roles as $role) {
-            $role->permission_list = ($permissionMap[$role->id] ?? collect())->pluck('name')->all();
+            $nama = ($permissionMap[$role->id] ?? collect())->pluck('name');
+            // absensi.lihat / laporanPegawai.lihat = aksi khusus, bukan halaman — katalog aksi dicek dulu.
+            $role->jumlah_halaman = $nama->filter(fn ($n) => !isset($katalogKhusus[$n]) && str_ends_with($n, '.lihat'))->count();
+            $role->jumlah_khusus = $nama->filter(fn ($n) => isset($katalogKhusus[$n]))->count();
+            $role->jumlah_permission = $nama->count();
             $role->user_count = (int) ($userCountMap[$role->id] ?? 0);
         }
 
@@ -88,7 +94,7 @@ new class extends Component {
 
     <x-page-title
         title="Role Control"
-        subtitle="Kelola role & permission — role menentukan menu dan aksi yang boleh diakses user" />
+        subtitle="Kelola role & hak akses — centang per role menentukan menu dan aksi yang boleh diakses user" />
 
     <div class="w-full h-[calc(100vh-5rem)] flex flex-col bg-surface-soft dark:bg-gray-900">
         <div class="flex flex-col flex-1 min-h-0 px-6 pt-2 pb-6">
@@ -133,7 +139,7 @@ new class extends Component {
                                 <th>ID</th>
                                 <th>Nama Role</th>
                                 <th>Guard</th>
-                                <th>Permissions</th>
+                                <th>Hak Akses</th>
                                 <th class="ds-c">Jml User</th>
                                 <th>Dibuat</th>
                                 <th class="ds-c">Aksi</th>
@@ -149,11 +155,14 @@ new class extends Component {
                                     <td><x-badge variant="alternative">{{ $row->guard_name }}</x-badge></td>
                                     <td>
                                         <div class="flex flex-wrap gap-1">
-                                            @forelse ($row->permission_list as $p)
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200">{{ $p }}</span>
-                                            @empty
-                                                <span class="text-xs italic text-muted-soft">Tanpa permission</span>
-                                            @endforelse
+                                            @if ($row->name === \App\Support\HakAkses::PERAN_SUPER)
+                                                <x-badge variant="danger">Selalu boleh semua</x-badge>
+                                            @elseif ($row->jumlah_permission > 0)
+                                                <x-badge variant="success">{{ $row->jumlah_halaman }} halaman</x-badge>
+                                                <x-badge variant="alternative">{{ $row->jumlah_khusus }} aksi khusus</x-badge>
+                                            @else
+                                                <span class="text-xs italic text-muted-soft">Tanpa hak akses</span>
+                                            @endif
                                         </div>
                                     </td>
                                     <td class="ds-c">
